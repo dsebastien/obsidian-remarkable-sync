@@ -45,6 +45,9 @@ export class RemarkablePanelView extends ItemView {
 
     override async onOpen(): Promise<void> {
         this.render()
+        if (this.plugin.isConnected && this.notebooks.length === 0) {
+            await this.refreshNotebooks()
+        }
     }
 
     override async onClose(): Promise<void> {

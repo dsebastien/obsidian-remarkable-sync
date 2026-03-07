@@ -1,55 +1,33 @@
 # Release Notes
 
-## 2.3.0 (2026-02-11)
+## 0.1.0 (2026-03-07)
 
 ### Features
 
-- **all:** added docs template
-- **all:** added Obsidian skills (including obsidian cli)
-- **all:** updated scripts
+- **all:** added fuzzy search
+- **all:** automatically list the notebooks when the panel opens
+- **all:** better sync pages
+- **all:** code cleanup
+- **all:** handle token expiration and renewal
+- **all:** improved buttons and search behavior
+- **all:** improved stroke sizes
+- **all:** improved stroke width in images (was still too thick)
+- **all:** initial commit
 
-## 2.2.0 (2026-01-30)
+### Bug Fixes
+
+- **all:** fixed logging
+
+## [0.1.0] - 2026-03-07
 
 ### Features
 
-- **all:** updated scripts
-
-## 2.0.4 (2026-01-04)
-
-### Bug Fixes
-
-- **all:** use console.debug instead of console.log
-
-## 2.0.3 (2025-12-16)
-
-### Bug Fixes
-
-- **all:** adapt the build.ts to be generic
-
-## 2.0.2 (2025-12-12)
-
-### Bug Fixes
-
-- **all:** fix image url
-
-## 2.0.1 (2025-12-12)
-
-### Bug Fixes
-
-- **all:** fied the release workflow to name the tags correctly
-
-## 2.0.0 (2025-12-11)
-
-## 1.6.0 (2024-10-27)
-
-## 1.5.0 (2024-05-14)
-
-## 1.4.0 (2024-05-14)
-
-## 1.3.0 (2024-05-14)
-
-## 1.2.0 (2024-05-14)
-
-## 1.1.0 (2024-05-13)
-
-## 1.0.0 (2024-04-26)
+- reMarkable cloud authentication via one-time device code
+- Sidebar panel view listing notebooks with folder hierarchy
+- Per-notebook download (images)
+- .rm v6 binary file parsing for stroke data extraction
+- Page rendering via OffscreenCanvas with 9+ pen types, colors, and opacity
+- Per-page image output
+- Inline progress indicators per notebook in panel
+- Settings for target folder, image format
+- Token storage outside vault for security

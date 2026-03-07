@@ -14,6 +14,7 @@ const DEVICE_ID = crypto.randomUUID()
 export interface RemarkableAuthService {
     registerDevice(oneTimeCode: string): Promise<boolean>
     getUserToken(): Promise<string | null>
+    refreshAndGetUserToken(): Promise<string | null>
     isAuthenticated(): Promise<boolean>
     disconnect(): Promise<void>
 }
@@ -140,6 +141,30 @@ export function createRemarkableAuthService(_plugin: Plugin): RemarkableAuthServ
         return cachedUserToken
     }
 
+    async function refreshAndGetUserToken(): Promise<string | null> {
+        const stored = readTokens()
+        if (!stored) {
+            return null
+        }
+
+        const result = await refreshUserToken(stored.deviceToken)
+        if (!result) {
+            return null
+        }
+
+        cachedUserToken = result.token
+        tokenExpiryTime = result.expiry
+
+        writeTokens({
+            deviceToken: stored.deviceToken,
+            userToken: result.token,
+            userTokenExpiry: result.expiry
+        })
+
+        log('User token force-refreshed', 'debug')
+        return cachedUserToken
+    }
+
     async function isAuthenticated(): Promise<boolean> {
         return hasValidTokens()
     }
@@ -154,6 +179,7 @@ export function createRemarkableAuthService(_plugin: Plugin): RemarkableAuthServ
     return {
         registerDevice,
         getUserToken,
+        refreshAndGetUserToken,
         isAuthenticated,
         disconnect
     }

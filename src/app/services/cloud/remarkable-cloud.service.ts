@@ -43,17 +43,37 @@ export function createRemarkableCloudService(plugin: RemarkableSyncPlugin): Rema
         }
     }
 
-    async function listDocuments(): Promise<NotebookSummary[]> {
-        const userToken = await plugin.authService.getUserToken()
+    async function getRootHashWithRetry(): Promise<{ rootHash: string; userToken: string } | null> {
+        let userToken = await plugin.authService.getUserToken()
         if (!userToken) {
             log('Not authenticated', 'error')
-            return []
+            return null
         }
 
         try {
-            // Step 1: Get root hash
             const rootHash = await fetchRootHash(userToken)
-            if (!rootHash) return []
+            if (!rootHash) return null
+            return { rootHash, userToken }
+        } catch {
+            // 401 — try refreshing the token once
+            log('Token rejected, refreshing...', 'debug')
+            userToken = await plugin.authService.refreshAndGetUserToken()
+            if (!userToken) {
+                log('Token refresh failed', 'error')
+                return null
+            }
+            const rootHash = await fetchRootHash(userToken)
+            if (!rootHash) return null
+            return { rootHash, userToken }
+        }
+    }
+
+    async function listDocuments(): Promise<NotebookSummary[]> {
+        try {
+            // Step 1: Get root hash (with token refresh on 401)
+            const result = await getRootHashWithRetry()
+            if (!result) return []
+            const { rootHash, userToken } = result
 
             // Step 2: Download and parse root index
             const rootBlob = await fetchBlob(userToken, rootHash)
@@ -137,20 +157,16 @@ export function createRemarkableCloudService(plugin: RemarkableSyncPlugin): Rema
     }
 
     async function downloadDocument(documentId: string): Promise<Map<string, ArrayBuffer> | null> {
-        const userToken = await plugin.authService.getUserToken()
-        if (!userToken) {
-            log('Not authenticated', 'error')
-            return null
-        }
-
         try {
             // Look up document's index hash (fetch root if not cached)
             let indexHash = entryHashMap.get(documentId)
+            let userToken: string | null = null
             if (!indexHash) {
-                const rootHash = await fetchRootHash(userToken)
-                if (!rootHash) return null
+                const result = await getRootHashWithRetry()
+                if (!result) return null
+                userToken = result.userToken
 
-                const rootBlob = await fetchBlob(userToken, rootHash)
+                const rootBlob = await fetchBlob(userToken, result.rootHash)
                 if (!rootBlob) return null
 
                 const rootContent = new TextDecoder().decode(rootBlob)
@@ -162,6 +178,12 @@ export function createRemarkableCloudService(plugin: RemarkableSyncPlugin): Rema
                 indexHash = entryHashMap.get(documentId)
                 if (!indexHash) {
                     log(`Document ${documentId} not found in root index`, 'error')
+                    return null
+                }
+            } else {
+                userToken = await plugin.authService.getUserToken()
+                if (!userToken) {
+                    log('Not authenticated', 'error')
                     return null
                 }
             }

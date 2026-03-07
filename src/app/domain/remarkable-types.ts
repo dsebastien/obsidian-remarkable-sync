@@ -17,6 +17,22 @@ export interface RemarkableDocumentMetadata {
 }
 
 /**
+ * A page entry inside cPages (reMarkable firmware 3.x+)
+ */
+export interface RemarkableCPage {
+    readonly id: string
+    readonly idx?: { readonly value: string }
+}
+
+/**
+ * The cPages structure used by reMarkable firmware 3.x+ for page ordering.
+ * The idx.value fields use fractional indexing (lexicographic sort = display order).
+ */
+export interface RemarkableCPages {
+    readonly pages?: readonly RemarkableCPage[]
+}
+
+/**
  * reMarkable .content file inside document ZIPs
  */
 export interface RemarkableDocumentContent {
@@ -29,6 +45,7 @@ export interface RemarkableDocumentContent {
     readonly orientation: string
     readonly pageCount: number
     readonly pages: readonly string[]
+    readonly cPages?: RemarkableCPages
     readonly textAlignment: string
     readonly textScale: number
     readonly customZoomCenterX?: number

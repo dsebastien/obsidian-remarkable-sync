@@ -357,3 +357,26 @@
     background-color: var(--interactive-accent);
     transition: width 0.3s ease;
 }
+
+/* ========================================
+   IMPORT CONFIRM MODAL
+   ======================================== */
+
+.remarkable-import-info {
+    @apply flex flex-col gap-3 py-4;
+}
+
+.remarkable-import-row {
+    @apply flex items-center gap-2 text-sm;
+    color: var(--text-normal);
+}
+
+.remarkable-import-icon {
+    @apply flex items-center flex-shrink-0;
+    color: var(--text-muted);
+}
+
+.remarkable-import-actions {
+    @apply flex justify-end gap-2 pt-4;
+    border-top: 1px solid var(--background-modifier-border);
+}

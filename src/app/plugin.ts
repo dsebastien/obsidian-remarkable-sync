@@ -15,6 +15,8 @@ import type { NotebookPipelineService } from './services/pipeline/notebook-pipel
 import { createNotebookPipelineService } from './services/pipeline/notebook-pipeline.service'
 import type { SyncStoreService } from './services/sync/sync-store.service'
 import { createSyncStoreService } from './services/sync/sync-store.service'
+import type { RmdocImportService } from './services/import/rmdoc-import.service'
+import { createRmdocImportService } from './services/import/rmdoc-import.service'
 
 export class RemarkableSyncPlugin extends Plugin {
     settings: PluginSettings = { ...DEFAULT_SETTINGS }
@@ -23,6 +25,7 @@ export class RemarkableSyncPlugin extends Plugin {
     cloudService!: RemarkableCloudService
     pipelineService!: NotebookPipelineService
     syncStoreService!: SyncStoreService
+    importService!: RmdocImportService
 
     override async onload(): Promise<void> {
         log('Initializing', 'debug')
@@ -32,6 +35,7 @@ export class RemarkableSyncPlugin extends Plugin {
         this.cloudService = createRemarkableCloudService(this)
         this.syncStoreService = createSyncStoreService(this)
         this.pipelineService = createNotebookPipelineService(this)
+        this.importService = createRmdocImportService(this)
 
         // Check auth status on load
         this.isConnected = await this.authService.isAuthenticated()

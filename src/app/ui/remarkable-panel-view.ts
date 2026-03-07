@@ -11,6 +11,7 @@ import type { SyncStatus } from '../domain/sync-state'
 import { formatRemarkableDate } from '../../utils/date-utils'
 import { fuzzyMatch } from '../../utils/fuzzy-match'
 import { log } from '../../utils/log'
+import { importRmdoc } from '../commands/import-rmdoc'
 
 export const REMARKABLE_PANEL_VIEW_TYPE = 'remarkable-panel'
 
@@ -90,6 +91,16 @@ export class RemarkablePanelView extends ItemView {
         header.createEl('h4', { text: 'reMarkable Notebooks' })
 
         const actions = header.createDiv({ cls: 'remarkable-header-actions' })
+
+        // Import button (always available, no cloud connection needed)
+        const importBtn = actions.createEl('button', {
+            cls: 'remarkable-btn remarkable-btn-icon',
+            attr: { 'aria-label': 'Import .rmdoc file' }
+        })
+        setIcon(importBtn, 'import')
+        importBtn.addEventListener('click', () => {
+            importRmdoc(this.plugin)
+        })
 
         if (this.plugin.isConnected) {
             // Sync all button

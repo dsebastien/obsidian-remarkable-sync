@@ -36,6 +36,14 @@ When a new business rule is mentioned:
 - Sync state is cleared when user disconnects from reMarkable cloud
 - Users can sync individual notebooks, multiple selected notebooks, or all notebooks at once
 
+## Local Import
+
+- .rmdoc files can be imported without a cloud connection
+- Imported files are processed through the same parse → render → save pipeline as cloud-synced notebooks
+- Imported notebooks use the metadata `visibleName` if available, otherwise the file name (minus `.rmdoc` extension)
+- Imported files are saved under the configured target folder with no subfolder hierarchy (empty folder path)
+- Imported files are not tracked in sync state (they are one-shot imports)
+
 ## Output
 
 - reMarkable folder hierarchy is preserved under the target folder

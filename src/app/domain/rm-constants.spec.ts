@@ -29,7 +29,7 @@ describe('rm-constants', () => {
     })
 
     test('pen width multiplier includes ballpoint', () => {
-        expect(PEN_WIDTH_MULTIPLIER[2]).toBe(1.2)
+        expect(PEN_WIDTH_MULTIPLIER[2]).toBe(1.0)
     })
 
     test('highlighter types include expected pens', () => {

@@ -75,23 +75,23 @@ export const STROKE_COLOR_MAP: Record<number, string> = {
  * Maps PenType to base width multiplier for rendering
  */
 export const PEN_WIDTH_MULTIPLIER: Record<number, number> = {
-    0: 4.0, // Brush
-    1: 4.0, // TiltPencil
-    2: 1.2, // BallPoint
-    3: 2.5, // Marker
-    4: 1.0, // Fineliner
-    5: 5.0, // Highlighter
+    0: 2.5, // Brush
+    1: 1.0, // TiltPencil
+    2: 1.0, // BallPoint
+    3: 1.9, // Marker
+    4: 0.5, // Fineliner
+    5: 7.5, // Highlighter
     6: 0, // Eraser (not rendered)
-    7: 0.8, // SharpPencil
+    7: 0.6, // SharpPencil
     8: 0, // EraseArea (not rendered)
-    12: 4.0, // BrushV2
-    13: 0.8, // SharpPencilV2
-    14: 4.0, // TiltPencilV2
-    15: 1.2, // BallPointV2
-    16: 2.5, // MarkerV2
-    17: 1.0, // FinelinerV2
-    18: 5.0, // HighlighterV2
-    21: 2.0 // CalligraphyPen
+    12: 2.5, // BrushV2
+    13: 0.6, // SharpPencilV2
+    14: 1.0, // TiltPencilV2
+    15: 1.0, // BallPointV2
+    16: 1.9, // MarkerV2
+    17: 0.5, // FinelinerV2
+    18: 7.5, // HighlighterV2
+    21: 1.9 // CalligraphyPen
 }
 
 /**

@@ -17,15 +17,15 @@ export const log = (message: string, level?: LogLevel, ...data: unknown[]): void
         case 'debug':
         case 'info':
             // Obsidian disallows console.log and console.info, use debug for both
-            console.debug(logMessage, data)
+            console.debug(logMessage, ...data)
             break
         case 'warn':
-            console.warn(logMessage, data)
+            console.warn(logMessage, ...data)
             break
         case 'error':
-            console.error(logMessage, data)
+            console.error(logMessage, ...data)
             break
         default:
-            console.debug(logMessage, data)
+            console.debug(logMessage, ...data)
     }
 }

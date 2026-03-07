@@ -8,11 +8,12 @@ An Obsidian plugin that connects to the reMarkable cloud to list, download, and 
 - **Page rendering** — render .rm v6 stroke data to PNG/JPEG images
 - **Sidebar panel** — browse notebooks with folder hierarchy, download per notebook
 - **Folder hierarchy preservation** — reMarkable folder structure mirrored in vault
+- **Local .rmdoc import** — import .rmdoc files directly without cloud connection
 
 ## Requirements
 
 - Obsidian (desktop only, v1.4.0+)
-- A reMarkable account with cloud sync enabled
+- A reMarkable account with cloud sync enabled (optional for local .rmdoc import)
 
 ## Quick Start
 
@@ -29,6 +30,7 @@ An Obsidian plugin that connects to the reMarkable cloud to list, download, and 
 | Open reMarkable panel            | Opens the sidebar panel listing notebooks |
 | Connect to reMarkable cloud      | Opens the authentication modal            |
 | Disconnect from reMarkable cloud | Clears stored tokens                      |
+| Import .rmdoc file               | Import a local .rmdoc file as images      |
 
 ## Settings
 

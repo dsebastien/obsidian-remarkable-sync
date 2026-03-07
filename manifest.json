@@ -1,0 +1,11 @@
+{
+    "id": "my-plugin",
+    "name": "My Plugin",
+    "description": "TODO: Add your plugin description here",
+    "version": "2.3.0",
+    "minAppVersion": "1.4.0",
+    "isDesktopOnly": false,
+    "author": "Sébastien Dubois",
+    "authorUrl": "https://dsebastien.net",
+    "fundingUrl": "https://www.buymeacoffee.com/dsebastien"
+}

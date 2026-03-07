@@ -1,0 +1,89 @@
+{
+    "name": "obsidian-my-plugin",
+    "version": "2.3.0",
+    "description": "TODO: Add your plugin description here",
+    "author": {
+        "name": "Your Name",
+        "email": "your-email@example.com",
+        "url": "https://your-website.com"
+    },
+    "keywords": [
+        "obsidian",
+        "obsidian-plugin"
+    ],
+    "license": "MIT",
+    "private": true,
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/your-username/obsidian-my-plugin.git"
+    },
+    "bugs": {
+        "url": "https://github.com/your-username/obsidian-my-plugin/issues"
+    },
+    "homepage": "https://github.com/your-username/obsidian-my-plugin",
+    "engines": {
+        "node": ">=20.0.0",
+        "npm": ">=10.1.0"
+    },
+    "main": "main.js",
+    "packageManager": "bun@1.3.2",
+    "lint-staged": {
+        "**/*": "prettier --write --ignore-unknown"
+    },
+    "config": {
+        "commitizen": {
+            "path": "node_modules/cz-customizable"
+        },
+        "cz-customizable": {
+            "config": ".cz-config.cjs"
+        }
+    },
+    "scripts": {
+        "dev": "bun scripts/build.ts",
+        "build": "bun run tsc && bun scripts/build.ts --prod",
+        "tsc": "tsc --noEmit",
+        "tsc:watch": "tsc --noEmit --watch --preserveWatchOutput",
+        "tscw": "bun run tsc:watch",
+        "lint": "eslint . --max-warnings 0",
+        "lint:fix": "eslint . --fix",
+        "format": "prettier --write .",
+        "format:check": "prettier --check .",
+        "test": "bun test",
+        "prepare": "husky",
+        "commit": "cz",
+        "cm": "cz",
+        "commit:lint": "commitlint --edit",
+        "release:update-version": "bun scripts/update-version.ts",
+        "release:version-bump": "bun scripts/version-bump.ts",
+        "release:changelog": "bun scripts/generate-changelog.ts",
+        "release:zip": "bun scripts/create-release-zip.ts",
+        "release": "./scripts/release.sh",
+        "validate": "bun run --parallel tsc test lint"
+    },
+    "devDependencies": {
+        "@commitlint/cli": "^20.1.0",
+        "@commitlint/config-conventional": "^20.1.0",
+        "@eslint/js": "^9.36.0",
+        "@tailwindcss/cli": "4.1.17",
+        "@types/bun": "latest",
+        "commitizen": "^4.3.1",
+        "conventional-changelog-cli": "5.0.0",
+        "conventional-changelog-conventionalcommits": "9.1.0",
+        "cz-customizable": "^7.5.1",
+        "eslint": "^9.36.0",
+        "eslint-config-prettier": "^10.1.5",
+        "eslint-plugin-obsidianmd": "0.1.9",
+        "globals": "17.0.0",
+        "husky": "^9.1.7",
+        "lint-staged": "^16.2.7",
+        "obsidian": "latest",
+        "prettier": "^3.6.2",
+        "tailwindcss": "4.1.17",
+        "typescript": "^5.9.3",
+        "typescript-eslint": "8.48.1"
+    },
+    "dependencies": {
+        "immer": "11.0.1",
+        "zod": "^4.1.13"
+    }
+}

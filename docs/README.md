@@ -1,25 +1,22 @@
-# Plugin Name
+# Remarkable Sync
 
-TODO: Add a brief description of what your plugin does.
+Connect your reMarkable tablet to Obsidian. List, download, and sync notebook pages as images.
 
 ## Key Features
 
-TODO: List 3-5 key features of your plugin.
-
-- Feature 1
-- Feature 2
-- Feature 3
+- Connect to reMarkable cloud with a one-time code
+- Browse notebooks in a sidebar panel with folder hierarchy
+- Download page images (PNG/JPEG)
+- No external AI services required
 
 ## Quick Start
 
-TODO: Add quick start instructions.
-
-1. Install the plugin
-2. Configure settings
-3. Start using
+1. Install the plugin and enable it
+2. Run **"Connect to reMarkable cloud"** command
+3. Enter your code from [my.remarkable.com](https://my.remarkable.com/device/desktop/connect)
+4. Open the reMarkable panel from the ribbon icon or command palette
+5. Click download on any notebook
 
 ## About
 
-Created by [Your Name](https://your-website.com).
-
-TODO: Update author information and support links.
+Created by [Sébastien Dubois](https://dsebastien.net).

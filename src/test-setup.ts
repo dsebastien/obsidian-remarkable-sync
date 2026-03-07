@@ -12,18 +12,75 @@ void mock.module('obsidian', () => ({
             // No-op for tests
         }
     },
-    // These are only used as types, but we provide empty implementations
-    // in case they're ever accessed at runtime
     App: class App {},
     TFile: class TFile {},
     Plugin: class Plugin {},
     PluginSettingTab: class PluginSettingTab {},
-    Setting: class Setting {},
+    Setting: class Setting {
+        setName() {
+            return this
+        }
+        setDesc() {
+            return this
+        }
+        setHeading() {
+            return this
+        }
+        addButton() {
+            return this
+        }
+        addText() {
+            return this
+        }
+        addToggle() {
+            return this
+        }
+        addDropdown() {
+            return this
+        }
+        addSlider() {
+            return this
+        }
+    },
     MarkdownView: class MarkdownView {},
     TAbstractFile: class TAbstractFile {},
     TFolder: class TFolder {},
     AbstractInputSuggest: class AbstractInputSuggest {},
     SearchComponent: class SearchComponent {},
+    ItemView: class ItemView {
+        contentEl = {
+            empty: () => {},
+            createDiv: () => ({
+                createDiv: () => ({}),
+                createEl: () => ({})
+            }),
+            createEl: () => ({})
+        }
+        getViewType() {
+            return ''
+        }
+        getDisplayText() {
+            return ''
+        }
+    },
+    Modal: class Modal {
+        contentEl = {
+            empty: () => {},
+            createEl: () => ({
+                createEl: () => ({})
+            }),
+            createDiv: () => ({})
+        }
+        open() {}
+        close() {}
+    },
+    FuzzySuggestModal: class FuzzySuggestModal {
+        setPlaceholder() {}
+        open() {}
+        close() {}
+    },
+    FileSystemAdapter: class FileSystemAdapter {},
+    requestUrl: async () => ({ status: 200, text: '', json: {}, arrayBuffer: new ArrayBuffer(0) }),
     debounce: (fn: (...args: unknown[]) => unknown) => fn,
     setIcon: () => {}
 }))

@@ -1,63 +1,74 @@
-# Obsidian Plugin Template (Bun)
+# Remarkable Sync
 
-A modern Obsidian plugin template using **Bun** as the package manager and bundler, with TypeScript, Tailwind CSS v4, ESLint, Prettier, and automated release workflows.
+An Obsidian plugin that connects to the reMarkable cloud to list, download, and sync notebook pages as images.
 
 ## Features
 
-- **Bun** for fast package management and bundling
-- **TypeScript** with strict configuration
-- **Tailwind CSS v4** for styling
-- **ESLint + Prettier** for code quality
-- **Husky + lint-staged** for pre-commit hooks
-- **Commitizen + Conventional Commits** for standardized commit messages
-- **GitHub Actions** for CI/CD and automated releases
-- **Immer** for immutable state management
-- **Zod** for runtime validation
+- **reMarkable cloud integration** — connect with a one-time code, list all notebooks
+- **Page rendering** — render .rm v6 stroke data to PNG/JPEG images
+- **Sidebar panel** — browse notebooks with folder hierarchy, download per notebook
+- **Folder hierarchy preservation** — reMarkable folder structure mirrored in vault
 
-## Getting Started
+## Requirements
 
-See [TEMPLATE_USAGE.md](./TEMPLATE_USAGE.md) for detailed instructions on how to use this template to create your own Obsidian plugin.
+- Obsidian (desktop only, v1.4.0+)
+- A reMarkable account with cloud sync enabled
 
 ## Quick Start
 
-1. Click "Use this template" on GitHub to create a new repository
-2. Clone your new repository
-3. Follow the setup instructions in [TEMPLATE_USAGE.md](./TEMPLATE_USAGE.md)
-4. Run `bun install` to install dependencies
-5. Run `bun run dev` to start development
+1. Install the plugin from Community Plugins
+2. Run **"Connect to reMarkable cloud"** command
+3. Enter your one-time code from [my.remarkable.com](https://my.remarkable.com/device/desktop/connect)
+4. Run **"Open reMarkable panel"** to browse notebooks
+5. Click the download button on any notebook
+
+## Commands
+
+| Command                          | Description                               |
+| -------------------------------- | ----------------------------------------- |
+| Open reMarkable panel            | Opens the sidebar panel listing notebooks |
+| Connect to reMarkable cloud      | Opens the authentication modal            |
+| Disconnect from reMarkable cloud | Clears stored tokens                      |
+
+## Settings
+
+| Setting       | Default     | Description                   |
+| ------------- | ----------- | ----------------------------- |
+| Target folder | `""` (root) | Vault folder for output files |
+| Save images   | `true`      | Save rendered page images     |
+| Image format  | `png`       | PNG or JPEG                   |
+
+## Output Format
+
+Page images are saved as: `{NotebookName}-P{NNN}.png`
+
+Folder hierarchy is preserved:
+
+```
+{targetFolder}/Work/Meeting Notes/Meeting Notes-P001.png
+```
+
+Blank pages (no strokes) are skipped.
+
+## Privacy
+
+- Authentication tokens stored at `~/.remarkable-sync/token.json` (outside vault)
+- No telemetry or third-party analytics
+- Network requests only to reMarkable cloud
 
 ## Development
 
-See [DEVELOPMENT.md](./DEVELOPMENT.md) for detailed development instructions.
+See [DEVELOPMENT.md](./DEVELOPMENT.md) for development instructions.
 
-### Prerequisites
-
-- [Bun](https://bun.sh/) (latest version)
-- [Git](https://git-scm.com/)
-- An Obsidian vault for testing
-
-### Commands
-
-| Command             | Description                       |
-| ------------------- | --------------------------------- |
-| `bun install`       | Install dependencies              |
-| `bun run dev`       | Development build with watch mode |
-| `bun run build`     | Production build                  |
-| `bun run tsc:watch` | Type check in watch mode          |
-| `bun run lint`      | Run ESLint                        |
-| `bun run format`    | Format with Prettier              |
-| `bun test`          | Run tests                         |
-
-## Contributing
-
-See [CONTRIBUTING.md](./CONTRIBUTING.md) for contribution guidelines.
+```bash
+bun install
+bun run dev
+```
 
 ## License
 
 MIT License - see [LICENSE](./LICENSE) for details.
 
-## News & Support
+## Support
 
-<!-- TODO: Update these links with your own -->
-
-To stay up to date about this plugin, Obsidian in general, Personal Knowledge Management and note-taking, subscribe to [my newsletter](https://your-newsletter-url.com). Note that the best way to support my work is to become a paid subscriber ❤️.
+Created by [Sébastien Dubois](https://dsebastien.net). [Buy me a coffee](https://www.buymeacoffee.com/dsebastien) to support development.

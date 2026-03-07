@@ -1,10 +1,288 @@
 @import 'tailwindcss';
 
 /* ========================================
+   GLOBAL
+   ======================================== */
+
+.remarkable-panel button,
+.remarkable-auth-modal button {
+    @apply cursor-pointer;
+}
+
+/* ========================================
    SUPPORT & UI SECTIONS
    ======================================== */
 
-/* Support section */
 .support-header-margin {
     @apply mb-5;
+}
+
+/* ========================================
+   AUTH MODAL
+   ======================================== */
+
+.remarkable-auth-modal {
+    @apply flex flex-col gap-4;
+}
+
+.remarkable-auth-hidden {
+    @apply hidden;
+}
+
+.remarkable-auth-subtitle {
+    @apply m-0 text-sm;
+    color: var(--text-muted);
+}
+
+.remarkable-auth-steps {
+    @apply flex flex-col gap-2 mt-3;
+}
+
+.remarkable-auth-step {
+    @apply flex items-center gap-3 text-sm;
+    color: var(--text-normal);
+}
+
+.remarkable-auth-step-number {
+    @apply flex items-center justify-center w-6 h-6 rounded-full text-xs font-semibold flex-shrink-0;
+    background-color: var(--background-primary-alt);
+    color: var(--text-muted);
+}
+
+.remarkable-auth-input-container {
+    @apply mt-4;
+}
+
+.remarkable-auth-code-input {
+    @apply w-full py-3 px-4 text-center text-lg rounded;
+    font-family: var(--font-monospace);
+    background-color: var(--background-primary-alt);
+    border: 2px solid var(--background-modifier-border);
+    color: var(--text-normal);
+    letter-spacing: 0.3em;
+}
+
+.remarkable-auth-code-input:focus {
+    border-color: var(--interactive-accent);
+    outline: none;
+}
+
+.remarkable-auth-code-input::placeholder {
+    @apply text-base;
+    letter-spacing: normal;
+    color: var(--text-faint);
+}
+
+.remarkable-auth-code-input:disabled {
+    @apply opacity-60;
+}
+
+.remarkable-auth-error {
+    @apply text-sm mt-2;
+    color: var(--text-error);
+}
+
+.remarkable-auth-button-row {
+    @apply flex justify-end mt-2;
+}
+
+.remarkable-auth-success {
+    @apply flex flex-col items-center gap-3 py-8;
+}
+
+.remarkable-auth-success-icon {
+    @apply flex items-center justify-center w-12 h-12 rounded-full text-2xl;
+    background-color: #22c55e20;
+    color: #22c55e;
+}
+
+.remarkable-auth-success-text {
+    @apply m-0 text-sm;
+    color: var(--text-muted);
+}
+
+/* ========================================
+   REMARKABLE PANEL VIEW
+   ======================================== */
+
+.remarkable-panel {
+    @apply flex flex-col gap-2 p-3;
+}
+
+.remarkable-header {
+    @apply flex flex-col gap-2 pb-3;
+    border-bottom: 1px solid var(--background-modifier-border);
+}
+
+.remarkable-header h4 {
+    @apply m-0 text-base font-semibold;
+    color: var(--text-normal);
+}
+
+.remarkable-header-actions {
+    @apply flex items-center gap-2;
+}
+
+.remarkable-auth-status {
+    @apply flex items-center gap-1.5 text-xs;
+    color: var(--text-muted);
+}
+
+.remarkable-status-dot {
+    @apply inline-block w-2 h-2 rounded-full;
+}
+
+.remarkable-status-connected {
+    background-color: #22c55e;
+}
+
+.remarkable-status-disconnected {
+    background-color: #ef4444;
+}
+
+.remarkable-loading {
+    @apply py-4 text-center text-sm;
+    color: var(--text-muted);
+}
+
+.remarkable-empty {
+    @apply py-4 text-center text-sm;
+    color: var(--text-muted);
+}
+
+.remarkable-disconnected {
+    @apply py-4 text-center text-sm;
+    color: var(--text-muted);
+}
+
+/* ========================================
+   NOTEBOOK LIST
+   ======================================== */
+
+.remarkable-notebook-list {
+    @apply flex flex-col gap-1;
+}
+
+.remarkable-folder-header {
+    @apply flex items-center gap-1.5 py-1.5 px-1 text-xs font-medium mt-2;
+    color: var(--text-muted);
+}
+
+.remarkable-notebook-row {
+    @apply flex flex-col gap-1 py-2 px-2 rounded;
+    border: 1px solid transparent;
+    transition: border-color 0.15s;
+}
+
+.remarkable-notebook-row:hover {
+    border-color: var(--background-modifier-border);
+    background-color: var(--background-modifier-hover);
+}
+
+.remarkable-notebook-info {
+    @apply flex-1 min-w-0;
+}
+
+.remarkable-notebook-name {
+    @apply text-sm font-medium;
+    color: var(--text-normal);
+}
+
+.remarkable-notebook-meta {
+    @apply text-xs pl-8;
+    color: var(--text-muted);
+}
+
+.remarkable-notebook-actions {
+    @apply flex items-center gap-1 flex-shrink-0 self-center;
+}
+
+/* ========================================
+   SYNC STATUS INDICATORS
+   ======================================== */
+
+.remarkable-sync-dot {
+    @apply inline-block w-2.5 h-2.5 rounded-full flex-shrink-0;
+}
+
+.remarkable-sync-synced {
+    background-color: #22c55e;
+}
+
+.remarkable-sync-needs-sync {
+    background-color: #f59e0b;
+}
+
+.remarkable-sync-never-synced {
+    background-color: var(--text-faint);
+}
+
+/* ========================================
+   NOTEBOOK ROW WITH CHECKBOX
+   ======================================== */
+
+.remarkable-notebook-top {
+    @apply flex items-center gap-2;
+}
+
+.remarkable-notebook-checkbox {
+    @apply flex-shrink-0 cursor-pointer;
+}
+
+/* ========================================
+   BUTTONS
+   ======================================== */
+
+.remarkable-btn {
+    @apply cursor-pointer rounded;
+    background-color: var(--interactive-normal);
+    border: 1px solid var(--background-modifier-border);
+    transition: all 0.15s;
+}
+
+.remarkable-btn:hover {
+    background-color: var(--interactive-hover);
+}
+
+.remarkable-btn-icon {
+    @apply flex items-center justify-center w-7 h-7 p-0;
+}
+
+.remarkable-btn-sm {
+    @apply px-2 py-1 text-xs;
+}
+
+/* ========================================
+   PROGRESS INDICATOR
+   ======================================== */
+
+.remarkable-progress {
+    @apply flex flex-col gap-1 mt-1;
+}
+
+.remarkable-progress-text {
+    @apply text-xs;
+}
+
+.remarkable-progress-active {
+    color: var(--text-accent);
+}
+
+.remarkable-progress-done {
+    color: #22c55e;
+}
+
+.remarkable-progress-error {
+    color: var(--text-error);
+}
+
+.remarkable-progress-bar {
+    @apply w-full h-1 rounded-full overflow-hidden;
+    background-color: var(--background-modifier-border);
+}
+
+.remarkable-progress-fill {
+    @apply h-full rounded-full;
+    background-color: var(--interactive-accent);
+    transition: width 0.3s ease;
 }

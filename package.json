@@ -1,26 +1,29 @@
 {
-    "name": "obsidian-my-plugin",
-    "version": "2.3.0",
-    "description": "TODO: Add your plugin description here",
+    "name": "obsidian-remarkable-sync",
+    "version": "0.1.0",
+    "description": "Connect to the reMarkable cloud, list, download, and sync notebook pages as images",
     "author": {
-        "name": "Your Name",
-        "email": "your-email@example.com",
-        "url": "https://your-website.com"
+        "name": "Sébastien Dubois",
+        "email": "seb@dsebastien.net",
+        "url": "https://dsebastien.net"
     },
     "keywords": [
         "obsidian",
-        "obsidian-plugin"
+        "obsidian-plugin",
+        "remarkable",
+        "sync",
+        "notebooks"
     ],
     "license": "MIT",
     "private": true,
     "repository": {
         "type": "git",
-        "url": "git+https://github.com/your-username/obsidian-my-plugin.git"
+        "url": "git+https://github.com/dsebastien/obsidian-remarkable-sync.git"
     },
     "bugs": {
-        "url": "https://github.com/your-username/obsidian-my-plugin/issues"
+        "url": "https://github.com/dsebastien/obsidian-remarkable-sync/issues"
     },
-    "homepage": "https://github.com/your-username/obsidian-my-plugin",
+    "homepage": "https://github.com/dsebastien/obsidian-remarkable-sync",
     "engines": {
         "node": ">=20.0.0",
         "npm": ">=10.1.0"
@@ -83,7 +86,9 @@
         "typescript-eslint": "8.48.1"
     },
     "dependencies": {
+        "date-fns": "4.1.0",
         "immer": "11.0.1",
+        "jszip": "3.10.1",
         "zod": "^4.1.13"
     }
 }

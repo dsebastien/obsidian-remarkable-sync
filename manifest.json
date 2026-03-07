@@ -1,10 +1,10 @@
 {
-    "id": "my-plugin",
-    "name": "My Plugin",
-    "description": "TODO: Add your plugin description here",
-    "version": "2.3.0",
+    "id": "obsidian-remarkable-sync",
+    "name": "Remarkable Sync",
+    "description": "Connect to the reMarkable cloud, list, download, and sync notebook pages as images",
+    "version": "0.1.0",
     "minAppVersion": "1.4.0",
-    "isDesktopOnly": false,
+    "isDesktopOnly": true,
     "author": "Sébastien Dubois",
     "authorUrl": "https://dsebastien.net",
     "fundingUrl": "https://www.buymeacoffee.com/dsebastien"

@@ -90,3 +90,7 @@ export interface NotebookSummary {
     readonly pageCount: number
     readonly folderPath: string
 }
+
+export function notebookDisplayPath(nb: NotebookSummary): string {
+    return nb.folderPath ? `${nb.folderPath}/${nb.visibleName}` : nb.visibleName
+}

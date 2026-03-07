@@ -1,8 +1,5 @@
-import { produce } from 'immer'
-import type { Draft } from 'immer'
 import type { RemarkableSyncPlugin } from '../../plugin'
 import type { NotebookSyncState, SyncStore } from '../../domain/sync-state'
-import type { PluginSettings } from '../../types/plugin-settings.intf'
 import { DEFAULT_SYNC_STORE } from '../../domain/sync-state'
 import { log } from '../../../utils/log'
 
@@ -27,7 +24,7 @@ export function createSyncStoreService(plugin: RemarkableSyncPlugin): SyncStoreS
         lastModifiedCloud: number,
         syncedPageCount: number
     ): Promise<void> {
-        plugin.settings = produce(plugin.settings, (draft: Draft<PluginSettings>) => {
+        await plugin.updateSettings((draft) => {
             draft.syncStore.notebooks[remarkableId] = {
                 remarkableId,
                 lastSyncedAt: Date.now(),
@@ -35,15 +32,13 @@ export function createSyncStoreService(plugin: RemarkableSyncPlugin): SyncStoreS
                 syncedPageCount
             }
         })
-        await plugin.saveSettings()
         log('Sync state updated', 'debug', { remarkableId })
     }
 
     async function clearAll(): Promise<void> {
-        plugin.settings = produce(plugin.settings, (draft: Draft<PluginSettings>) => {
+        await plugin.updateSettings((draft) => {
             draft.syncStore = DEFAULT_SYNC_STORE
         })
-        await plugin.saveSettings()
         log('Sync store cleared', 'debug')
     }
 

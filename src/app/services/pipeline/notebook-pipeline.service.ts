@@ -2,7 +2,7 @@ import { Notice } from 'obsidian'
 import { log } from '../../../utils/log'
 import type { RemarkableSyncPlugin } from '../../plugin'
 import type { NotebookSummary } from '../../domain/notebook'
-import { ERASER_PEN_TYPES } from '../../domain/rm-constants'
+import { pageHasContent } from '../parser/rm-file-parser'
 import { parseDocument } from '../parser/document-parser.service'
 import { renderPage } from '../renderer/page-renderer.service'
 import { writePageImage } from '../output/markdown-writer.service'
@@ -59,9 +59,7 @@ export function createNotebookPipelineService(
             }
 
             // Filter out blank pages
-            const contentPages = parsed.pages.filter((page) =>
-                page.strokes.some((s) => !ERASER_PEN_TYPES.has(s.penType))
-            )
+            const contentPages = parsed.pages.filter(pageHasContent)
 
             if (contentPages.length === 0) {
                 new Notice(`${notebook.visibleName}: No pages with content found`)

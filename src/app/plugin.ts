@@ -4,7 +4,7 @@ import type { PluginSettings } from './types/plugin-settings.intf'
 import { RemarkableSyncSettingTab } from './settings/settings-tab'
 import { log } from '../utils/log'
 import { produce } from 'immer'
-import type { Draft } from 'immer'
+import type { Draft, WritableDraft } from 'immer'
 import { registerCommands } from './commands'
 import { REMARKABLE_PANEL_VIEW_TYPE, RemarkablePanelView } from './ui/remarkable-panel-view'
 import type { RemarkableAuthService } from './services/auth/remarkable-auth.service'
@@ -17,7 +17,8 @@ import type { SyncStoreService } from './services/sync/sync-store.service'
 import { createSyncStoreService } from './services/sync/sync-store.service'
 
 export class RemarkableSyncPlugin extends Plugin {
-    settings: PluginSettings = produce(DEFAULT_SETTINGS, () => DEFAULT_SETTINGS)
+    settings: PluginSettings = { ...DEFAULT_SETTINGS }
+    isConnected = false
     authService!: RemarkableAuthService
     cloudService!: RemarkableCloudService
     pipelineService!: NotebookPipelineService
@@ -33,13 +34,7 @@ export class RemarkableSyncPlugin extends Plugin {
         this.pipelineService = createNotebookPipelineService(this)
 
         // Check auth status on load
-        const isAuthenticated = await this.authService.isAuthenticated()
-        if (isAuthenticated !== this.settings.isAuthenticated) {
-            this.settings = produce(this.settings, (draft: Draft<PluginSettings>) => {
-                draft.isAuthenticated = isAuthenticated
-            })
-            void this.saveSettings()
-        }
+        this.isConnected = await this.authService.isAuthenticated()
 
         // Register the panel view
         this.registerView(REMARKABLE_PANEL_VIEW_TYPE, (leaf) => new RemarkablePanelView(leaf, this))
@@ -83,7 +78,7 @@ export class RemarkableSyncPlugin extends Plugin {
 
         if (!loadedSettings) {
             log('Using default settings', 'debug')
-            this.settings = produce(DEFAULT_SETTINGS, () => DEFAULT_SETTINGS)
+            this.settings = { ...DEFAULT_SETTINGS }
             return
         }
 
@@ -97,15 +92,17 @@ export class RemarkableSyncPlugin extends Plugin {
             if (loadedSettings.imageFormat !== undefined) {
                 draft.imageFormat = loadedSettings.imageFormat
             }
-            if (loadedSettings.isAuthenticated !== undefined) {
-                draft.isAuthenticated = loadedSettings.isAuthenticated
-            }
             if (loadedSettings.syncStore !== undefined) {
                 draft.syncStore = loadedSettings.syncStore
             }
         })
 
         log('Settings loaded', 'debug', this.settings)
+    }
+
+    async updateSettings(recipe: (draft: WritableDraft<PluginSettings>) => void): Promise<void> {
+        this.settings = produce(this.settings, recipe)
+        await this.saveSettings()
     }
 
     async saveSettings(): Promise<void> {

@@ -1,13 +1,11 @@
 import { Modal } from 'obsidian'
 import type { RemarkableSyncPlugin } from '../plugin'
-import { produce } from 'immer'
-import type { Draft } from 'immer'
-import type { PluginSettings } from '../types/plugin-settings.intf'
 
 export class AuthModal extends Modal {
     private readonly plugin: RemarkableSyncPlugin
     private readonly onSuccess?: () => void
     private deviceCode = ''
+    private autoCloseTimeout: ReturnType<typeof setTimeout> | null = null
 
     constructor(plugin: RemarkableSyncPlugin, onSuccess?: () => void) {
         super(plugin.app)
@@ -100,13 +98,7 @@ export class AuthModal extends Modal {
             const success = await this.plugin.authService.registerDevice(this.deviceCode)
 
             if (success) {
-                this.plugin.settings = produce(
-                    this.plugin.settings,
-                    (draft: Draft<PluginSettings>) => {
-                        draft.isAuthenticated = true
-                    }
-                )
-                void this.plugin.saveSettings()
+                this.plugin.isConnected = true
 
                 // Show success state
                 instructions.addClass('remarkable-auth-hidden')
@@ -122,7 +114,7 @@ export class AuthModal extends Modal {
                 })
 
                 // Auto-close after delay
-                setTimeout(() => {
+                this.autoCloseTimeout = setTimeout(() => {
                     this.onSuccess?.()
                     this.close()
                 }, 1500)
@@ -145,6 +137,10 @@ export class AuthModal extends Modal {
     }
 
     override onClose(): void {
+        if (this.autoCloseTimeout) {
+            clearTimeout(this.autoCloseTimeout)
+            this.autoCloseTimeout = null
+        }
         this.contentEl.empty()
     }
 }

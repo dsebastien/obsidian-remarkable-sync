@@ -229,6 +229,16 @@
     @apply flex-shrink-0 cursor-pointer;
 }
 
+.remarkable-select-all-row {
+    @apply flex items-center gap-2 cursor-pointer py-1 px-1;
+    border-bottom: 1px solid var(--background-modifier-border);
+}
+
+.remarkable-select-all-label {
+    @apply text-sm cursor-pointer;
+    color: var(--text-muted);
+}
+
 /* ========================================
    BUTTONS
    ======================================== */

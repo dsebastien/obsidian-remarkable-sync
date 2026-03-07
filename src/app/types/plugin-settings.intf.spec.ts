@@ -6,7 +6,6 @@ describe('PluginSettings', () => {
         expect(DEFAULT_SETTINGS.targetFolder).toBe('')
         expect(DEFAULT_SETTINGS.saveImages).toBe(true)
         expect(DEFAULT_SETTINGS.imageFormat).toBe('png')
-        expect(DEFAULT_SETTINGS.isAuthenticated).toBe(false)
         expect(DEFAULT_SETTINGS.syncStore).toEqual({ notebooks: {} })
     })
 })

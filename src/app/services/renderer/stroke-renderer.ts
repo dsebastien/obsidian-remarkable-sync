@@ -23,17 +23,16 @@ export function renderStroke(ctx: OffscreenCanvasRenderingContext2D, stroke: Str
     const widthMultiplier = PEN_WIDTH_MULTIPLIER[stroke.penType] ?? 1.0
     const isHighlighter = HIGHLIGHTER_PEN_TYPES.has(stroke.penType)
 
-    ctx.save()
+    if (isHighlighter) {
+        ctx.save()
+        ctx.globalAlpha = 0.3
+        ctx.globalCompositeOperation = 'multiply'
+    }
 
     ctx.strokeStyle = colorHex
     ctx.fillStyle = colorHex
     ctx.lineCap = 'round'
     ctx.lineJoin = 'round'
-
-    if (isHighlighter) {
-        ctx.globalAlpha = 0.3
-        ctx.globalCompositeOperation = 'multiply'
-    }
 
     // Draw stroke as a series of line segments with variable width
     if (points.length === 1) {
@@ -59,5 +58,7 @@ export function renderStroke(ctx: OffscreenCanvasRenderingContext2D, stroke: Str
         }
     }
 
-    ctx.restore()
+    if (isHighlighter) {
+        ctx.restore()
+    }
 }

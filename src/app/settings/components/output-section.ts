@@ -1,8 +1,5 @@
 import { Setting, debounce } from 'obsidian'
-import { produce } from 'immer'
-import type { Draft } from 'immer'
 import type { RemarkableSyncPlugin } from '../../plugin'
-import type { PluginSettings } from '../../types/plugin-settings.intf'
 
 export function renderOutputSection(containerEl: HTMLElement, plugin: RemarkableSyncPlugin): void {
     new Setting(containerEl).setName('Output').setHeading()
@@ -13,10 +10,9 @@ export function renderOutputSection(containerEl: HTMLElement, plugin: Remarkable
         .addText((text) => {
             const saveTargetFolder = debounce(
                 async (value: string) => {
-                    plugin.settings = produce(plugin.settings, (draft: Draft<PluginSettings>) => {
+                    await plugin.updateSettings((draft) => {
                         draft.targetFolder = value.trim()
                     })
-                    await plugin.saveSettings()
                 },
                 500,
                 true
@@ -32,10 +28,9 @@ export function renderOutputSection(containerEl: HTMLElement, plugin: Remarkable
         .setDesc('Save rendered page images alongside markdown files')
         .addToggle((toggle) => {
             toggle.setValue(plugin.settings.saveImages).onChange(async (value) => {
-                plugin.settings = produce(plugin.settings, (draft: Draft<PluginSettings>) => {
+                await plugin.updateSettings((draft) => {
                     draft.saveImages = value
                 })
-                await plugin.saveSettings()
             })
         })
 
@@ -48,10 +43,9 @@ export function renderOutputSection(containerEl: HTMLElement, plugin: Remarkable
                 .addOption('jpeg', 'JPEG')
                 .setValue(plugin.settings.imageFormat)
                 .onChange(async (value) => {
-                    plugin.settings = produce(plugin.settings, (draft: Draft<PluginSettings>) => {
+                    await plugin.updateSettings((draft) => {
                         draft.imageFormat = value as 'png' | 'jpeg'
                     })
-                    await plugin.saveSettings()
                 })
         })
 }

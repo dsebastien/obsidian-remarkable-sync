@@ -34,18 +34,25 @@ export function parseDocument(
             return null
         }
 
-        // Find page IDs from content file or from .rm files
+        // Build a lookup map from page ID to .rm file data
+        const rmFilesByPageId = new Map<string, ArrayBuffer>()
         const pageIds: string[] = []
-        if (content?.pages) {
-            pageIds.push(...content.pages)
-        } else {
-            // Fallback: extract page IDs from .rm file paths
-            for (const path of files.keys()) {
-                const match = path.match(/([a-f0-9-]+)\.rm$/)
-                if (match?.[1]) {
-                    pageIds.push(match[1])
+
+        for (const [path, data] of files) {
+            if (!path.endsWith('.rm')) continue
+            // Extract the page ID: last path segment without the .rm extension
+            const lastSlash = path.lastIndexOf('/')
+            const pageId = path.slice(lastSlash + 1, -3)
+            if (pageId) {
+                rmFilesByPageId.set(pageId, data)
+                if (!content?.pages) {
+                    pageIds.push(pageId)
                 }
             }
+        }
+
+        if (content?.pages) {
+            pageIds.push(...content.pages)
         }
 
         // Parse each page's .rm file
@@ -54,15 +61,7 @@ export function parseDocument(
             const pageId = pageIds[i]
             if (!pageId) continue
 
-            // Find the .rm file for this page
-            let rmData: ArrayBuffer | undefined
-            for (const [path, data] of files) {
-                if (path.includes(pageId) && path.endsWith('.rm')) {
-                    rmData = data
-                    break
-                }
-            }
-
+            const rmData = rmFilesByPageId.get(pageId)
             if (!rmData) {
                 log(`No .rm file found for page ${pageId}`, 'warn')
                 continue

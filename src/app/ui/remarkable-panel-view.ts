@@ -2,7 +2,10 @@ import { ItemView, setIcon } from 'obsidian'
 import type { WorkspaceLeaf } from 'obsidian'
 import type { RemarkableSyncPlugin } from '../plugin'
 import type { NotebookSummary } from '../domain/notebook'
-import type { PipelineProgress } from '../services/pipeline/notebook-pipeline.service'
+import type {
+    PipelineProgress,
+    PipelineStatus
+} from '../services/pipeline/notebook-pipeline.service'
 import { deriveSyncStatus } from '../domain/sync-state'
 import type { SyncStatus } from '../domain/sync-state'
 import { formatRemarkableDate } from '../../utils/date-utils'
@@ -51,7 +54,7 @@ export class RemarkablePanelView extends ItemView {
 
         this.renderHeader(root)
 
-        if (!this.plugin.settings.isAuthenticated) {
+        if (!this.plugin.isConnected) {
             this.renderDisconnected(root)
             return
         }
@@ -79,7 +82,7 @@ export class RemarkablePanelView extends ItemView {
 
         const actions = header.createDiv({ cls: 'remarkable-header-actions' })
 
-        if (this.plugin.settings.isAuthenticated) {
+        if (this.plugin.isConnected) {
             // Sync all button
             const syncAllBtn = actions.createEl('button', {
                 cls: 'remarkable-btn remarkable-btn-icon',
@@ -121,7 +124,7 @@ export class RemarkablePanelView extends ItemView {
 
         // Auth status indicator
         const statusEl = header.createDiv({ cls: 'remarkable-auth-status' })
-        if (this.plugin.settings.isAuthenticated) {
+        if (this.plugin.isConnected) {
             statusEl.createSpan({ cls: 'remarkable-status-dot remarkable-status-connected' })
             statusEl.createSpan({ text: 'Connected' })
         } else {
@@ -142,6 +145,38 @@ export class RemarkablePanelView extends ItemView {
 
     private renderNotebookList(container: HTMLElement): void {
         const list = container.createDiv({ cls: 'remarkable-notebook-list' })
+
+        // Select all checkbox
+        const selectAllRow = list.createDiv({ cls: 'remarkable-select-all-row' })
+        const selectAllCheckbox = selectAllRow.createEl('input', {
+            cls: 'remarkable-notebook-checkbox',
+            attr: { type: 'checkbox' }
+        })
+        const allSelected =
+            this.notebooks.length > 0 && this.selectedIds.size === this.notebooks.length
+        const someSelected = this.selectedIds.size > 0 && !allSelected
+        selectAllCheckbox.checked = allSelected
+        selectAllCheckbox.indeterminate = someSelected
+        selectAllRow.createSpan({
+            cls: 'remarkable-select-all-label',
+            text: 'Select all'
+        })
+        selectAllCheckbox.addEventListener('change', () => {
+            if (selectAllCheckbox.checked) {
+                for (const nb of this.notebooks) {
+                    this.selectedIds.add(nb.id)
+                }
+            } else {
+                this.selectedIds.clear()
+            }
+            this.render()
+        })
+        selectAllRow.addEventListener('click', (e) => {
+            if (e.target !== selectAllCheckbox) {
+                selectAllCheckbox.checked = !selectAllCheckbox.checked
+                selectAllCheckbox.dispatchEvent(new Event('change'))
+            }
+        })
 
         // Group by folder path
         const grouped = new Map<string, NotebookSummary[]>()
@@ -248,7 +283,8 @@ export class RemarkablePanelView extends ItemView {
     private renderProgressIndicator(container: HTMLElement, progress: PipelineProgress): void {
         const indicator = container.createDiv({ cls: 'remarkable-progress' })
 
-        const statusMap: Record<string, string> = {
+        const statusMap: Record<PipelineStatus, string> = {
+            idle: '',
             downloading: 'Downloading...',
             parsing: 'Parsing...',
             rendering: `Rendering page ${progress.currentPage}/${progress.totalPages}`,
@@ -256,7 +292,7 @@ export class RemarkablePanelView extends ItemView {
             error: `Error: ${progress.error ?? 'Unknown'}`
         }
 
-        const statusText = statusMap[progress.status] ?? progress.status
+        const statusText = statusMap[progress.status]
         const statusClass =
             progress.status === 'done'
                 ? 'remarkable-progress-done'

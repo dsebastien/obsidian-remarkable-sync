@@ -2,6 +2,7 @@ import { FuzzySuggestModal, Notice } from 'obsidian'
 import type { App, FuzzyMatch } from 'obsidian'
 import type { RemarkableSyncPlugin } from '../plugin'
 import type { NotebookSummary } from '../domain/notebook'
+import { notebookDisplayPath } from '../domain/notebook'
 import { log } from '../../utils/log'
 
 class NotebookSuggestModal extends FuzzySuggestModal<NotebookSummary> {
@@ -24,10 +25,7 @@ class NotebookSuggestModal extends FuzzySuggestModal<NotebookSummary> {
     }
 
     override getItemText(item: NotebookSummary): string {
-        if (item.folderPath) {
-            return `${item.folderPath}/${item.visibleName}`
-        }
-        return item.visibleName
+        return notebookDisplayPath(item)
     }
 
     override onChooseItem(item: NotebookSummary, _evt: MouseEvent | KeyboardEvent): void {
@@ -40,7 +38,7 @@ class NotebookSuggestModal extends FuzzySuggestModal<NotebookSummary> {
 }
 
 export async function syncNotebook(plugin: RemarkableSyncPlugin): Promise<void> {
-    if (!plugin.settings.isAuthenticated) {
+    if (!plugin.isConnected) {
         new Notice('Not connected to reMarkable cloud')
         return
     }

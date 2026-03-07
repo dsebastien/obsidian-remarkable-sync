@@ -5,7 +5,6 @@ export interface PluginSettings {
     targetFolder: string
     saveImages: boolean
     imageFormat: 'png' | 'jpeg'
-    isAuthenticated: boolean
     syncStore: SyncStore
 }
 
@@ -13,6 +12,5 @@ export const DEFAULT_SETTINGS: PluginSettings = {
     targetFolder: '',
     saveImages: true,
     imageFormat: 'png',
-    isAuthenticated: false,
     syncStore: DEFAULT_SYNC_STORE
 }

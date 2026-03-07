@@ -1,11 +1,4 @@
-import { format, parseISO } from 'date-fns'
-
-/**
- * Format a date string for YAML frontmatter (ISO 8601)
- */
-export function formatForFrontmatter(date: Date): string {
-    return date.toISOString()
-}
+import { format } from 'date-fns'
 
 /**
  * Format a reMarkable lastModified timestamp for display
@@ -17,11 +10,4 @@ export function formatRemarkableDate(lastModified: string): string {
         return 'Unknown'
     }
     return format(new Date(timestamp), 'MMM d, yyyy HH:mm')
-}
-
-/**
- * Parse an ISO date string
- */
-export function parseISODate(dateString: string): Date {
-    return parseISO(dateString)
 }

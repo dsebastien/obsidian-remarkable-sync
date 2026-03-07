@@ -1,7 +1,7 @@
 import { log } from '../../../utils/log'
 import { join } from 'path'
 import { homedir } from 'os'
-import { readFileSync, writeFileSync, mkdirSync, unlinkSync, existsSync } from 'node:fs'
+import { readFileSync, writeFileSync, mkdirSync, unlinkSync } from 'node:fs'
 
 export interface StoredTokens {
     deviceToken: string
@@ -25,14 +25,9 @@ function getTokenDir(): string {
  */
 export function readTokens(): StoredTokens | null {
     try {
-        const tokenPath = getTokenPath()
-        if (!existsSync(tokenPath)) {
-            return null
-        }
-        const content = readFileSync(tokenPath, 'utf-8')
+        const content = readFileSync(getTokenPath(), 'utf-8')
         return JSON.parse(content) as StoredTokens
-    } catch (error) {
-        log('Failed to read tokens', 'error', error)
+    } catch {
         return null
     }
 }
@@ -42,12 +37,8 @@ export function readTokens(): StoredTokens | null {
  */
 export function writeTokens(tokens: StoredTokens): void {
     try {
-        const tokenDir = getTokenDir()
-        if (!existsSync(tokenDir)) {
-            mkdirSync(tokenDir, { recursive: true })
-        }
-        const tokenPath = getTokenPath()
-        writeFileSync(tokenPath, JSON.stringify(tokens, null, 2), 'utf-8')
+        mkdirSync(getTokenDir(), { recursive: true })
+        writeFileSync(getTokenPath(), JSON.stringify(tokens, null, 2), 'utf-8')
         log('Tokens saved', 'debug')
     } catch (error) {
         log('Failed to write tokens', 'error', error)
@@ -60,14 +51,11 @@ export function writeTokens(tokens: StoredTokens): void {
  */
 export function deleteTokens(): void {
     try {
-        const tokenPath = getTokenPath()
-        if (existsSync(tokenPath)) {
-            unlinkSync(tokenPath)
-        }
-        log('Tokens deleted', 'debug')
-    } catch (error) {
-        log('Failed to delete tokens', 'error', error)
+        unlinkSync(getTokenPath())
+    } catch {
+        // File may not exist — that's fine
     }
+    log('Tokens deleted', 'debug')
 }
 
 /**

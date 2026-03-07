@@ -1,3 +1,5 @@
+import { PenType } from './notebook'
+
 /**
  * Constants for the reMarkable .rm v6 binary file format
  */
@@ -95,9 +97,9 @@ export const PEN_WIDTH_MULTIPLIER: Record<number, number> = {
 /**
  * PenType values that should use opacity for rendering (e.g., highlighter)
  */
-export const HIGHLIGHTER_PEN_TYPES = new Set([5, 18])
+export const HIGHLIGHTER_PEN_TYPES = new Set([PenType.Highlighter, PenType.HighlighterV2])
 
 /**
  * PenType values that are erasers (should not be rendered)
  */
-export const ERASER_PEN_TYPES = new Set([6, 8])
+export const ERASER_PEN_TYPES = new Set([PenType.Eraser, PenType.EraseArea])

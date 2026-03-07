@@ -1,3 +1,4 @@
+import { TFile } from 'obsidian'
 import type { Vault } from 'obsidian'
 import { log } from '../../../utils/log'
 
@@ -59,8 +60,8 @@ export async function writePageImage(
 
     // Write binary data
     const existingFile = vault.getAbstractFileByPath(filePath)
-    if (existingFile) {
-        await vault.modifyBinary(existingFile as import('obsidian').TFile, imageData)
+    if (existingFile instanceof TFile) {
+        await vault.modifyBinary(existingFile, imageData)
     } else {
         await vault.createBinary(filePath, imageData)
     }

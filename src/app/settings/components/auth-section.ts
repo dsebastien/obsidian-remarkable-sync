@@ -10,7 +10,7 @@ export function renderAuthSection(
 ): void {
     new Setting(containerEl).setName('Authentication').setHeading()
 
-    if (plugin.settings.isAuthenticated) {
+    if (plugin.isConnected) {
         new Setting(containerEl)
             .setName('Status')
             .setDesc('Connected to reMarkable cloud')

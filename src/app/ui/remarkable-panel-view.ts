@@ -9,9 +9,12 @@ import type {
 import { deriveSyncStatus } from '../domain/sync-state'
 import type { SyncStatus } from '../domain/sync-state'
 import { formatRemarkableDate } from '../../utils/date-utils'
+import { fuzzyMatch } from '../../utils/fuzzy-match'
 import { log } from '../../utils/log'
 
 export const REMARKABLE_PANEL_VIEW_TYPE = 'remarkable-panel'
+
+type FilterMode = 'all' | 'selected' | 'unselected'
 
 export class RemarkablePanelView extends ItemView {
     private readonly plugin: RemarkableSyncPlugin
@@ -20,6 +23,8 @@ export class RemarkablePanelView extends ItemView {
     private selectedIds: Set<string> = new Set()
     private isLoading = false
     private isBulkSyncing = false
+    private searchQuery = ''
+    private filterMode: FilterMode = 'all'
 
     constructor(leaf: WorkspaceLeaf, plugin: RemarkableSyncPlugin) {
         super(leaf)
@@ -72,6 +77,7 @@ export class RemarkablePanelView extends ItemView {
             return
         }
 
+        this.renderToolbar(root)
         this.renderNotebookList(root)
     }
 
@@ -143,31 +149,107 @@ export class RemarkablePanelView extends ItemView {
         })
     }
 
+    private renderToolbar(container: HTMLElement): void {
+        const toolbar = container.createDiv({ cls: 'remarkable-toolbar' })
+
+        // Search box
+        const searchInput = toolbar.createEl('input', {
+            cls: 'remarkable-search-input',
+            attr: {
+                type: 'search',
+                placeholder: 'Search notebooks...',
+                value: this.searchQuery
+            }
+        })
+        searchInput.value = this.searchQuery
+        searchInput.addEventListener('input', () => {
+            const cursorPos = searchInput.selectionStart
+            this.searchQuery = searchInput.value
+            this.render()
+            // Refocus after re-render since render() rebuilds the DOM
+            const newInput = this.contentEl.querySelector<HTMLInputElement>(
+                '.remarkable-search-input'
+            )
+            if (newInput) {
+                newInput.focus()
+                newInput.setSelectionRange(cursorPos, cursorPos)
+            }
+        })
+
+        // Filter toggle (All / Selected / Unselected)
+        const filterRow = toolbar.createDiv({ cls: 'remarkable-filter-row' })
+        const modes: { value: FilterMode; label: string }[] = [
+            { value: 'all', label: 'All' },
+            { value: 'selected', label: 'Selected' },
+            { value: 'unselected', label: 'Unselected' }
+        ]
+        for (const mode of modes) {
+            const btn = filterRow.createEl('button', {
+                cls: `remarkable-filter-btn${this.filterMode === mode.value ? ' remarkable-filter-btn-active' : ''}`,
+                text: mode.label
+            })
+            btn.addEventListener('click', () => {
+                this.filterMode = mode.value
+                this.render()
+            })
+        }
+    }
+
+    private getFilteredNotebooks(): NotebookSummary[] {
+        let filtered = this.notebooks
+
+        // Apply search filter
+        if (this.searchQuery.trim()) {
+            filtered = filtered.filter((nb) => {
+                const target = nb.folderPath ? `${nb.folderPath}/${nb.visibleName}` : nb.visibleName
+                return fuzzyMatch(this.searchQuery.trim(), target)
+            })
+        }
+
+        // Apply selection filter
+        switch (this.filterMode) {
+            case 'selected':
+                filtered = filtered.filter((nb) => this.selectedIds.has(nb.id))
+                break
+            case 'unselected':
+                filtered = filtered.filter((nb) => !this.selectedIds.has(nb.id))
+                break
+            case 'all':
+                break
+        }
+
+        return filtered
+    }
+
     private renderNotebookList(container: HTMLElement): void {
         const list = container.createDiv({ cls: 'remarkable-notebook-list' })
+        const filtered = this.getFilteredNotebooks()
 
-        // Select all checkbox
+        // Select all checkbox (operates on filtered notebooks)
         const selectAllRow = list.createDiv({ cls: 'remarkable-select-all-row' })
         const selectAllCheckbox = selectAllRow.createEl('input', {
             cls: 'remarkable-notebook-checkbox',
             attr: { type: 'checkbox' }
         })
-        const allSelected =
-            this.notebooks.length > 0 && this.selectedIds.size === this.notebooks.length
-        const someSelected = this.selectedIds.size > 0 && !allSelected
-        selectAllCheckbox.checked = allSelected
-        selectAllCheckbox.indeterminate = someSelected
+        const allFilteredSelected =
+            filtered.length > 0 && filtered.every((nb) => this.selectedIds.has(nb.id))
+        const someFilteredSelected =
+            filtered.some((nb) => this.selectedIds.has(nb.id)) && !allFilteredSelected
+        selectAllCheckbox.checked = allFilteredSelected
+        selectAllCheckbox.indeterminate = someFilteredSelected
         selectAllRow.createSpan({
             cls: 'remarkable-select-all-label',
-            text: 'Select all'
+            text: `Select all (${filtered.length})`
         })
         selectAllCheckbox.addEventListener('change', () => {
             if (selectAllCheckbox.checked) {
-                for (const nb of this.notebooks) {
+                for (const nb of filtered) {
                     this.selectedIds.add(nb.id)
                 }
             } else {
-                this.selectedIds.clear()
+                for (const nb of filtered) {
+                    this.selectedIds.delete(nb.id)
+                }
             }
             this.render()
         })
@@ -178,9 +260,17 @@ export class RemarkablePanelView extends ItemView {
             }
         })
 
+        if (filtered.length === 0) {
+            list.createDiv({
+                cls: 'remarkable-empty',
+                text: 'No notebooks match the current filters.'
+            })
+            return
+        }
+
         // Group by folder path
         const grouped = new Map<string, NotebookSummary[]>()
-        for (const nb of this.notebooks) {
+        for (const nb of filtered) {
             const folder = nb.folderPath || 'Root'
             const existing = grouped.get(folder)
             if (existing) {

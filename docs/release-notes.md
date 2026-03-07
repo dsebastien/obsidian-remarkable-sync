@@ -1,5 +1,11 @@
 # Release Notes
 
+## 0.2.0 (2026-03-07)
+
+### Features
+
+- **all:** added support for importing rmdoc files
+
 ## 0.1.0 (2026-03-07)
 
 ### Features

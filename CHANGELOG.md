@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.2.0](https://github.com/dsebastien/obsidian-remarkable-sync/compare/0.1.0...0.2.0) (2026-03-07)
+
+### Features
+
+* **all:** added support for importing rmdoc files ([2e981f7](https://github.com/dsebastien/obsidian-remarkable-sync/commit/2e981f7594253eff8db4580a7709bef497cedf7e))
+
 ## 0.1.0 (2026-03-07)
 
 ### Features
@@ -33,4 +39,5 @@ All notable changes to this project will be documented in this file.
 - Inline progress indicators per notebook in panel
 - Settings for target folder, image format
 - Token storage outside vault for security
+
 

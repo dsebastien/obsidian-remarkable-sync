@@ -15,8 +15,18 @@ export interface IndexEntry {
 }
 
 /**
+ * Extract HTTP status from an error thrown by Obsidian's requestUrl.
+ */
+function getHttpStatus(error: unknown): number | undefined {
+    return error && typeof error === 'object' && 'status' in error
+        ? (error as { status: number }).status
+        : undefined
+}
+
+/**
  * Fetch the root index hash from the sync service.
  * Response is JSON with a `hash` property.
+ * Throws with a status property on HTTP errors (e.g. 401).
  */
 export async function fetchRootHash(userToken: string): Promise<string | null> {
     try {
@@ -41,8 +51,16 @@ export async function fetchRootHash(userToken: string): Promise<string | null> {
         }
 
         return hash
-    } catch (error) {
-        log('Failed to fetch root hash', 'error', error)
+    } catch (error: unknown) {
+        const status = getHttpStatus(error)
+        if (status === 401) {
+            throw error
+        }
+        if (status) {
+            log(`Failed to fetch root hash: HTTP ${status}`, 'error')
+        } else {
+            log('Failed to fetch root hash', 'error', error)
+        }
         return null
     }
 }
@@ -66,8 +84,16 @@ export async function fetchBlob(userToken: string, hash: string): Promise<ArrayB
         }
 
         return response.arrayBuffer
-    } catch (error) {
-        log(`Failed to fetch blob ${hash}`, 'error', error)
+    } catch (error: unknown) {
+        const status =
+            error && typeof error === 'object' && 'status' in error
+                ? (error as { status: number }).status
+                : undefined
+        if (status) {
+            log(`Failed to fetch blob ${hash}: HTTP ${status}`, 'error')
+        } else {
+            log(`Failed to fetch blob ${hash}`, 'error', error)
+        }
         return null
     }
 }

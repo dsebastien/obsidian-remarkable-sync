@@ -1,6 +1,7 @@
 import { test, expect, describe } from 'bun:test'
-import { parseDocument } from './document-parser.service'
+import { parseDocument, extractPageOrder } from './document-parser.service'
 import { RM_HEADER, RM_HEADER_LENGTH } from '../../domain/rm-constants'
+import type { RemarkableDocumentContent } from '../../domain/remarkable-types'
 
 function toBuffer(text: string): ArrayBuffer {
     return new TextEncoder().encode(text).buffer
@@ -119,6 +120,80 @@ describe('document-parser', () => {
 
         const result = parseDocument(files, 'test-doc-id')
 
+        expect(result).toBeNull()
+    })
+
+    test('uses cPages order over flat pages array', () => {
+        const content = JSON.stringify({
+            ...JSON.parse(CONTENT_WITH_PAGES),
+            pages: ['page-aaa-111', 'page-bbb-222'],
+            cPages: {
+                pages: [
+                    { id: 'page-bbb-222', idx: { value: 'ba' } },
+                    { id: 'page-aaa-111', idx: { value: 'bb' } }
+                ]
+            }
+        })
+
+        const files = new Map<string, ArrayBuffer>()
+        files.set('docid.metadata', toBuffer(METADATA))
+        files.set('docid.content', toBuffer(content))
+        files.set('docid/page-aaa-111.rm', createRmHeader())
+        files.set('docid/page-bbb-222.rm', createRmHeader())
+
+        const result = parseDocument(files, 'test-doc-id')
+
+        expect(result).not.toBeNull()
+        expect(result!.pages[0]!.pageId).toBe('page-bbb-222')
+        expect(result!.pages[1]!.pageId).toBe('page-aaa-111')
+    })
+})
+
+describe('extractPageOrder', () => {
+    test('returns null for null content', () => {
+        expect(extractPageOrder(null)).toBeNull()
+    })
+
+    test('returns flat pages array when no cPages', () => {
+        const content = JSON.parse(CONTENT_WITH_PAGES) as RemarkableDocumentContent
+        const result = extractPageOrder(content)
+        expect(result).toEqual(['page-aaa-111', 'page-bbb-222'])
+    })
+
+    test('prefers cPages sorted by idx.value', () => {
+        const content = {
+            ...JSON.parse(CONTENT_WITH_PAGES),
+            cPages: {
+                pages: [
+                    { id: 'page-c', idx: { value: 'bc' } },
+                    { id: 'page-a', idx: { value: 'ba' } },
+                    { id: 'page-b', idx: { value: 'bb' } }
+                ]
+            }
+        } as RemarkableDocumentContent
+
+        const result = extractPageOrder(content)
+        expect(result).toEqual(['page-a', 'page-b', 'page-c'])
+    })
+
+    test('falls back to pages when cPages is empty', () => {
+        const content = {
+            ...JSON.parse(CONTENT_WITH_PAGES),
+            cPages: { pages: [] }
+        } as RemarkableDocumentContent
+
+        const result = extractPageOrder(content)
+        expect(result).toEqual(['page-aaa-111', 'page-bbb-222'])
+    })
+
+    test('returns null when both pages and cPages are empty', () => {
+        const content = {
+            ...JSON.parse(CONTENT_WITH_PAGES),
+            pages: [],
+            cPages: { pages: [] }
+        } as RemarkableDocumentContent
+
+        const result = extractPageOrder(content)
         expect(result).toBeNull()
     })
 })

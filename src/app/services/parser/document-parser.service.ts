@@ -7,6 +7,32 @@ import type {
 } from '../../domain/remarkable-types'
 
 /**
+ * Extract ordered page IDs from a .content file.
+ * Prefers cPages (firmware 3.x+, supports page reordering) over the flat pages array.
+ */
+export function extractPageOrder(content: RemarkableDocumentContent | null): string[] | null {
+    if (!content) return null
+
+    // Prefer cPages (firmware 3.x+) — sorted by idx.value gives display order
+    const cPages = content.cPages?.pages
+    if (cPages && cPages.length > 0) {
+        const sorted = [...cPages].sort((a, b) => {
+            const aIdx = a.idx?.value ?? ''
+            const bIdx = b.idx?.value ?? ''
+            return aIdx.localeCompare(bIdx)
+        })
+        return sorted.map((p) => p.id)
+    }
+
+    // Fall back to flat pages array (older firmware)
+    if (content.pages && content.pages.length > 0) {
+        return [...content.pages]
+    }
+
+    return null
+}
+
+/**
  * Parse downloaded reMarkable document files into a Notebook.
  * Accepts a Map of file paths to their contents (from sync protocol).
  */
@@ -36,7 +62,6 @@ export function parseDocument(
 
         // Build a lookup map from page ID to .rm file data
         const rmFilesByPageId = new Map<string, ArrayBuffer>()
-        const pageIds: string[] = []
 
         for (const [path, data] of files) {
             if (!path.endsWith('.rm')) continue
@@ -45,15 +70,11 @@ export function parseDocument(
             const pageId = path.slice(lastSlash + 1, -3)
             if (pageId) {
                 rmFilesByPageId.set(pageId, data)
-                if (!content?.pages) {
-                    pageIds.push(pageId)
-                }
             }
         }
 
-        if (content?.pages) {
-            pageIds.push(...content.pages)
-        }
+        // Determine page order: cPages > pages > file discovery order
+        const pageIds = extractPageOrder(content) ?? [...rmFilesByPageId.keys()]
 
         // Parse each page's .rm file
         const pages: Page[] = []

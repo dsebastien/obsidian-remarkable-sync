@@ -38,7 +38,7 @@ export async function writePageImage(
     notebookName: string,
     pageIndex: number,
     imageData: ArrayBuffer,
-    format: 'png' | 'jpeg'
+    format: 'png' | 'jpeg' | 'webp'
 ): Promise<string> {
     const filePath = buildPagePath(targetFolder, folderPath, notebookName, pageIndex, format)
 

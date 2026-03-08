@@ -4,7 +4,8 @@ import { DEFAULT_SYNC_STORE } from '../domain/sync-state'
 export interface PluginSettings {
     targetFolder: string
     saveImages: boolean
-    imageFormat: 'png' | 'jpeg'
+    imageFormat: 'png' | 'jpeg' | 'webp'
+    imageQuality: number
     useRmfakecloud: boolean
     rmfakecloudUrl: string
     syncStore: SyncStore
@@ -13,7 +14,8 @@ export interface PluginSettings {
 export const DEFAULT_SETTINGS: PluginSettings = {
     targetFolder: '',
     saveImages: true,
-    imageFormat: 'png',
+    imageFormat: 'jpeg',
+    imageQuality: 0.85,
     useRmfakecloud: false,
     rmfakecloudUrl: '',
     syncStore: DEFAULT_SYNC_STORE

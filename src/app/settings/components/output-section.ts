@@ -36,16 +36,41 @@ export function renderOutputSection(containerEl: HTMLElement, plugin: Remarkable
 
     new Setting(containerEl)
         .setName('Image format')
-        .setDesc('Format for rendered page images')
+        .setDesc('Format for rendered page images. JPEG and WebP are smaller; PNG is lossless.')
         .addDropdown((dropdown) => {
             dropdown
-                .addOption('png', 'PNG')
                 .addOption('jpeg', 'JPEG')
+                .addOption('webp', 'WebP')
+                .addOption('png', 'PNG')
                 .setValue(plugin.settings.imageFormat)
                 .onChange(async (value) => {
                     await plugin.updateSettings((draft) => {
-                        draft.imageFormat = value as 'png' | 'jpeg'
+                        draft.imageFormat = value as 'png' | 'jpeg' | 'webp'
+                    })
+                    // Re-render to show/hide quality slider
+                    updateQualityVisibility()
+                })
+        })
+
+    const qualitySetting = new Setting(containerEl)
+        .setName('Image quality')
+        .setDesc('Quality for JPEG/WebP (0.1 = smallest, 1.0 = best). Does not apply to PNG.')
+        .addSlider((slider) => {
+            slider
+                .setLimits(0.1, 1.0, 0.05)
+                .setValue(plugin.settings.imageQuality)
+                .setDynamicTooltip()
+                .onChange(async (value) => {
+                    await plugin.updateSettings((draft) => {
+                        draft.imageQuality = value
                     })
                 })
         })
+
+    function updateQualityVisibility(): void {
+        const isPng = plugin.settings.imageFormat === 'png'
+        qualitySetting.settingEl.toggle(!isPng)
+    }
+
+    updateQualityVisibility()
 }

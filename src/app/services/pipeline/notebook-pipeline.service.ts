@@ -76,7 +76,11 @@ export function createNotebookPipelineService(
 
                 // Render page to image
                 onProgress({ status: 'rendering', currentPage: i + 1, totalPages })
-                const imageData = await renderPage(page, settings.imageFormat)
+                const imageData = await renderPage(
+                    page,
+                    settings.imageFormat,
+                    settings.imageQuality
+                )
 
                 if (imageData && settings.saveImages) {
                     await writePageImage(

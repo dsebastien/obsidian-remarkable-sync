@@ -2,7 +2,7 @@ import type { Page } from '../../domain/notebook'
 import { PAGE_WIDTH, PAGE_HEIGHT } from '../../domain/rm-constants'
 import { pageHasContent } from '../parser/rm-file-parser'
 import { renderStroke } from './stroke-renderer'
-import { canvasToPng, canvasToJpeg } from '../../../utils/image-utils'
+import { canvasToPng, canvasToJpeg, canvasToWebp } from '../../../utils/image-utils'
 import { log } from '../../../utils/log'
 
 /**
@@ -34,7 +34,8 @@ export function renderPageToCanvas(page: Page): OffscreenCanvas | null {
  */
 export async function renderPage(
     page: Page,
-    format: 'png' | 'jpeg' = 'png'
+    format: 'png' | 'jpeg' | 'webp' = 'jpeg',
+    quality = 0.85
 ): Promise<ArrayBuffer | null> {
     try {
         const canvas = renderPageToCanvas(page)
@@ -42,10 +43,14 @@ export async function renderPage(
             return null
         }
 
-        if (format === 'jpeg') {
-            return canvasToJpeg(canvas)
+        switch (format) {
+            case 'jpeg':
+                return canvasToJpeg(canvas, quality)
+            case 'webp':
+                return canvasToWebp(canvas, quality)
+            case 'png':
+                return canvasToPng(canvas)
         }
-        return canvasToPng(canvas)
     } catch (error) {
         log(`Failed to render page ${page.pageIndex}`, 'error', error)
         return null

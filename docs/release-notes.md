@@ -1,5 +1,11 @@
 # Release Notes
 
+## 1.1.0 (2026-03-08)
+
+### Features
+
+- **all:** optimized images. Added support for WebP. Set JPG by default
+
 ## 1.0.0 (2026-03-08)
 
 ### Features

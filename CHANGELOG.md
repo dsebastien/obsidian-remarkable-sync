@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.1.0](https://github.com/dsebastien/obsidian-remarkable-sync/compare/1.0.0...1.1.0) (2026-03-08)
+
+### Features
+
+* **all:** optimized images. Added support for WebP. Set JPG by default ([f1de2bb](https://github.com/dsebastien/obsidian-remarkable-sync/commit/f1de2bbe37163920c1f6c4431526e5b1549a3054))
+
 ## [1.0.0](https://github.com/dsebastien/obsidian-remarkable-sync/compare/0.2.0...1.0.0) (2026-03-08)
 
 ### Features
@@ -45,6 +51,7 @@ All notable changes to this project will be documented in this file.
 - Inline progress indicators per notebook in panel
 - Settings for target folder, image format
 - Token storage outside vault for security
+
 
 
 

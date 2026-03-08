@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.0.0](https://github.com/dsebastien/obsidian-remarkable-sync/compare/0.2.0...1.0.0) (2026-03-08)
+
+### Features
+
+* **all:** added rmFakeCloud support ([4f6ca03](https://github.com/dsebastien/obsidian-remarkable-sync/commit/4f6ca03e2c7cc8be0d325b678171f638506ba6dc))
+
 ## [0.2.0](https://github.com/dsebastien/obsidian-remarkable-sync/compare/0.1.0...0.2.0) (2026-03-07)
 
 ### Features
@@ -39,5 +45,6 @@ All notable changes to this project will be documented in this file.
 - Inline progress indicators per notebook in panel
 - Settings for target folder, image format
 - Token storage outside vault for security
+
 
 

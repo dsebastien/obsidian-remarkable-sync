@@ -1,5 +1,11 @@
 # Release Notes
 
+## 1.0.0 (2026-03-08)
+
+### Features
+
+- **all:** added rmFakeCloud support
+
 ## 0.2.0 (2026-03-07)
 
 ### Features

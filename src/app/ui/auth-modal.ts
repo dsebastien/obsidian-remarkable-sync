@@ -1,5 +1,6 @@
 import { Modal } from 'obsidian'
 import type { RemarkableSyncPlugin } from '../plugin'
+import { resolveCloudUrls } from '../services/cloud/cloud-urls'
 
 export class AuthModal extends Modal {
     private readonly plugin: RemarkableSyncPlugin
@@ -15,9 +16,10 @@ export class AuthModal extends Modal {
 
     override onOpen(): void {
         const { contentEl, titleEl } = this
+        const urls = resolveCloudUrls(this.plugin.settings)
         contentEl.empty()
         contentEl.addClass('remarkable-auth-modal')
-        titleEl.setText('Connect to reMarkable')
+        titleEl.setText(urls.isRmfakecloud ? 'Connect to rmfakecloud' : 'Connect to reMarkable')
 
         const instructions = contentEl.createDiv({ cls: 'remarkable-auth-instructions' })
         instructions.createEl('p', {
@@ -30,16 +32,24 @@ export class AuthModal extends Modal {
         const step1 = steps.createDiv({ cls: 'remarkable-auth-step' })
         step1.createEl('span', { text: '1', cls: 'remarkable-auth-step-number' })
         const step1Text = step1.createEl('span')
-        step1Text.createEl('span', { text: 'Visit ' })
-        step1Text.createEl('a', {
-            text: 'my.remarkable.com/device/desktop/connect',
-            href: 'https://my.remarkable.com/device/desktop/connect',
-            cls: 'remarkable-auth-link'
-        })
+        if (urls.isRmfakecloud) {
+            step1Text.createEl('span', { text: 'Open your rmfakecloud web interface' })
+        } else {
+            step1Text.createEl('span', { text: 'Visit ' })
+            step1Text.createEl('a', {
+                text: 'my.remarkable.com/device/desktop/connect',
+                href: 'https://my.remarkable.com/device/desktop/connect',
+                cls: 'remarkable-auth-link'
+            })
+        }
 
         const step2 = steps.createDiv({ cls: 'remarkable-auth-step' })
         step2.createEl('span', { text: '2', cls: 'remarkable-auth-step-number' })
-        step2.createEl('span', { text: 'Sign in with your reMarkable account' })
+        step2.createEl('span', {
+            text: urls.isRmfakecloud
+                ? 'Generate a one-time code from the web interface'
+                : 'Sign in with your reMarkable account'
+        })
 
         const step3 = steps.createDiv({ cls: 'remarkable-auth-step' })
         step3.createEl('span', { text: '3', cls: 'remarkable-auth-step-number' })
@@ -109,7 +119,9 @@ export class AuthModal extends Modal {
                 successEl.removeClass('remarkable-auth-hidden')
                 successEl.createDiv({ cls: 'remarkable-auth-success-icon', text: '\u2713' })
                 successEl.createEl('p', {
-                    text: 'Successfully connected to reMarkable cloud',
+                    text: urls.isRmfakecloud
+                        ? 'Successfully connected to rmfakecloud'
+                        : 'Successfully connected to reMarkable cloud',
                     cls: 'remarkable-auth-success-text'
                 })
 

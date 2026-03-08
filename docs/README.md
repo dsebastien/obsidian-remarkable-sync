@@ -5,6 +5,7 @@ Connect your reMarkable tablet to Obsidian. List, download, and sync notebook pa
 ## Key Features
 
 - Connect to reMarkable cloud with a one-time code
+- Support for self-hosted [rmfakecloud](https://github.com/ddvk/rmfakecloud) servers
 - Browse notebooks in a sidebar panel with folder hierarchy
 - Download page images (PNG/JPEG)
 - No external AI services required

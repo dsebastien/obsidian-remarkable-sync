@@ -8,11 +8,21 @@
 
 ## Authentication
 
+### Official reMarkable cloud
+
 1. Run the **"Connect to reMarkable cloud"** command (Ctrl/Cmd+P → type "Connect")
 2. In the modal, follow the link to [my.remarkable.com/device/desktop/connect](https://my.remarkable.com/device/desktop/connect)
 3. Sign in with your reMarkable account
 4. Copy the 8-character one-time code
 5. Paste it into the plugin modal and click **Connect**
+
+### rmfakecloud
+
+1. Enable **"Use rmfakecloud"** in **Settings → Community plugins → Remarkable Sync → Cloud**
+2. Enter your rmfakecloud server URL (e.g., `https://cloud.example.com`)
+3. Run the **"Connect to reMarkable cloud"** command
+4. Open your rmfakecloud web interface and generate a one-time code
+5. Enter the code in the plugin modal and click **Connect**
 
 Your device token is stored at `~/.remarkable-sync/token.json` and persists across sessions.
 

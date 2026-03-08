@@ -5,6 +5,7 @@ An Obsidian plugin that connects to the reMarkable cloud to list, download, and 
 ## Features
 
 - **reMarkable cloud integration** — connect with a one-time code, list all notebooks
+- **rmfakecloud support** — connect to a self-hosted [rmfakecloud](https://github.com/ddvk/rmfakecloud) server as an alternative to the official cloud
 - **Page rendering** — render .rm v6 stroke data to PNG/JPEG images
 - **Sidebar panel** — browse notebooks with folder hierarchy, download per notebook
 - **Folder hierarchy preservation** — reMarkable folder structure mirrored in vault
@@ -13,7 +14,7 @@ An Obsidian plugin that connects to the reMarkable cloud to list, download, and 
 ## Requirements
 
 - Obsidian (desktop only, v1.4.0+)
-- A reMarkable account with cloud sync enabled (optional for local .rmdoc import)
+- A reMarkable account with cloud sync enabled, or a [rmfakecloud](https://github.com/ddvk/rmfakecloud) server (optional for local .rmdoc import)
 
 ## Quick Start
 
@@ -34,11 +35,13 @@ An Obsidian plugin that connects to the reMarkable cloud to list, download, and 
 
 ## Settings
 
-| Setting       | Default     | Description                   |
-| ------------- | ----------- | ----------------------------- |
-| Target folder | `""` (root) | Vault folder for output files |
-| Save images   | `true`      | Save rendered page images     |
-| Image format  | `png`       | PNG or JPEG                   |
+| Setting         | Default     | Description                                                            |
+| --------------- | ----------- | ---------------------------------------------------------------------- |
+| Target folder   | `""` (root) | Vault folder for output files                                          |
+| Save images     | `true`      | Save rendered page images                                              |
+| Image format    | `png`       | PNG or JPEG                                                            |
+| Use rmfakecloud | `false`     | Connect to a self-hosted rmfakecloud server instead of official cloud  |
+| Server URL      | `""`        | Base URL of your rmfakecloud server (only when rmfakecloud is enabled) |
 
 ## Output Format
 
@@ -52,11 +55,21 @@ Folder hierarchy is preserved:
 
 Blank pages (no strokes) are skipped.
 
+## rmfakecloud
+
+This plugin supports [rmfakecloud](https://github.com/ddvk/rmfakecloud), a self-hosted reMarkable cloud replacement. To use it:
+
+1. Enable **"Use rmfakecloud"** in plugin settings
+2. Enter your rmfakecloud server URL (e.g., `https://cloud.example.com`)
+3. Run **"Connect to reMarkable cloud"** and enter a one-time code generated from your rmfakecloud web interface
+
+The authentication flow and sync protocol are identical to the official cloud. All API requests go to your self-hosted server instead of reMarkable's servers.
+
 ## Privacy
 
 - Authentication tokens stored at `~/.remarkable-sync/token.json` (outside vault)
 - No telemetry or third-party analytics
-- Network requests only to reMarkable cloud
+- Network requests only to reMarkable cloud (or your rmfakecloud server when enabled)
 
 ## Development
 

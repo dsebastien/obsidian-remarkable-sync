@@ -4,11 +4,13 @@
 
 All settings are configured via **Settings → Community plugins → Remarkable Sync**.
 
-| Setting       | Default     | Description                                      |
-| ------------- | ----------- | ------------------------------------------------ |
-| Target folder | `""` (root) | Vault-relative path where output files are saved |
-| Save images   | `true`      | Save rendered page images                        |
-| Image format  | `png`       | Format for rendered images (`png` or `jpeg`)     |
+| Setting         | Default     | Description                                                           |
+| --------------- | ----------- | --------------------------------------------------------------------- |
+| Target folder   | `""` (root) | Vault-relative path where output files are saved                      |
+| Save images     | `true`      | Save rendered page images                                             |
+| Image format    | `png`       | Format for rendered images (`png` or `jpeg`)                          |
+| Use rmfakecloud | `false`     | Connect to a self-hosted rmfakecloud server instead of official cloud |
+| Server URL      | `""`        | Base URL of rmfakecloud server (only when rmfakecloud is enabled)     |
 
 ## Authentication
 

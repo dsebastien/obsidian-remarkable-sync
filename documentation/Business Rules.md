@@ -20,7 +20,7 @@ When a new business rule is mentioned:
 - Tokens are stored outside the vault at `~/.remarkable-sync/token.json` for security
 - Device tokens are long-lived; user tokens expire after 24h and auto-refresh using the device token
 - All HTTP requests use Obsidian's `requestUrl` for plugin compliance and CORS handling
-- Users authenticate via a one-time code from `my.remarkable.com/device/desktop/connect`
+- Users authenticate via a one-time code from `my.remarkable.com/device/desktop/connect` (official) or the rmfakecloud web interface
 
 ## Document Processing
 
@@ -49,9 +49,17 @@ When a new business rule is mentioned:
 - reMarkable folder hierarchy is preserved under the target folder
 - Images are saved when `saveImages` is enabled
 
+## rmfakecloud
+
+- When rmfakecloud is enabled, both auth and sync endpoints use the same user-provided base URL
+- Tokens from the official cloud are not valid on rmfakecloud (and vice versa); users must disconnect and reconnect when switching
+- The rmfakecloud URL must be a valid HTTP or HTTPS URL
+- When rmfakecloud is enabled but no URL is configured, the plugin falls back to the official cloud
+- When rmfakecloud is enabled, network requests go to the user's self-hosted server instead of reMarkable cloud
+
 ## Privacy & Security
 
 - No telemetry or analytics
-- No data sent to third-party services other than reMarkable cloud
+- No data sent to third-party services other than reMarkable cloud (or rmfakecloud when enabled)
 - Token storage is outside the vault to prevent accidental sync/sharing
 - Plugin is desktop-only due to OffscreenCanvas and filesystem token storage

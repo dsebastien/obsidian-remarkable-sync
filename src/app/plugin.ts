@@ -96,6 +96,12 @@ export class RemarkableSyncPlugin extends Plugin {
             if (loadedSettings.imageFormat !== undefined) {
                 draft.imageFormat = loadedSettings.imageFormat
             }
+            if (loadedSettings.useRmfakecloud !== undefined) {
+                draft.useRmfakecloud = loadedSettings.useRmfakecloud
+            }
+            if (loadedSettings.rmfakecloudUrl !== undefined) {
+                draft.rmfakecloudUrl = loadedSettings.rmfakecloudUrl
+            }
             if (loadedSettings.syncStore !== undefined) {
                 draft.syncStore = loadedSettings.syncStore
             }

@@ -1,8 +1,6 @@
 import { requestUrl } from 'obsidian'
 import { log } from '../../../utils/log'
 
-const SYNC_BASE_URL = 'https://internal.cloud.remarkable.com'
-
 /**
  * Entry from a parsed index file (root index or document index)
  */
@@ -28,10 +26,13 @@ function getHttpStatus(error: unknown): number | undefined {
  * Response is JSON with a `hash` property.
  * Throws with a status property on HTTP errors (e.g. 401).
  */
-export async function fetchRootHash(userToken: string): Promise<string | null> {
+export async function fetchRootHash(
+    userToken: string,
+    syncBaseUrl: string
+): Promise<string | null> {
     try {
         const response = await requestUrl({
-            url: `${SYNC_BASE_URL}/sync/v3/root`,
+            url: `${syncBaseUrl}/sync/v3/root`,
             method: 'GET',
             headers: {
                 Authorization: `Bearer ${userToken}`
@@ -68,10 +69,14 @@ export async function fetchRootHash(userToken: string): Promise<string | null> {
 /**
  * Fetch a file by its hash directly from the sync service.
  */
-export async function fetchBlob(userToken: string, hash: string): Promise<ArrayBuffer | null> {
+export async function fetchBlob(
+    userToken: string,
+    hash: string,
+    syncBaseUrl: string
+): Promise<ArrayBuffer | null> {
     try {
         const response = await requestUrl({
-            url: `${SYNC_BASE_URL}/sync/v3/files/${hash}`,
+            url: `${syncBaseUrl}/sync/v3/files/${hash}`,
             method: 'GET',
             headers: {
                 Authorization: `Bearer ${userToken}`

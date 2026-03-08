@@ -10,6 +10,30 @@
 }
 
 /* ========================================
+   CLOUD SETTINGS
+   ======================================== */
+
+.remarkable-cloud-warning {
+    @apply py-2 px-3 rounded text-sm;
+    background-color: var(--background-modifier-error-rgb, #f59e0b15);
+    border: 1px solid var(--background-modifier-border);
+}
+
+.remarkable-cloud-warning-text {
+    @apply m-0;
+    color: var(--text-muted);
+}
+
+.remarkable-cloud-url-error {
+    @apply block text-sm mt-1;
+    color: var(--text-error);
+}
+
+.remarkable-cloud-url-input {
+    @apply w-full;
+}
+
+/* ========================================
    SUPPORT & UI SECTIONS
    ======================================== */
 

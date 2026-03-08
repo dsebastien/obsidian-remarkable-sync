@@ -80,5 +80,7 @@ Top-level container: `notebooks: Record<string, NotebookSyncState>` keyed by rem
 - `targetFolder`: Vault-relative output path
 - `saveImages`: Whether to save rendered PNGs
 - `imageFormat`: 'png' | 'jpeg'
+- `useRmfakecloud`: Connect to rmfakecloud instead of official cloud
+- `rmfakecloudUrl`: Base URL of the rmfakecloud server
 - `isAuthenticated`: Derived from token presence
 - `syncStore`: Persistent sync state for all notebooks

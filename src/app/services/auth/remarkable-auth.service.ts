@@ -1,11 +1,8 @@
 import { requestUrl } from 'obsidian'
-import type { Plugin } from 'obsidian'
 import { log } from '../../../utils/log'
 import { readTokens, writeTokens, deleteTokens, hasValidTokens } from './token-store'
-
-const AUTH_BASE_URL = 'https://webapp-prod.cloud.remarkable.engineering'
-const DEVICE_TOKEN_URL = `${AUTH_BASE_URL}/token/json/2/device/new`
-const USER_TOKEN_URL = `${AUTH_BASE_URL}/token/json/2/user/new`
+import { resolveCloudUrls } from '../cloud/cloud-urls'
+import type { RemarkableSyncPlugin } from '../../plugin'
 
 // Device registration uses a fixed device description
 const DEVICE_DESC = 'desktop-windows'
@@ -19,15 +16,19 @@ export interface RemarkableAuthService {
     disconnect(): Promise<void>
 }
 
-export function createRemarkableAuthService(_plugin: Plugin): RemarkableAuthService {
+export function createRemarkableAuthService(plugin: RemarkableSyncPlugin): RemarkableAuthService {
     let cachedUserToken: string | null = null
     let tokenExpiryTime = 0
 
     async function registerDevice(oneTimeCode: string): Promise<boolean> {
         try {
-            log('Registering device with reMarkable cloud', 'debug')
+            const urls = resolveCloudUrls(plugin.settings)
+            log(
+                `Registering device with ${urls.isRmfakecloud ? 'rmfakecloud' : 'reMarkable cloud'}`,
+                'debug'
+            )
             const response = await requestUrl({
-                url: DEVICE_TOKEN_URL,
+                url: urls.deviceTokenUrl,
                 method: 'POST',
                 contentType: 'application/json',
                 body: JSON.stringify({
@@ -75,8 +76,9 @@ export function createRemarkableAuthService(_plugin: Plugin): RemarkableAuthServ
         deviceToken: string
     ): Promise<{ token: string; expiry: number } | null> {
         try {
+            const urls = resolveCloudUrls(plugin.settings)
             const response = await requestUrl({
-                url: USER_TOKEN_URL,
+                url: urls.userTokenUrl,
                 method: 'POST',
                 headers: {
                     Authorization: `Bearer ${deviceToken}`

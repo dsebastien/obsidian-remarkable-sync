@@ -12,6 +12,7 @@ import { formatRemarkableDate } from '../../utils/date-utils'
 import { fuzzyMatch } from '../../utils/fuzzy-match'
 import { log } from '../../utils/log'
 import { importRmdoc } from '../commands/import-rmdoc'
+import { resolveCloudUrls } from '../services/cloud/cloud-urls'
 
 export const REMARKABLE_PANEL_VIEW_TYPE = 'remarkable-panel'
 
@@ -154,12 +155,17 @@ export class RemarkablePanelView extends ItemView {
     }
 
     private renderDisconnected(container: HTMLElement): void {
+        const urls = resolveCloudUrls(this.plugin.settings)
         const disconnected = container.createDiv({ cls: 'remarkable-disconnected' })
         disconnected.createEl('p', {
-            text: 'Not connected to reMarkable cloud.'
+            text: urls.isRmfakecloud
+                ? 'Not connected to rmfakecloud.'
+                : 'Not connected to reMarkable cloud.'
         })
         disconnected.createEl('p', {
-            text: 'Run the "Connect to reMarkable cloud" command to authenticate.'
+            text: urls.isRmfakecloud
+                ? 'Configure your server URL in settings, then use the "Connect to reMarkable cloud" command.'
+                : 'Run the "Connect to reMarkable cloud" command to authenticate.'
         })
     }
 

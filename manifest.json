@@ -2,7 +2,7 @@
     "id": "obsidian-remarkable-sync",
     "name": "Remarkable Sync",
     "description": "Connect to the reMarkable cloud, list, download, and sync notebook pages as images",
-    "version": "1.1.0",
+    "version": "1.2.0",
     "minAppVersion": "1.4.0",
     "isDesktopOnly": true,
     "author": "Sébastien Dubois",

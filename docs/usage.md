@@ -28,23 +28,46 @@ Your device token is stored at `~/.remarkable-sync/token.json` and persists acro
 
 ## Commands
 
-| Command                          | Description                             |
-| -------------------------------- | --------------------------------------- |
-| Open reMarkable panel            | Opens the sidebar listing all notebooks |
-| Connect to reMarkable cloud      | Opens the authentication modal          |
-| Disconnect from reMarkable cloud | Clears stored tokens                    |
-| Import .rmdoc file               | Import a local .rmdoc file as images    |
+| Command                          | Description                                  |
+| -------------------------------- | -------------------------------------------- |
+| Open reMarkable panel            | Opens the sidebar listing all notebooks      |
+| Connect to reMarkable cloud      | Opens the authentication modal               |
+| Disconnect from reMarkable cloud | Clears stored tokens                         |
+| List notebooks                   | Fetches and lists notebooks from the cloud   |
+| Sync a notebook                  | Syncs a single notebook chosen from a prompt |
+| Import .rmdoc file               | Import a local .rmdoc file as images         |
 
 ## Using the Panel
 
-The panel shows all your reMarkable notebooks grouped by folder. Each notebook has a download action button.
+The panel shows all your reMarkable notebooks grouped by folder. A connection status indicator at the top shows whether you are connected to the cloud.
 
-- **Download** (download icon) — downloads and renders page images
-- **Import** (import icon) — import a local .rmdoc file (always available, no cloud connection needed)
+### Header actions
+
+- **Import** (import icon) — import a local `.rmdoc` file (always available, no cloud connection needed)
+- **Sync all** (refresh icon with slash) — syncs all notebooks that need updating (have `needs-sync` or `never-synced` status)
+- **Sync selected** — appears when notebooks are selected; syncs only the checked notebooks
+- **Refresh** (refresh icon) — re-fetches the notebook list from the cloud
+
+### Searching and filtering
+
+- **Search** — a fuzzy search box filters notebooks by name and folder path
+- **Filter buttons** — toggle between **All**, **Selected**, and **Unselected** to narrow the list
+
+### Notebook list
+
+Each notebook row shows:
+
+- **Checkbox** — select notebooks for bulk sync
+- **Sync status dot** — colored indicator showing sync state:
+    - **Synced** — local copy is up to date
+    - **Needs sync** — cloud version is newer than the local copy
+    - **Never synced** — notebook has never been synced locally
+- **Notebook name** and last-modified date
+- **Sync button** — syncs that individual notebook
+
+A **Select all** checkbox at the top operates on the currently filtered notebooks.
 
 Progress is shown inline per notebook: downloading → parsing → rendering → done.
-
-Use the **refresh** button at the top to re-fetch the notebook list from the cloud.
 
 ## Importing .rmdoc Files
 
@@ -55,14 +78,16 @@ You can import `.rmdoc` files exported from a reMarkable tablet without needing 
 3. Review the file name and target folder in the confirmation dialog
 4. Click **Import** to process the file
 
-The notebook name is taken from the document metadata if available, otherwise from the file name. Images are saved to the configured target folder.
+The notebook name is taken from the document metadata if available, otherwise from the file name. Images are saved to the configured target folder (not grouped by folder hierarchy).
 
 ## Output
 
-Files are saved to your configured target folder (default: vault root), preserving the reMarkable folder hierarchy for cloud-synced notebooks. Imported .rmdoc files are saved directly under the target folder.
+Files are saved to your configured target folder (default: vault root), preserving the reMarkable folder hierarchy for cloud-synced notebooks. Imported `.rmdoc` files are saved directly under the target folder.
 
-Each page with content produces:
+Each page with content produces an image file:
 
-- `{NotebookName}-P{NNN}.png` — rendered page image (if "Save images" is enabled)
+- `{NotebookName}-P{NNN}.{ext}` — rendered page image (if "Save images" is enabled)
+
+The file extension matches your configured image format (`.jpeg` by default, or `.png`/`.webp`).
 
 Blank pages (no strokes) are skipped entirely.

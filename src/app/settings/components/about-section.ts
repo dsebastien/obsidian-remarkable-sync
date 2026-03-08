@@ -28,7 +28,7 @@ export function renderAboutSection(containerEl: HTMLElement): void {
     })
     const imgEl = linkEl.createEl('img')
     imgEl.src =
-        'https://github.com/dsebastien/obsidian-remarkable-sync/blob/main/src/assets/buy-me-a-coffee.png?raw=true'
+        'https://github.com/dsebastien/obsidian-plugin-template/blob/main/src/assets/buy-me-a-coffee.png?raw=true'
     imgEl.alt = 'Buy me a coffee'
     imgEl.width = 175
 

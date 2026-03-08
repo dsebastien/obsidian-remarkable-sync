@@ -4,13 +4,22 @@ All settings are accessible via **Settings → Community plugins → Remarkable 
 
 ## Settings
 
-| Setting         | Type     | Default | Description                                                                   |
-| --------------- | -------- | ------- | ----------------------------------------------------------------------------- |
-| Target folder   | text     | `""`    | Vault-relative path where output files are saved. Leave empty for vault root. |
-| Save images     | toggle   | `true`  | Save rendered page images                                                     |
-| Image format    | dropdown | `png`   | Format for rendered images: PNG or JPEG                                       |
-| Use rmfakecloud | toggle   | `false` | Connect to a self-hosted rmfakecloud server instead of the official cloud     |
-| Server URL      | text     | `""`    | Base URL of your rmfakecloud server (only shown when rmfakecloud is enabled)  |
+| Setting         | Type     | Default | Description                                                                      |
+| --------------- | -------- | ------- | -------------------------------------------------------------------------------- |
+| Target folder   | text     | `""`    | Vault-relative path where output files are saved. Leave empty for vault root.    |
+| Save images     | toggle   | `true`  | Save rendered page images                                                        |
+| Image format    | dropdown | `jpeg`  | Format for rendered images: JPEG, WebP, or PNG                                   |
+| Image quality   | slider   | `0.85`  | Quality for JPEG/WebP (0.1 = smallest, 1.0 = best). Hidden when PNG is selected. |
+| Use rmfakecloud | toggle   | `false` | Connect to a self-hosted rmfakecloud server instead of the official cloud        |
+| Server URL      | text     | `""`    | Base URL of your rmfakecloud server (only shown when rmfakecloud is enabled)     |
+
+## Image Formats
+
+- **JPEG** (default) — lossy compression, small file size, good for handwritten notes
+- **WebP** — lossy compression, smaller than JPEG at equivalent quality
+- **PNG** — lossless, larger files, no quality slider
+
+The quality slider controls the compression level for JPEG and WebP. Lower values produce smaller files; higher values preserve more detail. The slider is hidden when PNG is selected since PNG is always lossless.
 
 ## Authentication
 

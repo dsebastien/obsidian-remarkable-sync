@@ -2,9 +2,9 @@
     "id": "remarkable-synchronizer",
     "name": "Remarkable Synchronizer",
     "description": "Connect to the reMarkable cloud, list, download, and sync notebook pages as images.",
-    "version": "9.6.0",
+    "version": "9.7.0",
     "minAppVersion": "1.7.2",
     "isDesktopOnly": true,
-    "author": "Sébastien Dubois (hardened fork)",
+    "author": "Gaurav Paruthi",
     "authorUrl": "https://github.com/gparuthi/obsidian-remarkable-sync"
 }

@@ -9,6 +9,13 @@ export interface CleanImagePlaceholdersResult {
     blocksCleaned: number
 }
 
+/**
+ * Bump when the rewrite output format changes so the one-time migration re-runs once
+ * for existing users (compared against the stored `imgPlaceholderMigrationVersion`).
+ * v1: img-N → real page-image embed. v2: embed positioned at the top of each block.
+ */
+export const IMG_PLACEHOLDER_MIGRATION_VERSION = 2
+
 // Saved page images use the configured image format; jpg is accepted defensively.
 const IMAGE_EXTS = ['jpeg', 'jpg', 'png', 'webp'] as const
 const MANAGED_BLOCK_MARKER = '<!-- rm:page='

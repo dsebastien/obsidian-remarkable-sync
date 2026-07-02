@@ -109,10 +109,11 @@ so if a sync is interrupted (or hits a persistent rate limit), the next sync
 duplicates pages.
 
 When the OCR engine detects a figure/drawing it emits an image link; the plugin
-repoints that to an embed of the page's **own saved image** (one embed per page), so
-figures show up inline instead of as a broken link. Notes written before this
-behavior existed are fixed automatically once (on the next plugin load); you can also
-re-run it anytime with the **Fix OCR image links in notes** command.
+repoints that to an embed of the page's **own saved image**, placed once **at the top
+of that page's section** (under the `## Page N` heading), so figures show up instead
+of a broken link. Notes written before this behavior existed are fixed automatically
+once (on the next plugin load); you can also re-run it anytime with the **Fix OCR
+image links in notes** command.
 
 ## Output Format
 

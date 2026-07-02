@@ -23,7 +23,8 @@ import type { SyncLogService } from './services/log/sync-log.service'
 import { createSyncLogService } from './services/log/sync-log.service'
 import {
     cleanImagePlaceholders,
-    describeCleanResult
+    describeCleanResult,
+    IMG_PLACEHOLDER_MIGRATION_VERSION
 } from './services/migration/clean-image-placeholders'
 
 export class RemarkableSyncPlugin extends Plugin {
@@ -82,15 +83,15 @@ export class RemarkableSyncPlugin extends Plugin {
      * clean, reconciled state.
      */
     private async runStartupTasks(): Promise<void> {
-        if (!this.settings.imgPlaceholderMigrationDone) {
+        if (this.settings.imgPlaceholderMigrationVersion < IMG_PLACEHOLDER_MIGRATION_VERSION) {
             try {
                 const result = await cleanImagePlaceholders(this)
                 if (result.blocksCleaned > 0) {
                     this.syncLogService.emit('success', describeCleanResult(result))
                 }
-                // Only mark done on success, so a failed run retries on the next load.
+                // Record the version only on success, so a failed run retries next load.
                 await this.updateSettings((draft) => {
-                    draft.imgPlaceholderMigrationDone = true
+                    draft.imgPlaceholderMigrationVersion = IMG_PLACEHOLDER_MIGRATION_VERSION
                 })
             } catch (error) {
                 log('Image-placeholder migration failed', 'error', error)
@@ -243,8 +244,8 @@ export class RemarkableSyncPlugin extends Plugin {
             if (loadedSettings.ocrRequestDelayMs !== undefined) {
                 draft.ocrRequestDelayMs = loadedSettings.ocrRequestDelayMs
             }
-            if (loadedSettings.imgPlaceholderMigrationDone !== undefined) {
-                draft.imgPlaceholderMigrationDone = loadedSettings.imgPlaceholderMigrationDone
+            if (loadedSettings.imgPlaceholderMigrationVersion !== undefined) {
+                draft.imgPlaceholderMigrationVersion = loadedSettings.imgPlaceholderMigrationVersion
             }
             if (loadedSettings.syncStore !== undefined) {
                 draft.syncStore = loadedSettings.syncStore

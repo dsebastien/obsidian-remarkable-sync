@@ -65,45 +65,58 @@ function closeMarker(pageId: string): string {
 const IMG_PLACEHOLDER_RE = /!\[img-\d+\.[A-Za-z0-9]+\]\(img-\d+\.[A-Za-z0-9]+\)/g
 
 /**
- * Rewrite Mistral's broken `img-N` placeholders in one page's OCR markdown.
+ * Rewrite Mistral's broken `img-N` placeholders in one page's OCR markdown so the
+ * page's figure shows the real saved image.
  *
- * - When `pageImagePath` is given (the page's saved image), all placeholders on the
- *   page collapse into a SINGLE Obsidian embed `![[<pageImagePath>]]` (placed where
- *   the first placeholder was); the rest are removed. One real image per page, never
- *   duplicated.
- * - When `pageImagePath` is undefined (no saved image), placeholders are simply
- *   removed rather than left dangling.
+ * - When `pageImagePath` is given and the page had a figure (an `img-N` placeholder,
+ *   or an existing embed of this image from a prior pass), the page gets a SINGLE
+ *   `![[<pageImagePath>]]` embed at the TOP of the body (under the `## Page N`
+ *   heading), regardless of where Mistral positioned the placeholder. One real image
+ *   per page, never duplicated.
+ * - When `pageImagePath` is undefined (no saved image), placeholders are removed
+ *   rather than left dangling.
  *
- * Transcribed text is preserved; a line that held only placeholder(s) is dropped (no
- * stray blank line) unless it became the embed. Idempotent: markdown with no
- * placeholders is returned unchanged.
+ * Transcribed text is preserved (only placeholder/embed tokens move); a line that
+ * held only those tokens is dropped so no stray blank line is left. Idempotent: a
+ * body already topped with the embed (and text-only bodies) is returned unchanged.
  */
 export function rewriteImagePlaceholders(
     markdown: string,
     pageImagePath: string | undefined
 ): string {
-    // Fast path: the literal target prefix must be present to have anything to do.
-    if (!markdown.includes('](img-')) {
+    const embedLink = pageImagePath ? `![[${pageImagePath}]]` : undefined
+    const hasPlaceholder = markdown.includes('](img-')
+    const hasExistingEmbed = embedLink !== undefined && markdown.includes(embedLink)
+    // Nothing to do: no broken placeholder and no existing embed to reposition.
+    if (!hasPlaceholder && !hasExistingEmbed) {
         return markdown
     }
-    const embed = pageImagePath ? `![[${pageImagePath}]]` : ''
-    let embedded = false
+
+    let hadFigure = false
     const out: string[] = []
     for (const line of markdown.split('\n')) {
-        const newLine = line.replace(IMG_PLACEHOLDER_RE, () => {
-            if (embed && !embedded) {
-                embedded = true
-                return embed
-            }
+        let newLine = line.replace(IMG_PLACEHOLDER_RE, () => {
+            hadFigure = true
             return ''
         })
+        // Also pull out any existing embed of THIS page's image, so we can re-place
+        // it consistently at the top (handles notes a prior in-place pass produced).
+        if (embedLink !== undefined && newLine.includes(embedLink)) {
+            newLine = newLine.split(embedLink).join('')
+            hadFigure = true
+        }
         if (line.trim() !== '' && newLine.trim() === '') {
-            // Line held only placeholder(s) and produced no embed → drop it.
+            // Line held only the placeholder/embed token → drop it.
             continue
         }
         out.push(newLine)
     }
-    return out.join('\n')
+
+    const body = out.join('\n').replace(/^\n+/, '')
+    if (hadFigure && embedLink !== undefined) {
+        return body.length > 0 ? `${embedLink}\n\n${body}` : embedLink
+    }
+    return body
 }
 
 /** Parse the 1-based page number from a block label like "Page 20" → 20. */

@@ -22,10 +22,11 @@ export interface PluginSettings {
     /** Delay (ms) between per-page OCR requests, to stay under the provider's rate limit. */
     ocrRequestDelayMs: number
     /**
-     * Internal: set once the one-time `img-N` placeholder → real-page-image migration
-     * has run, so it does not re-scan on every load.
+     * Internal: the version of the `img-N` placeholder → real-page-image migration
+     * that has run. The migration re-runs once whenever the code version is higher
+     * (e.g. when the embed placement changes). 0 = never run.
      */
-    imgPlaceholderMigrationDone: boolean
+    imgPlaceholderMigrationVersion: number
     syncStore: SyncStore
 }
 
@@ -44,6 +45,6 @@ export const DEFAULT_SETTINGS: PluginSettings = {
     ocrEnabled: false,
     mdserverOcrUrl: 'http://localhost:1250/ocr',
     ocrRequestDelayMs: 400,
-    imgPlaceholderMigrationDone: false,
+    imgPlaceholderMigrationVersion: 0,
     syncStore: DEFAULT_SYNC_STORE
 }

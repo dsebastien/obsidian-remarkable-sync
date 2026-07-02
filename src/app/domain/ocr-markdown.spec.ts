@@ -232,6 +232,27 @@ describe('rewriteImagePlaceholders', () => {
         const md = 'just text\n## heading\n- item'
         expect(rewriteImagePlaceholders(md, 'x/y.jpeg')).toBe(md)
     })
+
+    test('places the embed at the TOP, regardless of the placeholder position', () => {
+        const md = 'line one\nline two\n![img-0.jpeg](img-0.jpeg)\nline three'
+        const out = rewriteImagePlaceholders(md, 'p/6-P002.jpeg')
+        expect(out.startsWith('![[p/6-P002.jpeg]]')).toBe(true)
+        expect(out.indexOf('![[p/6-P002.jpeg]]')).toBeLessThan(out.indexOf('line one'))
+        expect(out).toContain('line one\nline two\nline three')
+    })
+
+    test('repositions an existing mid-body embed to the top (and stays single)', () => {
+        const midEmbedded = 'line one\n![[p/6-P002.jpeg]]\nline two'
+        const out = rewriteImagePlaceholders(midEmbedded, 'p/6-P002.jpeg')
+        expect(out).toBe('![[p/6-P002.jpeg]]\n\nline one\nline two')
+        const embeds = out.match(/!\[\[p\/6-P002\.jpeg\]\]/g) ?? []
+        expect(embeds).toHaveLength(1)
+    })
+
+    test('is idempotent once the embed is already at the top', () => {
+        const top = '![[p/6-P002.jpeg]]\n\nbody text'
+        expect(rewriteImagePlaceholders(top, 'p/6-P002.jpeg')).toBe(top)
+    })
 })
 
 describe('parsePageNumber', () => {
@@ -294,6 +315,24 @@ describe('migrateBlocksImagePlaceholders', () => {
         const twice = migrateBlocksImagePlaceholders(once, resolve)
         expect(twice.cleaned).toHaveLength(0)
         expect(twice.content).toBe(once)
+    })
+
+    test('repositions a previously in-place embed to the top + reconciles ocrHash', () => {
+        // Simulate a note produced by the v1 (in-place) migration: embed mid-body.
+        const v1 = assembleNotebookMarkdown('', [
+            input('pg1', 19, 'intro\n![[handwritten/2026/6/6-P020.jpeg]]\noutro')
+        ])
+        const { content, cleaned } = migrateBlocksImagePlaceholders(v1, resolve)
+        const [block] = blocksOf(content)
+        expect(block).toBeDefined()
+        expect(block!.body.startsWith('![[handwritten/2026/6/6-P020.jpeg]]')).toBe(true)
+        expect(block!.body).toContain('intro')
+        expect(block!.body).toContain('outro')
+        // exactly one embed, and the marker matches the repositioned body (no demotion)
+        const embeds = content.match(/!\[\[handwritten\/2026\/6\/6-P020\.jpeg\]\]/g) ?? []
+        expect(embeds).toHaveLength(1)
+        expect(cleaned).toHaveLength(1)
+        expect(computeOcrHash(block!.body)).toBe(block!.ocrHash)
     })
 
     test('drops placeholders when the page image cannot be resolved', () => {

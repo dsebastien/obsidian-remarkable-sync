@@ -48,10 +48,10 @@ Your device token is stored at `~/.remarkable-sync/token.json` and persists acro
 
 When OCR detects a figure it emits an image link, but to a path that does not exist —
 showing as "could not be found" in the note. The plugin repoints these to an embed of
-the page's **own saved image** (one per page). Notes written before this behavior are
-fixed automatically once on the next plugin load (no re-OCR); run **Fix OCR image
-links in notes** to apply it again at any time (safe to re-run). Requires page images
-to be saved (the **Save images** setting).
+the page's **own saved image**, placed once at the **top of that page's section**.
+Notes written before this behavior are fixed automatically once on the next plugin
+load (no re-OCR); run **Fix OCR image links in notes** to apply it again at any time
+(safe to re-run). Requires page images to be saved (the **Save images** setting).
 
 ## Sync log
 

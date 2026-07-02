@@ -48,6 +48,8 @@ When a new business rule is mentioned:
 
 - reMarkable folder hierarchy is preserved under the target folder
 - Images are saved when `saveImages` is enabled
+- Per-page incremental sync: an unchanged page's image file is never rewritten (its file mtime must not move). Change signal = rendered-image hash (the cloud has no per-page mtime). Skip requires: file exists, `imgHash` matches the current render, and `pageIndex` matches (device page insert/delete/reorder shifts indexes and forces a rewrite)
+- Per-page state (`pages` map) is persisted by both OCR and non-OCR syncs; a non-OCR sync must never clobber OCR progress. `ocrHash` `''` = not yet OCR'd (re-OCR when enabled); `imgHash` only advances on a real vault write, so a "save images" off sync can't mark a stale file current
 
 ## rmfakecloud
 

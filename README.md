@@ -7,6 +7,7 @@ An Obsidian plugin that connects to the reMarkable cloud to list, download, and 
 - **reMarkable cloud integration** — connect with a one-time code, list all notebooks
 - **rmfakecloud support** — connect to a self-hosted [rmfakecloud](https://github.com/ddvk/rmfakecloud) server as an alternative to the official cloud
 - **Page rendering** — render .rm v6 stroke data to PNG/JPEG images
+- **Per-page incremental sync** — only new/changed pages are written to the vault; unchanged page images keep their file modification time
 - **Sidebar panel** — browse notebooks with foldable folder hierarchy, search, multi-select, and per-notebook download
 - **Folder hierarchy preservation** — reMarkable folder structure mirrored in vault
 - **Local .rmdoc import** — import .rmdoc files directly without cloud connection
@@ -70,7 +71,8 @@ The **reMarkable sync log** is a sidebar view (open it via the command above or 
 log button on the notebook panel) showing a live, chronological feed of sync and OCR
 activity — each run's trigger (startup / interval / manual), per-page OCR outcomes
 (✓ transcribed, ⊘ unchanged, ✗ failed **with the failure reason**, e.g. an HTTP 429
-rate-limit), and per-notebook summaries. It keeps the most recent ~200 events in
+rate-limit), and per-notebook summaries including image counts
+(`images: N new/changed, M unchanged`). It keeps the most recent ~200 events in
 memory (not persisted) and has a **Clear** button. Useful for seeing _why_ a sync
 stalled without digging through the developer console.
 

@@ -59,7 +59,9 @@ Open **Open reMarkable sync log** (or the log button in the panel header) to wat
 sync activity live in a sidebar. Each run shows its trigger (startup / interval /
 manual) and, per page, the OCR outcome — ✓ transcribed, ⊘ unchanged, or ✗ failed
 **with the reason** (e.g. `OCR server returned HTTP 429: rate_limited`), plus a
-per-notebook summary. The newest event is shown at the top; the view keeps the last
+per-notebook summary with image counts (`images: N new/changed, M unchanged` —
+unchanged page images are not rewritten, so their file modification times don't
+move). The newest event is shown at the top; the view keeps the last
 ~200 events in memory (cleared on reload) and has a **Clear** button. This is the
 quickest way to see why a sync stalled — for example a rate-limited OCR server —
 without opening the developer console.

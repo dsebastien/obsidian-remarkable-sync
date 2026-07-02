@@ -63,6 +63,13 @@ async function ensureParentFolder(vault: Vault, filePath: string): Promise<void>
 }
 
 /**
+ * Whether a file already exists in the vault at `filePath`.
+ */
+export function vaultFileExists(vault: Vault, filePath: string): boolean {
+    return vault.getFileByPath(filePath) !== null
+}
+
+/**
  * Read an existing notebook markdown note, or return '' if it does not exist.
  */
 export async function readNotebookMarkdown(vault: Vault, filePath: string): Promise<string> {

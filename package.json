@@ -1,6 +1,6 @@
 {
     "name": "remarkable-synchronizer",
-    "version": "9.7.0",
+    "version": "9.8.0",
     "description": "Connect to the reMarkable cloud, list, download, and sync notebook pages as images.",
     "author": {
         "name": "Gaurav Paruthi",

@@ -1,14 +1,31 @@
 /**
- * OCR state tracked per page within a notebook. Lets a later sync skip pages
- * whose rendered source image has not changed (so we never re-OCR — and never
- * re-call the OCR endpoint for — unchanged pages).
+ * State tracked per page within a notebook. Lets a later sync skip pages
+ * whose rendered source image has not changed — no image rewrite (vault file
+ * mtime untouched) and no re-OCR of unchanged pages.
  */
 export interface PageOcrState {
     readonly pageId: string
-    /** Hash of the rendered page image bytes that were OCR'd. */
+    /** Hash of the rendered page image bytes from the latest sync (OCR change signal). */
     readonly srcHash: string
-    /** Hash of the OCR markdown produced for that image. */
+    /**
+     * Hash of the OCR markdown produced for that image. Empty string when the
+     * page has not been OCR'd (entry persisted by a sync with OCR disabled).
+     */
     readonly ocrHash: string
+    /**
+     * Hash of the image bytes actually written to the page's vault file — the
+     * image-skip signal. Unlike srcHash it only advances on a real write, so a
+     * sync with "save images" off can't mark a stale file current. Absent for
+     * entries from before per-page image tracking (forces one rewrite).
+     */
+    readonly imgHash?: string
+    /**
+     * 0-based page index the image file was written at (the file name derives
+     * from it). Pages reordered/inserted/deleted on the device shift later
+     * indexes, pointing the same pageId at a different file — an index
+     * mismatch therefore forces a rewrite. Absent alongside imgHash.
+     */
+    readonly pageIndex?: number
 }
 
 /**
@@ -20,8 +37,9 @@ export interface NotebookSyncState {
     readonly lastModifiedCloud: number // epoch ms from cloud
     readonly syncedPageCount: number
     /**
-     * Per-page OCR state keyed by pageId. Optional/absent for notebooks synced
-     * before OCR existed, or when OCR is disabled (backward compatible).
+     * Per-page state keyed by pageId. Optional/absent for notebooks synced
+     * before per-page tracking existed (backward compatible). Populated by
+     * both OCR and non-OCR syncs so unchanged page images are never rewritten.
      */
     readonly pages?: Record<string, PageOcrState>
 }

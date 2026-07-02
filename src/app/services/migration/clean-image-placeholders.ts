@@ -43,10 +43,15 @@ export async function cleanImagePlaceholders(
     const result: CleanImagePlaceholdersResult = { filesChanged: 0, blocksCleaned: 0 }
 
     // Reverse index: pageId → notebookId, so we can reconcile the stored ocrHash.
+    // Only pages actually OCR'd (non-empty ocrHash) — entries persisted by
+    // non-OCR syncs carry the '' must-re-OCR sentinel, which the reconcile
+    // below must not overwrite (and they can't own a legacy block anyway).
     const notebookIdByPageId = new Map<string, string>()
     for (const [notebookId, state] of Object.entries(plugin.settings.syncStore.notebooks)) {
-        for (const pageId of Object.keys(state.pages ?? {})) {
-            notebookIdByPageId.set(pageId, notebookId)
+        for (const [pageId, pageState] of Object.entries(state.pages ?? {})) {
+            if (pageState.ocrHash !== '') {
+                notebookIdByPageId.set(pageId, notebookId)
+            }
         }
     }
     // Nothing OCR'd yet → nothing to migrate; skip the vault scan entirely.

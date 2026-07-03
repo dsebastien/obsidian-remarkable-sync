@@ -4,14 +4,16 @@
 
 All settings are configured via **Settings → Community plugins → Remarkable Synchronizer**.
 
-| Setting         | Default     | Description                                                                               |
-| --------------- | ----------- | ----------------------------------------------------------------------------------------- |
-| Target folder   | `""` (root) | Vault-relative path where output files are saved                                          |
-| Save images     | `true`      | Save rendered page images                                                                 |
-| Image format    | `jpeg`      | Format for rendered images (`jpeg`, `webp`, or `png`). JPEG/WebP are smaller.             |
-| Image quality   | `0.85`      | Quality for JPEG/WebP (0.1–1.0). Higher = better quality, larger files. No effect on PNG. |
-| Use rmfakecloud | `false`     | Connect to a self-hosted rmfakecloud server instead of official cloud                     |
-| Server URL      | `""`        | Base URL of rmfakecloud server (only when rmfakecloud is enabled)                         |
+| Setting         | Default     | Description                                                                                             |
+| --------------- | ----------- | ------------------------------------------------------------------------------------------------------- |
+| Target folder   | `""` (root) | Vault-relative path where output files are saved                                                        |
+| Save images     | `true`      | Save rendered page images                                                                               |
+| Image format    | `jpeg`      | Format for rendered images (`jpeg`, `webp`, or `png`). JPEG/WebP are smaller.                           |
+| Image quality   | `0.85`      | Quality for JPEG/WebP (0.1–1.0). Higher = better quality, larger files. No effect on PNG.               |
+| Use rmfakecloud | `false`     | Connect to a self-hosted rmfakecloud server instead of official cloud                                   |
+| Server URL      | `""`        | Base URL of rmfakecloud server (only when rmfakecloud is enabled)                                       |
+| Auto-sync scope | `newest`    | `autoSyncMode`: `newest` (newest notebook in source folder) or `favorites` (device-starred, any folder) |
+| Source folder   | `/2026`     | Cloud folder auto-sync reads from; ignored in `favorites` scope                                         |
 
 ## Authentication
 

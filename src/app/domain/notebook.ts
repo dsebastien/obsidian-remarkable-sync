@@ -89,6 +89,8 @@ export interface NotebookSummary {
     readonly lastModified: string
     readonly pageCount: number
     readonly folderPath: string
+    /** Starred ("favorited") on the device — `pinned` in the cloud metadata. */
+    readonly pinned: boolean
 }
 
 export function notebookDisplayPath(nb: NotebookSummary): string {
@@ -120,6 +122,14 @@ export function notebooksInFolder(
     }
     const prefix = `${norm}/`
     return notebooks.filter((nb) => nb.folderPath === norm || nb.folderPath.startsWith(prefix))
+}
+
+/**
+ * Filter notebooks to those starred ("favorited") on the device, regardless of
+ * folder — a star is explicit intent wherever the notebook lives.
+ */
+export function favoriteNotebooks(notebooks: readonly NotebookSummary[]): NotebookSummary[] {
+    return notebooks.filter((nb) => nb.pinned)
 }
 
 /**

@@ -8,6 +8,7 @@ An Obsidian plugin that connects to the reMarkable cloud to list, download, and 
 - **rmfakecloud support** — connect to a self-hosted [rmfakecloud](https://github.com/ddvk/rmfakecloud) server as an alternative to the official cloud
 - **Page rendering** — render .rm v6 stroke data to PNG/JPEG images
 - **Per-page incremental sync** — only new/changed pages are written to the vault; unchanged page images keep their file modification time
+- **Favorites auto-sync** — star a notebook on the device and auto-sync picks it up, in any folder; un-star to stop (synced files stay)
 - **Sidebar panel** — browse notebooks with foldable folder hierarchy, search, multi-select, and per-notebook download
 - **Folder hierarchy preservation** — reMarkable folder structure mirrored in vault
 - **Local .rmdoc import** — import .rmdoc files directly without cloud connection
@@ -64,6 +65,7 @@ If the plugin isn't listed in the community catalog yet (or you want a specific 
 | Disconnect from reMarkable cloud | Clears stored tokens                                   |
 | Import .rmdoc file               | Import a local .rmdoc file as images                   |
 | Fix OCR image links in notes     | Repoint broken OCR figure links to the real page image |
+| Sync auto-sync scope now         | Run the configured auto-sync scope on demand           |
 
 ### Sync log
 
@@ -88,6 +90,8 @@ stalled without digging through the developer console.
 | Transcribe pages to markdown | `false`                     | Send each new/changed synced page to a **local** OCR server and assemble one markdown note per notebook (newest page on top) |
 | OCR server URL               | `http://localhost:1250/ocr` | Endpoint the page image is posted to (only when transcription is enabled)                                                    |
 | OCR request delay (ms)       | `400`                       | Pause between per-page OCR requests to stay under the OCR provider's rate limit (0 disables)                                 |
+| Auto-sync scope              | `Newest in source folder`   | What auto-sync picks up: the newest notebook in the source folder, or every notebook starred (favorited) on the device       |
+| Source folder                | `/2026`                     | Cloud folder auto-sync reads from (ignored when the scope is favorited notebooks)                                            |
 
 ### OCR transcription
 

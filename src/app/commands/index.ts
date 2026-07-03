@@ -4,7 +4,7 @@ import { connectDevice } from './connect-device'
 import { disconnectDevice } from './disconnect-device'
 import { listNotebooks } from './list-notebooks'
 import { syncNotebook } from './sync-notebook'
-import { syncAllNotebooks } from './sync-all-notebooks'
+import { autoSyncScopeOptions, syncAllNotebooks } from './sync-all-notebooks'
 import { importRmdoc } from './import-rmdoc'
 import { cleanImagePlaceholdersCommand } from './clean-image-placeholders'
 
@@ -62,13 +62,12 @@ export function registerCommands(plugin: RemarkableSyncPlugin): void {
     })
 
     plugin.addCommand({
+        // Stable id (predates the favorites mode) — only the name reflects
+        // that this now follows the configured auto-sync scope.
         id: 'sync-newest-notebook',
-        name: 'Sync newest notebook in source folder',
+        name: 'Sync auto-sync scope now',
         callback: () => {
-            void syncAllNotebooks(plugin, {
-                folder: plugin.settings.sourceFolder,
-                newestOnly: true
-            })
+            void syncAllNotebooks(plugin, autoSyncScopeOptions(plugin.settings))
         }
     })
 

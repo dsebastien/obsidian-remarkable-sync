@@ -1,7 +1,8 @@
 import { Notice } from 'obsidian'
 import type { RemarkableSyncPlugin } from '../plugin'
+import type { PluginSettings } from '../types/plugin-settings.intf'
 import { notebookNeedsSync } from '../domain/sync-state'
-import { notebooksInFolder, newestNotebook } from '../domain/notebook'
+import { notebooksInFolder, newestNotebook, favoriteNotebooks } from '../domain/notebook'
 import { log } from '../../utils/log'
 
 export interface SyncAllResult {
@@ -26,13 +27,32 @@ export interface SyncAllOptions {
      * folder filter). Still skipped if unchanged.
      */
     newestOnly?: boolean
+    /**
+     * Sync only notebooks starred ("favorited") on the device. Ignores `folder`
+     * and `newestOnly` — a star is explicit intent wherever the notebook lives.
+     */
+    favoritesOnly?: boolean
+}
+
+/**
+ * The scope options auto-sync (and the manual scoped-sync command) should pass
+ * to `syncAllNotebooks` for the configured `autoSyncMode`.
+ */
+export function autoSyncScopeOptions(
+    settings: PluginSettings
+): Pick<SyncAllOptions, 'folder' | 'newestOnly' | 'favoritesOnly'> {
+    if (settings.autoSyncMode === 'favorites') {
+        return { favoritesOnly: true }
+    }
+    return { folder: settings.sourceFolder, newestOnly: true }
 }
 
 /**
  * Sync notebooks from the reMarkable cloud, reusing the existing per-notebook
  * pipeline. Optionally scoped to a `folder` and/or to the single `newestOnly`
- * notebook. Unchanged notebooks (cloud mtime not advanced past the last sync)
- * are skipped so we do not re-render anything that has not changed.
+ * notebook, or to device-starred notebooks via `favoritesOnly`. Unchanged
+ * notebooks (cloud mtime not advanced past the last sync) are skipped so we do
+ * not re-render anything that has not changed.
  *
  * Fail-soft: a single bad notebook (download/parse/render error) is logged and
  * counted, never thrown — one failure must not abort the run, crash Obsidian, or
@@ -66,11 +86,13 @@ export async function syncAllNotebooks(
     plugin.isSyncing = true
 
     const trigger = options.trigger ?? 'manual'
-    const scope = options.newestOnly
-        ? ` (newest in ${options.folder || 'all folders'})`
-        : options.folder
-          ? ` (${options.folder})`
-          : ''
+    const scope = options.favoritesOnly
+        ? ' (favorites)'
+        : options.newestOnly
+          ? ` (newest in ${options.folder || 'all folders'})`
+          : options.folder
+            ? ` (${options.folder})`
+            : ''
     plugin.syncLogService.emit('info', `Sync started — ${trigger}${scope}`)
 
     try {
@@ -94,29 +116,44 @@ export async function syncAllNotebooks(
             return result
         }
 
-        // Scope: restrict to the source folder, then optionally to the single
+        // Scope: favorites = every starred notebook, any folder. Otherwise
+        // restrict to the source folder, then optionally to the single
         // newest-modified notebook. This is what keeps auto-sync from touching
         // other folders (e.g. /Books) or re-rendering everything.
-        let candidates =
-            options.folder !== undefined ? notebooksInFolder(notebooks, options.folder) : notebooks
-        if (options.newestOnly) {
-            const newest = newestNotebook(candidates)
-            candidates = newest ? [newest] : []
+        let candidates: typeof notebooks
+        if (options.favoritesOnly) {
+            candidates = favoriteNotebooks(notebooks)
+        } else {
+            candidates =
+                options.folder !== undefined
+                    ? notebooksInFolder(notebooks, options.folder)
+                    : notebooks
+            if (options.newestOnly) {
+                const newest = newestNotebook(candidates)
+                candidates = newest ? [newest] : []
+            }
         }
 
         result.total = candidates.length
         if (candidates.length === 0) {
+            // Zero in scope (e.g. nothing starred) is a quiet no-op on silent runs.
             if (!silent) {
-                const where = options.folder ? ` in "${options.folder}"` : ''
-                new Notice(`No notebooks to sync${where}`)
+                if (options.favoritesOnly) {
+                    new Notice('No favorited notebooks to sync')
+                } else {
+                    const where = options.folder ? ` in "${options.folder}"` : ''
+                    new Notice(`No notebooks to sync${where}`)
+                }
             }
             return result
         }
 
         if (!silent) {
-            const label = options.newestOnly
-                ? `Syncing newest notebook (${candidates[0]!.visibleName})...`
-                : `Syncing ${candidates.length} notebooks...`
+            const label = options.favoritesOnly
+                ? `Syncing ${candidates.length} favorited notebook(s)...`
+                : options.newestOnly
+                  ? `Syncing newest notebook (${candidates[0]!.visibleName})...`
+                  : `Syncing ${candidates.length} notebooks...`
             new Notice(label)
         }
 

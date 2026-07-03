@@ -1,12 +1,16 @@
 import { Plugin } from 'obsidian'
-import { DEFAULT_SETTINGS, MIN_AUTO_SYNC_INTERVAL_MINUTES } from './types/plugin-settings.intf'
-import type { PluginSettings } from './types/plugin-settings.intf'
+import {
+    DEFAULT_SETTINGS,
+    MIN_AUTO_SYNC_INTERVAL_MINUTES,
+    resolveSettings
+} from './types/plugin-settings.intf'
+import type { PluginSettings, LoadedPluginSettings } from './types/plugin-settings.intf'
 import { RemarkableSyncSettingTab } from './settings/settings-tab'
 import { log } from '../utils/log'
 import { produce } from 'immer'
-import type { Draft, WritableDraft } from 'immer'
+import type { WritableDraft } from 'immer'
 import { registerCommands } from './commands'
-import { syncAllNotebooks } from './commands/sync-all-notebooks'
+import { autoSyncScopeOptions, syncAllNotebooks } from './commands/sync-all-notebooks'
 import { REMARKABLE_PANEL_VIEW_TYPE, RemarkablePanelView } from './ui/remarkable-panel-view'
 import { SYNC_LOG_VIEW_TYPE, SyncLogView } from './ui/sync-log-view'
 import type { RemarkableAuthService } from './services/auth/remarkable-auth.service'
@@ -105,17 +109,16 @@ export class RemarkableSyncPlugin extends Plugin {
     }
 
     /**
-     * Run one unattended (silent) auto-sync pass, scoped to the configured
-     * source folder and, when enabled, to the single newest-modified notebook.
-     * Fire-and-forget: errors are caught + logged so a failed sync never crashes
-     * Obsidian or wedges the periodic loop.
+     * Run one unattended (silent) auto-sync pass, scoped per `autoSyncMode`:
+     * the newest-modified notebook in the source folder, or every notebook
+     * starred on the device. Fire-and-forget: errors are caught + logged so a
+     * failed sync never crashes Obsidian or wedges the periodic loop.
      */
     private runAutoSync(trigger: 'startup' | 'interval'): void {
         void syncAllNotebooks(this, {
             silent: true,
             trigger,
-            folder: this.settings.sourceFolder,
-            newestOnly: this.settings.autoSyncNewestOnly
+            ...autoSyncScopeOptions(this.settings)
         }).catch((error: unknown) => {
             log('Auto-sync failed', 'error', error)
         })
@@ -196,62 +199,8 @@ export class RemarkableSyncPlugin extends Plugin {
 
     async loadSettings(): Promise<void> {
         log('Loading settings', 'debug')
-        const loadedSettings = (await this.loadData()) as PluginSettings | null
-
-        if (!loadedSettings) {
-            log('Using default settings', 'debug')
-            this.settings = { ...DEFAULT_SETTINGS }
-            return
-        }
-
-        this.settings = produce(DEFAULT_SETTINGS, (draft: Draft<PluginSettings>) => {
-            if (loadedSettings.targetFolder !== undefined) {
-                draft.targetFolder = loadedSettings.targetFolder
-            }
-            if (loadedSettings.saveImages !== undefined) {
-                draft.saveImages = loadedSettings.saveImages
-            }
-            if (loadedSettings.imageFormat !== undefined) {
-                draft.imageFormat = loadedSettings.imageFormat
-            }
-            if (loadedSettings.useRmfakecloud !== undefined) {
-                draft.useRmfakecloud = loadedSettings.useRmfakecloud
-            }
-            if (loadedSettings.rmfakecloudUrl !== undefined) {
-                draft.rmfakecloudUrl = loadedSettings.rmfakecloudUrl
-            }
-            if (loadedSettings.syncOnStartup !== undefined) {
-                draft.syncOnStartup = loadedSettings.syncOnStartup
-            }
-            if (loadedSettings.autoSync !== undefined) {
-                draft.autoSync = loadedSettings.autoSync
-            }
-            if (loadedSettings.autoSyncIntervalMinutes !== undefined) {
-                draft.autoSyncIntervalMinutes = loadedSettings.autoSyncIntervalMinutes
-            }
-            if (loadedSettings.sourceFolder !== undefined) {
-                draft.sourceFolder = loadedSettings.sourceFolder
-            }
-            if (loadedSettings.autoSyncNewestOnly !== undefined) {
-                draft.autoSyncNewestOnly = loadedSettings.autoSyncNewestOnly
-            }
-            if (loadedSettings.ocrEnabled !== undefined) {
-                draft.ocrEnabled = loadedSettings.ocrEnabled
-            }
-            if (loadedSettings.mdserverOcrUrl !== undefined) {
-                draft.mdserverOcrUrl = loadedSettings.mdserverOcrUrl
-            }
-            if (loadedSettings.ocrRequestDelayMs !== undefined) {
-                draft.ocrRequestDelayMs = loadedSettings.ocrRequestDelayMs
-            }
-            if (loadedSettings.imgPlaceholderMigrationVersion !== undefined) {
-                draft.imgPlaceholderMigrationVersion = loadedSettings.imgPlaceholderMigrationVersion
-            }
-            if (loadedSettings.syncStore !== undefined) {
-                draft.syncStore = loadedSettings.syncStore
-            }
-        })
-
+        const loadedSettings = (await this.loadData()) as LoadedPluginSettings | null
+        this.settings = resolveSettings(loadedSettings)
         log('Settings loaded', 'debug', this.settings)
     }
 

@@ -1,5 +1,5 @@
 import { test, expect, describe } from 'bun:test'
-import { normalizeFolder, notebooksInFolder, newestNotebook } from './notebook'
+import { normalizeFolder, notebooksInFolder, newestNotebook, favoriteNotebooks } from './notebook'
 import type { NotebookSummary } from './notebook'
 
 function nb(overrides: Partial<NotebookSummary>): NotebookSummary {
@@ -10,6 +10,7 @@ function nb(overrides: Partial<NotebookSummary>): NotebookSummary {
         lastModified: '0',
         pageCount: 0,
         folderPath: '',
+        pinned: false,
         ...overrides
     }
 }
@@ -63,6 +64,30 @@ describe('notebooksInFolder', () => {
         const result = notebooksInFolder(all, '/2026')
         expect(result.map((n) => n.id)).not.toContain('b')
         expect(result.map((n) => n.id)).not.toContain('r')
+    })
+})
+
+describe('favoriteNotebooks', () => {
+    test('keeps only pinned notebooks', () => {
+        const starred = nb({ id: 's', pinned: true })
+        const plain = nb({ id: 'p', pinned: false })
+        expect(favoriteNotebooks([starred, plain]).map((n) => n.id)).toEqual(['s'])
+    })
+
+    test('ignores folders — a starred notebook matches anywhere', () => {
+        const inBooks = nb({ id: 'b', folderPath: 'Books', pinned: true })
+        const in2026 = nb({ id: 'y', folderPath: '2026', pinned: true })
+        const unstarredIn2026 = nb({ id: 'u', folderPath: '2026', pinned: false })
+        const result = favoriteNotebooks([inBooks, in2026, unstarredIn2026])
+        expect(result.map((n) => n.id).sort()).toEqual(['b', 'y'])
+    })
+
+    test('empty when nothing is pinned', () => {
+        expect(favoriteNotebooks([nb({ id: 'a' }), nb({ id: 'b' })])).toEqual([])
+    })
+
+    test('empty list → empty result', () => {
+        expect(favoriteNotebooks([])).toEqual([])
     })
 })
 

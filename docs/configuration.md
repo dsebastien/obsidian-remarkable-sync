@@ -20,6 +20,28 @@ All settings are accessible via **Settings → Community plugins → Remarkable 
 | Transcribe pages to markdown | toggle   | `false`                     | OCR each new/changed synced page via a local server and assemble one markdown note per notebook |
 | OCR server URL               | text     | `http://localhost:1250/ocr` | Local endpoint each page image is posted to (only used when transcription is enabled)           |
 | OCR request delay (ms)       | text     | `400`                       | Pause between per-page OCR requests, to stay under the OCR provider rate limit (0 disables)     |
+| Auto-sync scope              | dropdown | `Newest in source folder`   | What auto-sync picks up: the newest notebook in the source folder, or every favorited notebook  |
+| Source folder                | text     | `/2026`                     | Cloud folder auto-sync reads from (ignored when the scope is favorited notebooks)               |
+| Sync on startup              | toggle   | `false`                     | Run one auto-sync when Obsidian starts                                                          |
+| Periodic auto-sync           | toggle   | `false`                     | Auto-sync on an interval while Obsidian is open                                                 |
+| Auto-sync interval (minutes) | text     | `15`                        | How often to auto-sync (minimum 5)                                                              |
+
+## Automatic sync
+
+Auto-sync (startup and/or periodic) syncs a scoped set of notebooks without any
+manual steps. The **Auto-sync scope** dropdown controls what it picks up:
+
+- **Newest in source folder** (default) — the single most-recently-modified
+  notebook inside **Source folder** (sub-folders included).
+- **Favorited notebooks** — every notebook you starred on the reMarkable device,
+  in any cloud folder. Star a notebook on the tablet and it starts auto-syncing;
+  un-star it and future syncs skip it (already-synced files stay in your vault —
+  nothing is ever deleted). **Source folder** is ignored in this scope.
+
+Either way, unchanged notebooks are skipped, and within a changed notebook only
+new/changed page images are rewritten.
+
+The command **Sync auto-sync scope now** runs the same scoped sync on demand.
 
 ## OCR transcription
 

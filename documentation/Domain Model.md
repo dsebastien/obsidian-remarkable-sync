@@ -6,7 +6,8 @@
 
 Lightweight representation of a notebook for panel display. Retrieved from cloud listing API.
 
-- `id`, `visibleName`, `parent`, `lastModified`, `pageCount`, `folderPath`
+- `id`, `visibleName`, `parent`, `lastModified`, `pageCount`, `folderPath`, `pinned`
+- `pinned` = starred on the device (drives the `favorites` auto-sync scope; filter via `favoriteNotebooks()`)
 
 ### Notebook
 

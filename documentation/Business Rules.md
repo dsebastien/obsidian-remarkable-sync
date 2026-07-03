@@ -31,6 +31,9 @@ When a new business rule is mentioned:
 ## Sync
 
 - Sync state persists across sessions (stored in plugin data alongside settings)
+- Auto-sync scope is controlled by `autoSyncMode`: `'newest'` (default; single most-recently-modified notebook in `sourceFolder`) or `'favorites'` (every notebook starred/pinned on the device, in any folder — `sourceFolder` is ignored)
+- Un-starring a notebook only stops future favorites syncs; files already in the vault are never deleted by any sync mode
+- Legacy `autoSyncNewestOnly` (pre-`autoSyncMode` releases) migrates to `'newest'` on load; a persisted `autoSyncMode` always wins over the legacy field
 - A notebook is "synced" when its local `lastSyncedAt` >= cloud `lastModifiedCloud`
 - "Sync all" only processes notebooks with `needs-sync` or `never-synced` status
 - Sync state is cleared when user disconnects from reMarkable cloud

@@ -1,6 +1,8 @@
 import { log } from '../../../utils/log'
 import type { NotebookSummary } from '../../domain/notebook'
 import type { RemarkableDocumentMetadata } from '../../domain/remarkable-types'
+import type { EntryMetadata } from './document-summaries'
+import { buildNotebookSummaries } from './document-summaries'
 import type { RemarkableSyncPlugin } from '../../plugin'
 import {
     docIndexFilename,
@@ -122,57 +124,14 @@ export function createRemarkableCloudService(plugin: RemarkableSyncPlugin): Rema
                 })
             )
 
-            // Build folder name/parent maps
-            const folderNames = new Map<string, string>()
-            const folderParents = new Map<string, string>()
-
+            // Pair each entry with its parsed metadata, then build summaries
+            // (folder paths, trash/deleted filtering, pinned) in the pure helper.
+            const entries: EntryMetadata[] = []
             for (const result of metadataResults) {
                 if (result.status !== 'fulfilled' || !result.value.metadata) continue
-                const { entry, metadata } = result.value
-                if (metadata.deleted) continue
-                if (metadata.type === 'CollectionType') {
-                    folderNames.set(entry.id, metadata.visibleName)
-                    folderParents.set(entry.id, metadata.parent)
-                }
+                entries.push({ id: result.value.entry.id, metadata: result.value.metadata })
             }
-
-            // Resolve folder path from parent chain
-            const buildFolderPath = (parentId: string): string => {
-                const parts: string[] = []
-                let current = parentId
-                const visited = new Set<string>()
-                while (current && current !== '' && current !== 'trash' && !visited.has(current)) {
-                    visited.add(current)
-                    const name = folderNames.get(current)
-                    if (name) {
-                        parts.unshift(name)
-                        current = folderParents.get(current) ?? ''
-                    } else {
-                        break
-                    }
-                }
-                return parts.join('/')
-            }
-
-            // Collect documents
-            const notebooks: NotebookSummary[] = []
-
-            for (const result of metadataResults) {
-                if (result.status !== 'fulfilled' || !result.value.metadata) continue
-                const { entry, metadata } = result.value
-                if (metadata.deleted) continue
-                if (metadata.type !== 'DocumentType') continue
-                if (metadata.parent === 'trash') continue
-
-                notebooks.push({
-                    id: entry.id,
-                    visibleName: metadata.visibleName,
-                    parent: metadata.parent,
-                    lastModified: metadata.lastModified,
-                    pageCount: 0,
-                    folderPath: buildFolderPath(metadata.parent)
-                })
-            }
+            const notebooks = buildNotebookSummaries(entries)
 
             log(`Listed ${notebooks.length} documents`, 'debug')
             return notebooks

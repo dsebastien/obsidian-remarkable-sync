@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.4.4](https://github.com/dsebastien/obsidian-remarkable-sync/compare/1.4.3...1.4.4) (2026-07-16)
+
+### Bug Fixes
+
+* **auth:** never fail plugin load on malformed token file ([a696a08](https://github.com/dsebastien/obsidian-remarkable-sync/commit/a696a083ecb52f2e9ccf4bd1d16f5a3455460e1c))
+
 ## [1.4.3](https://github.com/dsebastien/obsidian-remarkable-sync/compare/1.4.2...1.4.3) (2026-06-17)
 
 ## [1.4.2](https://github.com/dsebastien/obsidian-remarkable-sync/compare/1.4.1...1.4.2) (2026-05-30)
@@ -102,6 +108,7 @@ All notable changes to this project will be documented in this file.
 - Inline progress indicators per notebook in panel
 - Settings for target folder, image format
 - Token storage outside vault for security
+
 
 
 

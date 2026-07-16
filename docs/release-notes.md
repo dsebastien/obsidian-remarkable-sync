@@ -1,5 +1,11 @@
 # Release Notes
 
+## 1.4.4 (2026-07-16)
+
+### Bug Fixes
+
+- **auth:** never fail plugin load on malformed token file
+
 ## 1.4.3 (2026-06-17)
 
 ## 1.4.2 (2026-05-30)

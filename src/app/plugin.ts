@@ -37,8 +37,13 @@ export class RemarkableSyncPlugin extends Plugin {
         this.pipelineService = createNotebookPipelineService(this)
         this.importService = createRmdocImportService(this)
 
-        // Check auth status on load
-        this.isConnected = await this.authService.isAuthenticated()
+        // Check auth status on load — must never prevent the plugin from loading
+        try {
+            this.isConnected = await this.authService.isAuthenticated()
+        } catch (error) {
+            log('Failed to check authentication status, treating as disconnected', 'error', error)
+            this.isConnected = false
+        }
 
         // Register the panel view
         this.registerView(REMARKABLE_PANEL_VIEW_TYPE, (leaf) => new RemarkablePanelView(leaf, this))

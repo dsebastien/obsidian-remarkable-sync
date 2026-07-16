@@ -21,6 +21,7 @@ When a new business rule is mentioned:
 - Device tokens are long-lived; user tokens expire after 24h and auto-refresh using the device token
 - All HTTP requests use Obsidian's `requestUrl` for plugin compliance and CORS handling
 - Users authenticate via a one-time code from `my.remarkable.com/device/desktop/connect` (official) or the rmfakecloud web interface
+- Plugin load must never fail because of token file contents: a malformed `token.json` is treated as disconnected (validated on read), and token writes are atomic (temp file + rename) to prevent partial writes
 
 ## Document Processing
 

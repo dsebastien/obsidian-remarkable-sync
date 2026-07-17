@@ -8,11 +8,11 @@ import { log } from '../../utils/log'
  */
 export function importRmdoc(plugin: RemarkableSyncPlugin): void {
     // Create a hidden file input to trigger the native file browser
-    const fileInput = activeDocument.createElement('input')
-    fileInput.type = 'file'
-    fileInput.accept = '.rmdoc'
-    fileInput.addClass('hidden')
-    activeDocument.body.appendChild(fileInput)
+    const fileInput = activeDocument.body.createEl('input', {
+        type: 'file',
+        cls: 'hidden',
+        attr: { accept: '.rmdoc' }
+    })
 
     fileInput.addEventListener('change', () => {
         const file = fileInput.files?.[0]

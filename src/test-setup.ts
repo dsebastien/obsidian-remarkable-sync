@@ -5,8 +5,20 @@
  */
 import { mock } from 'bun:test'
 
+/**
+ * Minimal typing for the parts of `bun:test`'s `mock` we use.
+ * In environments where the `bun:test` type declarations are not resolvable
+ * (e.g. the community-plugin review tooling), `mock` becomes error-typed
+ * (`any`); narrowing it to this interface keeps the call site type-safe.
+ */
+interface ModuleMocker {
+    module(id: string, factory: () => Record<string, unknown>): void | Promise<void>
+}
+
+const moduleMocker: ModuleMocker = mock as ModuleMocker
+
 // Mock the obsidian module (fire-and-forget, no need to await)
-void mock.module('obsidian', () => ({
+void moduleMocker.module('obsidian', () => ({
     Notice: class Notice {
         constructor(_message: string, _timeout?: number) {
             // No-op for tests

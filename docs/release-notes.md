@@ -1,5 +1,15 @@
 # Release Notes
 
+## 1.5.0 (2026-07-17)
+
+### Features
+
+- **plugin:** make settings searchable via declarative settings API (Obsidian 1.13+)
+
+### Bug Fixes
+
+- **plugin:** address community review warnings (createEl, redundant assertions, unsafe any)
+
 ## 1.4.4 (2026-07-16)
 
 ### Bug Fixes

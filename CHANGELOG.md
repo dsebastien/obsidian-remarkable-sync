@@ -2,6 +2,16 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.5.0](https://github.com/dsebastien/obsidian-remarkable-sync/compare/1.4.4...1.5.0) (2026-07-17)
+
+### Features
+
+* **plugin:** make settings searchable via declarative settings API (Obsidian 1.13+) ([04d5d00](https://github.com/dsebastien/obsidian-remarkable-sync/commit/04d5d0090cd539deeed1ac5f117fac2eb5a1beb4))
+
+### Bug Fixes
+
+* **plugin:** address community review warnings (createEl, redundant assertions, unsafe any) ([1d1e69d](https://github.com/dsebastien/obsidian-remarkable-sync/commit/1d1e69d819c0bdfb140c0b263f963825870ba17d))
+
 ## [1.4.4](https://github.com/dsebastien/obsidian-remarkable-sync/compare/1.4.3...1.4.4) (2026-07-16)
 
 ### Bug Fixes
@@ -108,6 +118,7 @@ All notable changes to this project will be documented in this file.
 - Inline progress indicators per notebook in panel
 - Settings for target folder, image format
 - Token storage outside vault for security
+
 
 
 

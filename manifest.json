@@ -2,7 +2,7 @@
     "id": "remarkable-synchronizer",
     "name": "Remarkable Synchronizer",
     "description": "Connect to the reMarkable cloud, list, download, and sync notebook pages as images.",
-    "version": "1.4.4",
+    "version": "1.5.0",
     "minAppVersion": "1.7.2",
     "isDesktopOnly": true,
     "author": "Sébastien Dubois",

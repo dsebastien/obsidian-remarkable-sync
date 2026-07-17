@@ -5,7 +5,7 @@ nav_order: 3
 
 # Configuration
 
-All settings are accessible via **Settings → Community plugins → Remarkable Synchronizer**.
+All settings are accessible via **Settings → Community plugins → Remarkable Synchronizer**. On Obsidian 1.13.0 and later, individual settings also appear in Obsidian's settings search.
 
 ## Settings
 

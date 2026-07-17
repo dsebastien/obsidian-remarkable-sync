@@ -19,7 +19,7 @@ import type { RmdocImportService } from './services/import/rmdoc-import.service'
 import { createRmdocImportService } from './services/import/rmdoc-import.service'
 
 export class RemarkableSyncPlugin extends Plugin {
-    settings: PluginSettings = { ...DEFAULT_SETTINGS }
+    override settings: PluginSettings = { ...DEFAULT_SETTINGS }
     isConnected = false
     authService!: RemarkableAuthService
     cloudService!: RemarkableCloudService

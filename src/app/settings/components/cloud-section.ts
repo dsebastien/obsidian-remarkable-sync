@@ -1,6 +1,9 @@
 import { Setting } from 'obsidian'
 import type { RemarkableSyncPlugin } from '../../plugin'
-import { validateRmfakecloudUrl } from '../../services/cloud/cloud-urls'
+import {
+    validateRmfakecloudUrl,
+    normalizeRmfakecloudUrlInput
+} from '../../services/cloud/cloud-urls'
 
 export function renderCloudSection(
     containerEl: HTMLElement,
@@ -31,7 +34,7 @@ export function renderCloudSection(
                 text.setPlaceholder('https://cloud.example.com')
                     .setValue(plugin.settings.rmfakecloudUrl)
                     .onChange(async (value) => {
-                        const trimmed = value.trim().replace(/\/+$/, '')
+                        const trimmed = normalizeRmfakecloudUrlInput(value)
                         const error = trimmed ? validateRmfakecloudUrl(trimmed) : null
                         const descEl = urlSetting.descEl
                         const existingError = descEl.querySelector('.remarkable-cloud-url-error')

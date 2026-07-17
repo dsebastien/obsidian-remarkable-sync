@@ -39,6 +39,13 @@ export function resolveCloudUrls(settings: PluginSettings): CloudUrls {
 }
 
 /**
+ * Normalize user input for the rmfakecloud URL: trim whitespace and strip trailing slashes.
+ */
+export function normalizeRmfakecloudUrlInput(value: string): string {
+    return value.trim().replace(/\/+$/, '')
+}
+
+/**
  * Validate an rmfakecloud URL. Returns an error message or null if valid.
  */
 export function validateRmfakecloudUrl(url: string): string | null {

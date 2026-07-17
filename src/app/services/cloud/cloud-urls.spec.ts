@@ -1,5 +1,9 @@
 import { test, expect, describe } from 'bun:test'
-import { resolveCloudUrls, validateRmfakecloudUrl } from './cloud-urls'
+import {
+    resolveCloudUrls,
+    validateRmfakecloudUrl,
+    normalizeRmfakecloudUrlInput
+} from './cloud-urls'
 import { DEFAULT_SETTINGS } from '../../types/plugin-settings.intf'
 
 describe('resolveCloudUrls', () => {
@@ -103,5 +107,33 @@ describe('validateRmfakecloudUrl', () => {
 
     test('returns error for non-http protocol', () => {
         expect(validateRmfakecloudUrl('ftp://example.com')).toBeTruthy()
+    })
+})
+
+describe('normalizeRmfakecloudUrlInput', () => {
+    test('trims surrounding whitespace', () => {
+        expect(normalizeRmfakecloudUrlInput('  https://cloud.example.com  ')).toBe(
+            'https://cloud.example.com'
+        )
+    })
+
+    test('strips trailing slashes', () => {
+        expect(normalizeRmfakecloudUrlInput('https://cloud.example.com///')).toBe(
+            'https://cloud.example.com'
+        )
+    })
+
+    test('strips trailing slashes after trimming', () => {
+        expect(normalizeRmfakecloudUrlInput(' https://cloud.example.com/ ')).toBe(
+            'https://cloud.example.com'
+        )
+    })
+
+    test('returns empty string for whitespace-only input', () => {
+        expect(normalizeRmfakecloudUrlInput('   ')).toBe('')
+    })
+
+    test('leaves a clean URL unchanged', () => {
+        expect(normalizeRmfakecloudUrlInput('http://localhost:3000')).toBe('http://localhost:3000')
     })
 })

@@ -30,12 +30,12 @@ export class AuthModal extends Modal {
         const steps = instructions.createDiv({ cls: 'remarkable-auth-steps' })
 
         const step1 = steps.createDiv({ cls: 'remarkable-auth-step' })
-        step1.createEl('span', { text: '1', cls: 'remarkable-auth-step-number' })
-        const step1Text = step1.createEl('span')
+        step1.createSpan({ text: '1', cls: 'remarkable-auth-step-number' })
+        const step1Text = step1.createSpan()
         if (urls.isRmfakecloud) {
-            step1Text.createEl('span', { text: 'Open your rmfakecloud web interface' })
+            step1Text.createSpan({ text: 'Open your rmfakecloud web interface' })
         } else {
-            step1Text.createEl('span', { text: 'Visit ' })
+            step1Text.createSpan({ text: 'Visit ' })
             step1Text.createEl('a', {
                 text: 'my.remarkable.com/device/desktop/connect',
                 href: 'https://my.remarkable.com/device/desktop/connect',
@@ -44,16 +44,16 @@ export class AuthModal extends Modal {
         }
 
         const step2 = steps.createDiv({ cls: 'remarkable-auth-step' })
-        step2.createEl('span', { text: '2', cls: 'remarkable-auth-step-number' })
-        step2.createEl('span', {
+        step2.createSpan({ text: '2', cls: 'remarkable-auth-step-number' })
+        step2.createSpan({
             text: urls.isRmfakecloud
                 ? 'Generate a one-time code from the web interface'
                 : 'Sign in with your reMarkable account'
         })
 
         const step3 = steps.createDiv({ cls: 'remarkable-auth-step' })
-        step3.createEl('span', { text: '3', cls: 'remarkable-auth-step-number' })
-        step3.createEl('span', { text: 'Enter the 8-character code below' })
+        step3.createSpan({ text: '3', cls: 'remarkable-auth-step-number' })
+        step3.createSpan({ text: 'Enter the 8-character code below' })
 
         // Code input
         const inputContainer = contentEl.createDiv({ cls: 'remarkable-auth-input-container' })

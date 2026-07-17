@@ -8,7 +8,7 @@ import {
     SceneItemType,
     ERASER_PEN_TYPES
 } from '../../domain/rm-constants'
-import type { Stroke, StrokePoint, Page } from '../../domain/notebook'
+import type { PenType, Stroke, StrokeColor, StrokePoint, Page } from '../../domain/notebook'
 import { log } from '../../../utils/log'
 
 /**
@@ -56,7 +56,7 @@ function parseBlock(reader: BinaryReader): Stroke | null {
     reader.readUint8() // unknown, always 0
     reader.readUint8() // min_version
     const currentVersion = reader.readUint8()
-    const blockType = reader.readUint8()
+    const blockType: BlockType = reader.readUint8()
     const blockEnd = reader.position + blockLength
 
     let stroke: Stroke | null = null
@@ -156,13 +156,13 @@ function parseSceneLineItemBlock(
  */
 function parseLineValue(reader: BinaryReader, subEnd: number): Stroke | null {
     // Scene item type byte (3 = Line)
-    const sceneType = reader.readUint8()
+    const sceneType: SceneItemType = reader.readUint8()
     if (sceneType !== SceneItemType.Line) {
         return null
     }
 
-    let toolId = 0
-    let colorId = 0
+    let toolId: PenType = 0
+    let colorId: StrokeColor = 0
     let thickness = 1.0
     let points: StrokePoint[] = []
 

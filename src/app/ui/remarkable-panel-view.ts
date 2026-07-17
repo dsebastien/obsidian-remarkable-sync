@@ -406,10 +406,11 @@ export class RemarkablePanelView extends ItemView {
         })
 
         // Sync status indicator
-        const statusDot = topRow.createSpan({
-            cls: `remarkable-sync-dot remarkable-sync-${syncStatus}`
+        const syncStatusLabel = this.getSyncStatusLabel(syncStatus)
+        topRow.createSpan({
+            cls: `remarkable-sync-dot remarkable-sync-${syncStatus}`,
+            attr: { 'aria-label': syncStatusLabel, 'title': syncStatusLabel }
         })
-        statusDot.setAttribute('aria-label', this.getSyncStatusLabel(syncStatus))
 
         const info = topRow.createDiv({ cls: 'remarkable-notebook-info' })
         info.createDiv({ cls: 'remarkable-notebook-name', text: notebook.visibleName })

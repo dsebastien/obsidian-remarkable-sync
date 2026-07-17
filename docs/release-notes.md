@@ -1,5 +1,15 @@
 # Release Notes
 
+## 1.6.0 (2026-07-17)
+
+### Features
+
+- **plugin:** require Obsidian 1.13 and drop the deprecated imperative settings fallback
+
+### Bug Fixes
+
+- **plugin:** use createSpan helper and enum-typed reads flagged by catalog review
+
 ## 1.5.0 (2026-07-17)
 
 ### Features

@@ -2,6 +2,16 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.6.0](https://github.com/dsebastien/obsidian-remarkable-sync/compare/1.5.0...1.6.0) (2026-07-17)
+
+### Features
+
+* **plugin:** require Obsidian 1.13 and drop the deprecated imperative settings fallback ([99637fc](https://github.com/dsebastien/obsidian-remarkable-sync/commit/99637fc090ccf954419bb90147e7bf4c25e6ab4b))
+
+### Bug Fixes
+
+* **plugin:** use createSpan helper and enum-typed reads flagged by catalog review ([e017844](https://github.com/dsebastien/obsidian-remarkable-sync/commit/e017844827be9a3ab8665241630d2ae559587413))
+
 ## [1.5.0](https://github.com/dsebastien/obsidian-remarkable-sync/compare/1.4.4...1.5.0) (2026-07-17)
 
 ### Features
@@ -118,6 +128,7 @@ All notable changes to this project will be documented in this file.
 - Inline progress indicators per notebook in panel
 - Settings for target folder, image format
 - Token storage outside vault for security
+
 
 
 

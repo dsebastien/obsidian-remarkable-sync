@@ -10,9 +10,8 @@ import {
 import { BUY_ME_A_COFFEE_BADGE_DATA_URL } from '../assets/buy-me-a-coffee'
 
 /**
- * Declarative setting definitions for Obsidian >= 1.13.0.
- * Mirrors the imperative sections rendered by display() (the pre-1.13 fallback):
- * keep names/descriptions in sync with the components under ./components.
+ * Declarative setting definitions (Obsidian >= 1.13.0, guaranteed by
+ * minAppVersion). The sole rendering path for the settings tab.
  *
  * @param plugin the plugin instance (settings source and command target)
  * @param requestUpdate re-builds and re-renders the definitions (call after state changes)

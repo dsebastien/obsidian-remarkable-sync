@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.7.0](https://github.com/dsebastien/obsidian-remarkable-sync/compare/1.6.0...1.7.0) (2026-07-17)
+
+### Features
+
+* **plugin:** add hover tooltip to notebook sync status dot ([add020c](https://github.com/dsebastien/obsidian-remarkable-sync/commit/add020cab7e77b8921e7f3a8e7035c1430359c50))
+
 ## [1.6.0](https://github.com/dsebastien/obsidian-remarkable-sync/compare/1.5.0...1.6.0) (2026-07-17)
 
 ### Features
@@ -128,6 +134,7 @@ All notable changes to this project will be documented in this file.
 - Inline progress indicators per notebook in panel
 - Settings for target folder, image format
 - Token storage outside vault for security
+
 
 
 

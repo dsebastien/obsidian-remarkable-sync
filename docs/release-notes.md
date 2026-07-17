@@ -1,5 +1,11 @@
 # Release Notes
 
+## 1.7.0 (2026-07-17)
+
+### Features
+
+- **plugin:** add hover tooltip to notebook sync status dot
+
 ## 1.6.0 (2026-07-17)
 
 ### Features

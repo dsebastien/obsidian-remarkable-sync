@@ -2,6 +2,8 @@ import { produce } from 'immer'
 import type { Draft } from 'immer'
 import type { SyncStore } from '../domain/sync-state'
 import { DEFAULT_SYNC_STORE } from '../domain/sync-state'
+import { DEFAULT_TRIAGE_IDLE_MINUTES } from '../domain/triage-routing'
+import { defaultTriageQueueDir } from '../services/triage/triage-queue.service'
 
 export const MIN_AUTO_SYNC_INTERVAL_MINUTES = 5
 
@@ -43,6 +45,17 @@ export interface PluginSettings {
      */
     imgPlaceholderMigrationVersion: number
     syncStore: SyncStore
+    /**
+     * GP-125: route OCR'd pages that have had no further writing activity for
+     * `triageIdleMinutes` into the same PA/triage intake voice notes use.
+     */
+    triageEnabled: boolean
+    /** Idle threshold (minutes) — see `selectPagesToRoute`. */
+    triageIdleMinutes: number
+    /** Absolute host path to md_capture's `TRIAGE_QUEUE_DIR` (host-side, not a vault path). */
+    triageQueueDir: string
+    /** `chat_id` in each queued request — the PA's telegram chat. */
+    triageChatId: number
 }
 
 export const DEFAULT_SETTINGS: PluginSettings = {
@@ -61,7 +74,11 @@ export const DEFAULT_SETTINGS: PluginSettings = {
     mdserverOcrUrl: 'http://localhost:1250/ocr',
     ocrRequestDelayMs: 400,
     imgPlaceholderMigrationVersion: 0,
-    syncStore: DEFAULT_SYNC_STORE
+    syncStore: DEFAULT_SYNC_STORE,
+    triageEnabled: true,
+    triageIdleMinutes: DEFAULT_TRIAGE_IDLE_MINUTES,
+    triageQueueDir: defaultTriageQueueDir(),
+    triageChatId: -5188649683
 }
 
 /**
@@ -139,6 +156,18 @@ export function resolveSettings(loaded: LoadedPluginSettings | null): PluginSett
         }
         if (loaded.syncStore !== undefined) {
             draft.syncStore = loaded.syncStore
+        }
+        if (loaded.triageEnabled !== undefined) {
+            draft.triageEnabled = loaded.triageEnabled
+        }
+        if (loaded.triageIdleMinutes !== undefined) {
+            draft.triageIdleMinutes = loaded.triageIdleMinutes
+        }
+        if (loaded.triageQueueDir !== undefined) {
+            draft.triageQueueDir = loaded.triageQueueDir
+        }
+        if (loaded.triageChatId !== undefined) {
+            draft.triageChatId = loaded.triageChatId
         }
     })
 }

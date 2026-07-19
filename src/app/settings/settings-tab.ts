@@ -5,6 +5,7 @@ import { renderCloudSection } from './components/cloud-section'
 import { renderOutputSection } from './components/output-section'
 import { renderSyncSection } from './components/sync-section'
 import { renderOcrSection } from './components/ocr-section'
+import { renderTriageSection } from './components/triage-section'
 import { renderAboutSection } from './components/about-section'
 
 export class RemarkableSyncSettingTab extends PluginSettingTab {
@@ -24,6 +25,7 @@ export class RemarkableSyncSettingTab extends PluginSettingTab {
         renderOutputSection(containerEl, this.plugin)
         renderSyncSection(containerEl, this.plugin)
         renderOcrSection(containerEl, this.plugin)
+        renderTriageSection(containerEl, this.plugin)
         renderAboutSection(containerEl)
     }
 }

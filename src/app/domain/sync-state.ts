@@ -26,6 +26,15 @@ export interface PageOcrState {
      * mismatch therefore forces a rewrite. Absent alongside imgHash.
      */
     readonly pageIndex?: number
+    /**
+     * `srcHash` of the version of this page that was last filed to PA triage
+     * (GP-125). Undefined = never routed. Equal to the current `srcHash` =
+     * this exact content is already filed — do not re-file. A later edit
+     * advances `srcHash` past this value, making the page eligible again.
+     */
+    readonly routedSrcHash?: string
+    /** epoch ms the page was last filed to PA triage. Diagnostic only. */
+    readonly routedAt?: number
 }
 
 /**
@@ -36,6 +45,14 @@ export interface NotebookSyncState {
     readonly lastSyncedAt: number // epoch ms, 0 = never synced
     readonly lastModifiedCloud: number // epoch ms from cloud
     readonly syncedPageCount: number
+    /**
+     * Display name / cloud folder path as of the last sync. Optional/absent
+     * for notebooks synced before this tracking existed. Used only for PA
+     * triage provenance (GP-125) and UI — never for identity (that's
+     * `remarkableId`).
+     */
+    readonly visibleName?: string
+    readonly folderPath?: string
     /**
      * Per-page state keyed by pageId. Optional/absent for notebooks synced
      * before per-page tracking existed (backward compatible). Populated by

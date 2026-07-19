@@ -54,6 +54,14 @@ When a new business rule is mentioned:
 - Per-page incremental sync: an unchanged page's image file is never rewritten (its file mtime must not move). Change signal = rendered-image hash (the cloud has no per-page mtime). Skip requires: file exists, `imgHash` matches the current render, and `pageIndex` matches (device page insert/delete/reorder shifts indexes and forces a rewrite)
 - Per-page state (`pages` map) is persisted by both OCR and non-OCR syncs; a non-OCR sync must never clobber OCR progress. `ocrHash` `''` = not yet OCR'd (re-OCR when enabled); `imgHash` only advances on a real vault write, so a "save images" off sync can't mark a stale file current
 
+## PA triage routing (GP-125)
+
+- A page routes to PA triage once it has been OCR'd AND its notebook's cloud-stamped `lastModifiedCloud` is at least `triageIdleMinutes` (default 60) old — idle time is measured from the cloud edit time, not from when the plugin first observed it, so a backlog notebook OCR'd for the first time long after its last edit routes immediately
+- Dedup key is (notebook id, page id, `srcHash`) — persisted as `routedSrcHash` on the page's sync-store entry, so it survives restarts; a page is never filed twice for the same content, and a later edit (new `srcHash`) makes it eligible again
+- The routing pass runs after every `syncAllNotebooks` call, regardless of whether any notebook needed syncing — an idle-but-unrouted page has a stable cloud mtime and would never re-enter the per-notebook sync pipeline otherwise
+- Routing writes into the exact same triage-queue intake voice notes use (`~/Vaults/personal/triage-queue/*.json`, `{chat_id, text, source, note_id}`), polled by the existing host `com.gp.triage-queue` launchd job — no new scheduler, no md_capture changes
+- Fail-soft: a page is only marked routed after its queue file write succeeds; a read/write failure leaves it un-routed for retry on the next sync-all pass, and never throws into the sync loop
+
 ## rmfakecloud
 
 - When rmfakecloud is enabled, both auth and sync endpoints use the same user-provided base URL

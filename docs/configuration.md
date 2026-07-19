@@ -25,6 +25,9 @@ All settings are accessible via **Settings → Community plugins → Remarkable 
 | Sync on startup              | toggle   | `false`                     | Run one auto-sync when Obsidian starts                                                          |
 | Periodic auto-sync           | toggle   | `false`                     | Auto-sync on an interval while Obsidian is open                                                 |
 | Auto-sync interval (minutes) | text     | `15`                        | How often to auto-sync (minimum 5)                                                              |
+| Route idle pages to PA       | toggle   | `true`                      | File a transcribed page into the same triage intake voice notes use once it's gone idle         |
+| Idle threshold (minutes)     | text     | `60`                        | How long a page must go unchanged (cloud last-modified time) before it's filed                  |
+| Triage queue directory       | text     | `~/Vaults/personal/triage-queue` | Host path to the shared triage-queue directory                                             |
 
 ## Automatic sync
 
@@ -72,6 +75,21 @@ Each page's transcription is persisted as soon as it succeeds. If a sync is inte
 pages still missing OCR** rather than restarting the whole notebook, and never duplicates
 pages. (Tip: lower **OCR request delay** to go faster, or raise it if you keep hitting
 rate limits.)
+
+## PA triage routing
+
+Enable **Route idle pages to PA** (needs OCR transcription also on) to file a page's
+transcription into the same triage-queue intake your voice notes use, once the page
+has gone idle — no manual step to turn a handwritten page into a TODO or note.
+
+- "Idle" is measured from reMarkable's own last-modified timestamp for the notebook,
+  not from when the plugin first saw it — a page finished days ago and only just
+  synced/OCR'd today routes immediately rather than waiting out the threshold again.
+- Each page is routed **once per content version**: the dedup key (page id + content
+  hash) is persisted, so it survives a restart. Editing a routed page later makes it
+  eligible again once it settles.
+- A filing failure (e.g. the queue directory is unreachable) is logged and retried on
+  the next sync; it never blocks or fails the sync itself.
 
 ## Image Formats
 

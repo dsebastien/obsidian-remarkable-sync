@@ -94,7 +94,16 @@ export function createNotebookPipelineService(
                 // all-notebooks sync skips this (unchanged) notebook on the next
                 // tick instead of re-downloading it every interval.
                 const lastModifiedCloud = parseInt(notebook.lastModified, 10) || Date.now()
-                await plugin.syncStoreService.updateState(notebook.id, lastModifiedCloud, 0)
+                await plugin.syncStoreService.updateState(
+                    notebook.id,
+                    lastModifiedCloud,
+                    0,
+                    undefined,
+                    {
+                        visibleName: notebook.visibleName,
+                        folderPath: notebook.folderPath
+                    }
+                )
                 return true
             }
 
@@ -275,7 +284,8 @@ export function createNotebookPipelineService(
                             notebook.id,
                             prevMtime,
                             totalPages,
-                            { ...prevPages, ...nextPages }
+                            { ...prevPages, ...nextPages },
+                            { visibleName: notebook.visibleName, folderPath: notebook.folderPath }
                         )
                         ocrTranscribed++
                         plugin.syncLogService.emit(
@@ -366,7 +376,8 @@ export function createNotebookPipelineService(
                 notebook.id,
                 finalMtime,
                 totalPages,
-                persistPages
+                persistPages,
+                { visibleName: notebook.visibleName, folderPath: notebook.folderPath }
             )
 
             return true

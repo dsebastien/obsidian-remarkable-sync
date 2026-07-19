@@ -92,6 +92,9 @@ stalled without digging through the developer console.
 | OCR request delay (ms)       | `400`                       | Pause between per-page OCR requests to stay under the OCR provider's rate limit (0 disables)                                 |
 | Auto-sync scope              | `Newest in source folder`   | What auto-sync picks up: the newest notebook in the source folder, or every notebook starred (favorited) on the device       |
 | Source folder                | `/2026`                     | Cloud folder auto-sync reads from (ignored when the scope is favorited notebooks)                                            |
+| Route idle pages to PA       | `true`                      | After OCR, file a page that has had no writing activity for the idle threshold into the same triage intake voice notes use   |
+| Idle threshold (minutes)     | `60`                        | How long a page must go unchanged (by cloud-stamped last-modified time) before it's filed                                   |
+| Triage queue directory       | `~/Vaults/personal/triage-queue` | Host path to the shared triage-queue directory (same one the audio-to-action pipeline writes to)                        |
 
 ### OCR transcription
 
@@ -120,6 +123,24 @@ of that page's section** (under the `## Page N` heading), so figures show up ins
 of a broken link. Notes written before this behavior existed are fixed automatically
 once (on the next plugin load); you can also re-run it anytime with the **Fix OCR
 image links in notes** command.
+
+### PA triage routing
+
+When **Route idle pages to PA** is enabled (requires OCR transcription also
+enabled), a page that has been transcribed and has had no further writing
+activity for the **idle threshold** is filed into the same triage-queue intake
+your voice notes use — a handwritten page becomes an actionable PA item
+(TODOs, filed notes) with no manual step. "No activity" is measured from
+reMarkable's own last-modified timestamp for the notebook, so a page you
+finished writing days ago and only just synced/OCR'd routes right away rather
+than waiting out the threshold again.
+
+Each page is filed **once per version**: routing is deduped by page + content
+hash and that dedup key is persisted, so it survives a restart and a page is
+never filed twice for the same content. Editing a routed page later makes it
+eligible again once it goes idle. A filing failure (e.g. the queue directory
+is unreachable) is logged and retried on the next sync — it never blocks or
+fails the sync itself.
 
 ## Output Format
 

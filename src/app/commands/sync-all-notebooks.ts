@@ -4,6 +4,7 @@ import type { PluginSettings } from '../types/plugin-settings.intf'
 import { notebookNeedsSync } from '../domain/sync-state'
 import { notebooksInFolder, newestNotebook, favoriteNotebooks } from '../domain/notebook'
 import { log } from '../../utils/log'
+import { routeIdlePages } from './route-idle-pages'
 
 export interface SyncAllResult {
     total: number
@@ -197,5 +198,18 @@ export async function syncAllNotebooks(
         return result
     } finally {
         plugin.isSyncing = false
+        // GP-125: after every sync-all pass (regardless of whether anything in
+        // scope needed syncing — an idle-but-unrouted page is exactly the case
+        // where nothing needed syncing), file any now-idle OCR'd pages to PA
+        // triage. Fail-soft: never let a triage-routing bug wedge the sync loop
+        // or shadow the sync result above.
+        try {
+            const routing = await routeIdlePages(plugin)
+            if (routing.routed > 0 || routing.failed > 0) {
+                log('Triage routing pass complete', 'info', routing)
+            }
+        } catch (error) {
+            log('Triage routing pass failed', 'error', error)
+        }
     }
 }

@@ -1,5 +1,15 @@
 # Release Notes
 
+## 1.8.0 (2026-07-27)
+
+### Features
+
+- **plugin:** show a what's new dialog once after plugin updates
+
+### Reverts
+
+- Revert "feat(plugin): require Obsidian 1.13 and drop the deprecated imperative settings fallback"
+
 ## 1.7.0 (2026-07-17)
 
 ### Features

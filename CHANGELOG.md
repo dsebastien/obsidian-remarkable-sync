@@ -2,6 +2,16 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.8.0](https://github.com/dsebastien/obsidian-remarkable-sync/compare/1.7.0...1.8.0) (2026-07-27)
+
+### Features
+
+* **plugin:** show a what's new dialog once after plugin updates ([9b78aa5](https://github.com/dsebastien/obsidian-remarkable-sync/commit/9b78aa589ce059f97b6b592e05b691aad02d6657))
+
+### Reverts
+
+* Revert "feat(plugin): require Obsidian 1.13 and drop the deprecated imperative settings fallback" ([fb7c3ee](https://github.com/dsebastien/obsidian-remarkable-sync/commit/fb7c3eeef48eb0c9cb72be5cd64f26bd71643a0c))
+
 ## [1.7.0](https://github.com/dsebastien/obsidian-remarkable-sync/compare/1.6.0...1.7.0) (2026-07-17)
 
 ### Features
@@ -134,6 +144,7 @@ All notable changes to this project will be documented in this file.
 - Inline progress indicators per notebook in panel
 - Settings for target folder, image format
 - Token storage outside vault for security
+
 
 
 

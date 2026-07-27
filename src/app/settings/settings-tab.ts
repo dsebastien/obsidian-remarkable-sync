@@ -3,6 +3,10 @@ import type { SettingDefinitionItem } from 'obsidian'
 import type { RemarkableSyncPlugin } from '../plugin'
 import { buildSettingDefinitions } from './setting-definitions'
 import { normalizeRmfakecloudUrlInput } from '../services/cloud/cloud-urls'
+import { renderAuthSection } from './components/auth-section'
+import { renderCloudSection } from './components/cloud-section'
+import { renderOutputSection } from './components/output-section'
+import { renderAboutSection } from './components/about-section'
 
 export class RemarkableSyncSettingTab extends PluginSettingTab {
     plugin: RemarkableSyncPlugin
@@ -13,9 +17,9 @@ export class RemarkableSyncSettingTab extends PluginSettingTab {
     }
 
     /**
-     * Declarative settings (requires Obsidian >= 1.13.0, guaranteed by
-     * minAppVersion): makes the plugin settings discoverable through
-     * Obsidian's settings search. Supersedes the deprecated display().
+     * Declarative settings (Obsidian >= 1.13.0): makes the plugin settings
+     * discoverable through Obsidian's settings search. Older versions never
+     * call this and fall back to display().
      */
     override getSettingDefinitions(): SettingDefinitionItem[] {
         return buildSettingDefinitions(this.plugin, () => this.update())
@@ -109,5 +113,19 @@ export class RemarkableSyncSettingTab extends PluginSettingTab {
             default:
                 return
         }
+    }
+
+    /**
+     * Imperative fallback for Obsidian < 1.13.0. Not called on >= 1.13.0
+     * because getSettingDefinitions() returns a non-empty array.
+     */
+    override display(): void {
+        const { containerEl } = this
+        containerEl.empty()
+
+        renderAuthSection(containerEl, this.plugin, () => this.display())
+        renderCloudSection(containerEl, this.plugin, () => this.display())
+        renderOutputSection(containerEl, this.plugin)
+        renderAboutSection(containerEl)
     }
 }

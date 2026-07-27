@@ -17,6 +17,7 @@ import type { SyncStoreService } from './services/sync/sync-store.service'
 import { createSyncStoreService } from './services/sync/sync-store.service'
 import type { RmdocImportService } from './services/import/rmdoc-import.service'
 import { createRmdocImportService } from './services/import/rmdoc-import.service'
+import { registerWhatsNewDialog } from './whats-new'
 
 export class RemarkableSyncPlugin extends Plugin {
     override settings: PluginSettings = { ...DEFAULT_SETTINGS }
@@ -28,6 +29,8 @@ export class RemarkableSyncPlugin extends Plugin {
     importService!: RmdocImportService
 
     override async onload(): Promise<void> {
+        // Must run before anything can call saveData (fresh-install detection)
+        registerWhatsNewDialog(this)
         log('Initializing', 'debug')
         await this.loadSettings()
 

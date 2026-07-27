@@ -10,6 +10,7 @@ An Obsidian plugin that connects to the reMarkable cloud to list, download, and 
 - **Sidebar panel** — browse notebooks with foldable folder hierarchy, search, multi-select, and per-notebook download
 - **Folder hierarchy preservation** — reMarkable folder structure mirrored in vault
 - **Local .rmdoc import** — import .rmdoc files directly without cloud connection
+- **What's new after updates.** After a plugin update, a one-time dialog shows the release notes you just received (including skipped versions) with ways to support development. Never shown on fresh installs or regular restarts.
 
 ## Requirements
 

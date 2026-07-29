@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.9.1](https://github.com/dsebastien/obsidian-remarkable-sync/compare/1.9.0...1.9.1) (2026-07-29)
+
+### Bug Fixes
+
+* **plugin:** parse version-1 line blocks (24-byte float points) ([3abd751](https://github.com/dsebastien/obsidian-remarkable-sync/commit/3abd7515de929de9bd9e0e88827077d6631ef55d)), closes [#12](https://github.com/dsebastien/obsidian-remarkable-sync/issues/12)
+* **plugin:** warn on unknown line-block versions instead of failing silently ([3f8bfb4](https://github.com/dsebastien/obsidian-remarkable-sync/commit/3f8bfb4911328c1e395c97baec84c43cdab4497f))
+
 ## [1.9.0](https://github.com/dsebastien/obsidian-remarkable-sync/compare/1.8.0...1.9.0) (2026-07-29)
 
 ### Features
@@ -157,6 +164,7 @@ All notable changes to this project will be documented in this file.
 - Inline progress indicators per notebook in panel
 - Settings for target folder, image format
 - Token storage outside vault for security
+
 
 
 

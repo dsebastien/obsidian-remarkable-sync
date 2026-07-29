@@ -1,5 +1,12 @@
 # Release Notes
 
+## 1.9.1 (2026-07-29)
+
+### Bug Fixes
+
+- **plugin:** parse version-1 line blocks (24-byte float points)
+- **plugin:** warn on unknown line-block versions instead of failing silently
+
 ## 1.9.0 (2026-07-29)
 
 ### Features

@@ -1,5 +1,18 @@
 # Release Notes
 
+## 1.9.0 (2026-07-29)
+
+### Features
+
+- **plugin:** add automatic background sync on a configurable interval
+- **plugin:** prune orphaned sync state after each cloud refresh
+
+### Bug Fixes
+
+- **build:** keep the release build compatible with older Bun versions
+- **deps:** bump fast-uri and brace-expansion past vulnerability advisories
+- **plugin:** drop 1.13-only declarative settings API for stable Obsidian
+
 ## 1.8.0 (2026-07-27)
 
 ### Features

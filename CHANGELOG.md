@@ -2,6 +2,19 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.9.0](https://github.com/dsebastien/obsidian-remarkable-sync/compare/1.8.0...1.9.0) (2026-07-29)
+
+### Features
+
+* **plugin:** add automatic background sync on a configurable interval ([3ee0110](https://github.com/dsebastien/obsidian-remarkable-sync/commit/3ee011008724954d095ad84557f95a43ad1525d5)), closes [#8](https://github.com/dsebastien/obsidian-remarkable-sync/issues/8)
+* **plugin:** prune orphaned sync state after each cloud refresh ([7eef6ec](https://github.com/dsebastien/obsidian-remarkable-sync/commit/7eef6ec0e48c326dcf41a1bd725355de31c6d736)), closes [#9](https://github.com/dsebastien/obsidian-remarkable-sync/issues/9)
+
+### Bug Fixes
+
+* **build:** keep the release build compatible with older Bun versions ([adee72c](https://github.com/dsebastien/obsidian-remarkable-sync/commit/adee72c39c4d42457457c540f7dbf58a82749b7a))
+* **deps:** bump fast-uri and brace-expansion past vulnerability advisories ([8a52fc4](https://github.com/dsebastien/obsidian-remarkable-sync/commit/8a52fc43efced223be03b54913aa64677f5efdb6))
+* **plugin:** drop 1.13-only declarative settings API for stable Obsidian ([8da625c](https://github.com/dsebastien/obsidian-remarkable-sync/commit/8da625c4f2c17eb2a5b4a9ab1fcb0c211c8c7e63)), closes [#11](https://github.com/dsebastien/obsidian-remarkable-sync/issues/11)
+
 ## [1.8.0](https://github.com/dsebastien/obsidian-remarkable-sync/compare/1.7.0...1.8.0) (2026-07-27)
 
 ### Features
@@ -144,6 +157,7 @@ All notable changes to this project will be documented in this file.
 - Inline progress indicators per notebook in panel
 - Settings for target folder, image format
 - Token storage outside vault for security
+
 
 
 

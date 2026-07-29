@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.10.0](https://github.com/dsebastien/obsidian-remarkable-sync/compare/1.9.1...1.10.0) (2026-07-29)
+
+### Features
+
+* **plugin:** surface per-page render failures instead of dropping silently ([a776a8e](https://github.com/dsebastien/obsidian-remarkable-sync/commit/a776a8e5235e12701a82c1172185bdc9e65885ce)), closes [#12](https://github.com/dsebastien/obsidian-remarkable-sync/issues/12)
+
 ## [1.9.1](https://github.com/dsebastien/obsidian-remarkable-sync/compare/1.9.0...1.9.1) (2026-07-29)
 
 ### Bug Fixes
@@ -164,6 +170,7 @@ All notable changes to this project will be documented in this file.
 - Inline progress indicators per notebook in panel
 - Settings for target folder, image format
 - Token storage outside vault for security
+
 
 
 

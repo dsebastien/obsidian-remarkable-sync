@@ -1,5 +1,11 @@
 # Release Notes
 
+## 1.10.0 (2026-07-29)
+
+### Features
+
+- **plugin:** surface per-page render failures instead of dropping silently
+
 ## 1.9.1 (2026-07-29)
 
 ### Bug Fixes

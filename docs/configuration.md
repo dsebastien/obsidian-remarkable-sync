@@ -5,7 +5,7 @@ nav_order: 3
 
 # Configuration
 
-All settings are accessible via **Settings → Community plugins → Remarkable Synchronizer**. On Obsidian 1.13.0 and later, individual settings also appear in Obsidian's settings search.
+All settings are accessible via **Settings → Community plugins → Remarkable Synchronizer**.
 
 ## Settings
 
@@ -17,6 +17,8 @@ All settings are accessible via **Settings → Community plugins → Remarkable 
 | Image quality   | slider   | `0.85`  | Quality for JPEG/WebP (0.1 = smallest, 1.0 = best). Hidden when PNG is selected. |
 | Use rmfakecloud | toggle   | `false` | Connect to a self-hosted rmfakecloud server instead of the official cloud        |
 | Server URL      | text     | `""`    | Base URL of your rmfakecloud server (only shown when rmfakecloud is enabled)     |
+| Automatic sync  | toggle   | `false` | Periodically sync all notebooks that need updating in the background             |
+| Sync interval   | slider   | `30`    | Minutes between automatic syncs, 5–240 (only shown when automatic sync is on)    |
 
 ## Image Formats
 
@@ -25,6 +27,10 @@ All settings are accessible via **Settings → Community plugins → Remarkable 
 - **PNG** — lossless, larger files, no quality slider
 
 The quality slider controls the compression level for JPEG and WebP. Lower values produce smaller files; higher values preserve more detail. The slider is hidden when PNG is selected since PNG is always lossless.
+
+## Automatic sync
+
+When **Automatic sync** is enabled, the plugin periodically syncs all notebooks that need updating (same rules as the panel's **Sync all** button). Runs are skipped while disconnected and when a sync is already in progress. Each run also cleans up sync state for notebooks that were deleted on your reMarkable — files already saved in your vault are never deleted.
 
 ## Authentication
 

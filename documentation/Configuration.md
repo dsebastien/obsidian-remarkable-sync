@@ -12,6 +12,8 @@ All settings are configured via **Settings → Community plugins → Remarkable 
 | Image quality   | `0.85`      | Quality for JPEG/WebP (0.1–1.0). Higher = better quality, larger files. No effect on PNG. |
 | Use rmfakecloud | `false`     | Connect to a self-hosted rmfakecloud server instead of official cloud                     |
 | Server URL      | `""`        | Base URL of rmfakecloud server (only when rmfakecloud is enabled)                         |
+| Automatic sync  | `false`     | Opt-in background sync of all notebooks that need updating                                |
+| Sync interval   | `30`        | Minutes between automatic syncs (clamped 5–240; only when automatic sync is enabled)      |
 
 ## Authentication
 

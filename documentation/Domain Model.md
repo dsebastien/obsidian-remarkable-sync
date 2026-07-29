@@ -67,6 +67,8 @@ Per-notebook sync metadata persisted in plugin data.
 
 Top-level container: `notebooks: Record<string, NotebookSyncState>` keyed by remarkableId.
 
+Entries whose notebook is no longer present in a fresh cloud listing are orphaned and pruned (`findOrphanedSyncIds` + `SyncStoreService.pruneMissing`) on panel refresh and automatic sync runs. Vault files are never removed by pruning.
+
 ### SyncStatus (derived)
 
 - `never-synced`: `lastSyncedAt === 0` or no state
@@ -82,5 +84,7 @@ Top-level container: `notebooks: Record<string, NotebookSyncState>` keyed by rem
 - `imageFormat`: 'png' | 'jpeg'
 - `useRmfakecloud`: Connect to rmfakecloud instead of official cloud
 - `rmfakecloudUrl`: Base URL of the rmfakecloud server
+- `autoSyncEnabled`: Opt-in automatic background sync (default false)
+- `autoSyncIntervalMinutes`: Minutes between automatic syncs (clamped 5–240, default 30)
 - `isAuthenticated`: Derived from token presence
 - `syncStore`: Persistent sync state for all notebooks

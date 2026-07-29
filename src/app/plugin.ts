@@ -17,6 +17,8 @@ import type { SyncStoreService } from './services/sync/sync-store.service'
 import { createSyncStoreService } from './services/sync/sync-store.service'
 import type { RmdocImportService } from './services/import/rmdoc-import.service'
 import { createRmdocImportService } from './services/import/rmdoc-import.service'
+import type { AutoSyncService } from './services/sync/auto-sync.service'
+import { createAutoSyncServiceForPlugin } from './services/sync/auto-sync.service'
 import { registerWhatsNewDialog } from './whats-new'
 
 export class RemarkableSyncPlugin extends Plugin {
@@ -27,6 +29,7 @@ export class RemarkableSyncPlugin extends Plugin {
     pipelineService!: NotebookPipelineService
     syncStoreService!: SyncStoreService
     importService!: RmdocImportService
+    autoSyncService!: AutoSyncService
 
     override async onload(): Promise<void> {
         // Must run before anything can call saveData (fresh-install detection)
@@ -39,6 +42,7 @@ export class RemarkableSyncPlugin extends Plugin {
         this.syncStoreService = createSyncStoreService(this)
         this.pipelineService = createNotebookPipelineService(this)
         this.importService = createRmdocImportService(this)
+        this.autoSyncService = createAutoSyncServiceForPlugin(this)
 
         // Check auth status on load — must never prevent the plugin from loading
         try {
@@ -61,6 +65,9 @@ export class RemarkableSyncPlugin extends Plugin {
 
         // Add a settings screen for the plugin
         this.addSettingTab(new RemarkableSyncSettingTab(this.app, this))
+
+        // Schedule automatic background sync when enabled in settings
+        this.autoSyncService.applySettings()
     }
 
     override onunload(): void {
@@ -103,6 +110,15 @@ export class RemarkableSyncPlugin extends Plugin {
             }
             if (loadedSettings.imageFormat !== undefined) {
                 draft.imageFormat = loadedSettings.imageFormat
+            }
+            if (loadedSettings.imageQuality !== undefined) {
+                draft.imageQuality = loadedSettings.imageQuality
+            }
+            if (loadedSettings.autoSyncEnabled !== undefined) {
+                draft.autoSyncEnabled = loadedSettings.autoSyncEnabled
+            }
+            if (loadedSettings.autoSyncIntervalMinutes !== undefined) {
+                draft.autoSyncIntervalMinutes = loadedSettings.autoSyncIntervalMinutes
             }
             if (loadedSettings.useRmfakecloud !== undefined) {
                 draft.useRmfakecloud = loadedSettings.useRmfakecloud

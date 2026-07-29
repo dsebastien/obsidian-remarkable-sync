@@ -43,7 +43,8 @@ Domain Types (domain/)
 | `renderer/page-renderer.service`     | Render full pages to PNG/JPEG                                           |
 | `output/markdown-writer.service`     | Save images to vault                                                    |
 | `pipeline/notebook-pipeline.service` | Per-notebook orchestrator: download → parse → render → save             |
-| `sync/sync-store.service`            | Sync state persistence via plugin data                                  |
+| `sync/sync-store.service`            | Sync state persistence via plugin data; prunes orphaned entries         |
+| `sync/auto-sync.service`             | Opt-in background sync timer (guards: disconnected, overlapping runs)   |
 | `import/rmdoc-import.service`        | Import local .rmdoc files: extract ZIP → parse → render → save          |
 
 ### UI

@@ -36,6 +36,8 @@ When a new business rule is mentioned:
 - "Sync all" only processes notebooks with `needs-sync` or `never-synced` status
 - Sync state is cleared when user disconnects from reMarkable cloud
 - Users can sync individual notebooks, multiple selected notebooks, or all notebooks at once
+- On every successful cloud listing (panel refresh or automatic sync), sync-state entries whose notebook no longer exists in the cloud are pruned; generated vault files are never deleted automatically
+- Automatic background sync is opt-in (default off); the interval is clamped to 5–240 minutes (default 30); runs are skipped while disconnected or when a previous run is still in progress; timers are registered via `registerInterval` so they are cleaned up on unload
 
 ## Local Import
 

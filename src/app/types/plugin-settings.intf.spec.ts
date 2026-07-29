@@ -9,6 +9,8 @@ describe('PluginSettings', () => {
         expect(DEFAULT_SETTINGS.imageQuality).toBe(0.85)
         expect(DEFAULT_SETTINGS.useRmfakecloud).toBe(false)
         expect(DEFAULT_SETTINGS.rmfakecloudUrl).toBe('')
+        expect(DEFAULT_SETTINGS.autoSyncEnabled).toBe(false)
+        expect(DEFAULT_SETTINGS.autoSyncIntervalMinutes).toBe(30)
         expect(DEFAULT_SETTINGS.syncStore).toEqual({ notebooks: {} })
     })
 })

@@ -396,7 +396,14 @@ describe('rm-file-parser', () => {
                 thickness: 2.0,
                 pointVersion: 1,
                 points: [
-                    { x: 100.5, y: 200.75, speed: 3.5, direction: Math.PI / 2, width: 2.25, pressure: 0.8 },
+                    {
+                        x: 100.5,
+                        y: 200.75,
+                        speed: 3.5,
+                        direction: Math.PI / 2,
+                        width: 2.25,
+                        pressure: 0.8
+                    },
                     { x: 150, y: 250 }
                 ]
             })
@@ -453,6 +460,23 @@ describe('rm-file-parser', () => {
             const buffer = new RmFileBuilder()
                 .writeHeader()
                 .writeBlock(BlockType.SceneLineItemBlock, lineData, 0, 2)
+                .build()
+
+            const page = parseRmFile(buffer, 'test', 0)
+            expect(page.strokes).toHaveLength(1)
+            expect(page.strokes[0]!.points[0]!.x).toBeCloseTo(42, 1)
+            expect(page.strokes[0]!.points[0]!.y).toBeCloseTo(84, 1)
+        })
+
+        test('unknown block versions fall back to the v2 point format', () => {
+            const lineData = buildLineItemData({
+                pointVersion: 2,
+                points: [{ x: 42, y: 84 }]
+            })
+
+            const buffer = new RmFileBuilder()
+                .writeHeader()
+                .writeBlock(BlockType.SceneLineItemBlock, lineData, 0, 3)
                 .build()
 
             const page = parseRmFile(buffer, 'test', 0)

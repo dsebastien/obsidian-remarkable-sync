@@ -202,6 +202,14 @@ function parseLineValue(reader: BinaryReader, subEnd: number, version: number): 
             case 5: // points subblock (Length4)
                 if (tag.type === TagType.Length4) {
                     const pointsLen = reader.readUint32()
+                    if (version !== 1 && version !== 2) {
+                        // Known versions are 1 and 2; anything else would repeat
+                        // the silent-garbage failure mode fixed for v1 blocks.
+                        log(
+                            `Unknown SceneLineItemBlock version ${version}, assuming v2 point format`,
+                            'warn'
+                        )
+                    }
                     points =
                         version === 1
                             ? parsePointsV1(reader, pointsLen)

@@ -59,7 +59,6 @@ export function renderOutputSection(containerEl: HTMLElement, plugin: Remarkable
             slider
                 .setLimits(0.1, 1.0, 0.05)
                 .setValue(plugin.settings.imageQuality)
-                .setDynamicTooltip()
                 .onChange(async (value) => {
                     await plugin.updateSettings((draft) => {
                         draft.imageQuality = value

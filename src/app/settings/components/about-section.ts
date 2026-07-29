@@ -1,5 +1,6 @@
 import { Setting } from 'obsidian'
 import { BUY_ME_A_COFFEE_BADGE_DATA_URL } from '../../assets/buy-me-a-coffee'
+import { BUY_ME_A_COFFEE_URL, renderSupportSection } from '../../ui/support-links'
 
 export function renderAboutSection(containerEl: HTMLElement): void {
     new Setting(containerEl).setName('About').setHeading()
@@ -14,24 +15,14 @@ export function renderAboutSection(containerEl: HTMLElement): void {
             })
         })
 
-    new Setting(containerEl).setName('Support').setHeading()
-
-    const supportDesc = new DocumentFragment()
-    supportDesc.createDiv({
-        text: 'Buy me a coffee to support the development of this plugin'
+    renderSupportSection(containerEl, (el) => {
+        const badgeContainer = el.createDiv()
+        const linkEl = badgeContainer.createEl('a', {
+            href: BUY_ME_A_COFFEE_URL
+        })
+        const imgEl = linkEl.createEl('img')
+        imgEl.src = BUY_ME_A_COFFEE_BADGE_DATA_URL
+        imgEl.alt = 'Buy me a coffee'
+        imgEl.width = 175
     })
-
-    new Setting(containerEl).setDesc(supportDesc)
-
-    const badgeContainer = containerEl.createDiv()
-    const linkEl = badgeContainer.createEl('a', {
-        href: 'https://www.buymeacoffee.com/dsebastien'
-    })
-    const imgEl = linkEl.createEl('img')
-    imgEl.src = BUY_ME_A_COFFEE_BADGE_DATA_URL
-    imgEl.alt = 'Buy me a coffee'
-    imgEl.width = 175
-
-    const spacing = containerEl.createDiv()
-    spacing.classList.add('support-header-margin')
 }

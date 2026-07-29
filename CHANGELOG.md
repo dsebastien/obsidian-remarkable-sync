@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.12.0](https://github.com/dsebastien/obsidian-remarkable-sync/compare/1.11.0...1.12.0) (2026-07-29)
+
+### Features
+
+* **plugin:** aggregate what's new dialogs across simultaneously updated plugins ([edbcedb](https://github.com/dsebastien/obsidian-remarkable-sync/commit/edbcedbf2e06ec02f537e62c3703b485f2f1abc9))
+
 ## [1.11.0](https://github.com/dsebastien/obsidian-remarkable-sync/compare/1.10.0...1.11.0) (2026-07-29)
 
 ### Features
@@ -176,6 +182,7 @@ All notable changes to this project will be documented in this file.
 - Inline progress indicators per notebook in panel
 - Settings for target folder, image format
 - Token storage outside vault for security
+
 
 
 

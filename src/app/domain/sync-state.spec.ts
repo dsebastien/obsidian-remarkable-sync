@@ -1,6 +1,6 @@
 import { test, expect, describe } from 'bun:test'
-import { deriveSyncStatus, DEFAULT_SYNC_STORE } from './sync-state'
-import type { NotebookSyncState } from './sync-state'
+import { deriveSyncStatus, findOrphanedSyncIds, DEFAULT_SYNC_STORE } from './sync-state'
+import type { NotebookSyncState, SyncStore } from './sync-state'
 
 describe('deriveSyncStatus', () => {
     test('returns never-synced when state is undefined', () => {
@@ -45,6 +45,34 @@ describe('deriveSyncStatus', () => {
             syncedPageCount: 5
         }
         expect(deriveSyncStatus(state)).toBe('needs-sync')
+    })
+})
+
+describe('findOrphanedSyncIds', () => {
+    const state = (id: string): NotebookSyncState => ({
+        remarkableId: id,
+        lastSyncedAt: 1000,
+        lastModifiedCloud: 1000,
+        syncedPageCount: 1
+    })
+    const store: SyncStore = {
+        notebooks: { a: state('a'), b: state('b'), c: state('c') }
+    }
+
+    test('returns ids missing from the cloud listing', () => {
+        expect(findOrphanedSyncIds(store, new Set(['a', 'c']))).toEqual(['b'])
+    })
+
+    test('returns empty when all entries are present in the listing', () => {
+        expect(findOrphanedSyncIds(store, new Set(['a', 'b', 'c', 'd']))).toEqual([])
+    })
+
+    test('returns empty for an empty store', () => {
+        expect(findOrphanedSyncIds(DEFAULT_SYNC_STORE, new Set(['a']))).toEqual([])
+    })
+
+    test('returns all ids when the listing is empty', () => {
+        expect(findOrphanedSyncIds(store, new Set())).toEqual(['a', 'b', 'c'])
     })
 })
 

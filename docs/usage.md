@@ -51,7 +51,7 @@ The panel shows all your reMarkable notebooks grouped by folder. A connection st
 - **Import** (import icon) — import a local `.rmdoc` file (always available, no cloud connection needed)
 - **Sync all** (refresh icon with slash) — syncs all notebooks that need updating (have `needs-sync` or `never-synced` status)
 - **Sync selected** — appears when notebooks are selected; syncs only the checked notebooks
-- **Refresh** (refresh icon) — re-fetches the notebook list from the cloud
+- **Refresh** (refresh icon) — re-fetches the notebook list from the cloud. Also cleans up sync state for notebooks deleted on your reMarkable (files already in your vault are never deleted).
 
 ### Searching and filtering
 

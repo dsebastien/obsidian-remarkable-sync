@@ -33,6 +33,14 @@ export function deriveSyncStatus(state: NotebookSyncState | undefined): SyncStat
     return 'needs-sync'
 }
 
+/**
+ * Ids of sync-state entries whose notebook is no longer present in the given
+ * cloud listing (deleted on the device/cloud).
+ */
+export function findOrphanedSyncIds(store: SyncStore, presentIds: ReadonlySet<string>): string[] {
+    return Object.keys(store.notebooks).filter((id) => !presentIds.has(id))
+}
+
 export const DEFAULT_SYNC_STORE: SyncStore = {
     notebooks: {}
 }

@@ -494,6 +494,9 @@ export class RemarkablePanelView extends ItemView {
 
         try {
             this.notebooks = await this.plugin.cloudService.listDocuments()
+            // Drop sync state for notebooks deleted on the device/cloud.
+            // Vault files are intentionally left untouched.
+            await this.plugin.syncStoreService.pruneMissing(this.notebooks.map((nb) => nb.id))
         } catch (error) {
             log('Failed to refresh notebooks', 'error', error)
         }

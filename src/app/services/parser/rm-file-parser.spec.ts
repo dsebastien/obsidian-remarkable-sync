@@ -62,6 +62,7 @@ function buildLineItemData(opts: {
     }>
     deleted?: boolean
     sceneType?: number
+    pointVersion?: 1 | 2
 }): Uint8Array {
     const {
         toolId = PenType.FinelinerV2,
@@ -69,21 +70,39 @@ function buildLineItemData(opts: {
         thickness = 2.0,
         points = [],
         deleted = false,
-        sceneType = SceneItemType.Line
+        sceneType = SceneItemType.Line,
+        pointVersion = 2
     } = opts
 
-    // Build points data (14 bytes per point)
-    const pointsData = new Uint8Array(points.length * 14)
-    const pointsDv = new DataView(pointsData.buffer)
-    for (let i = 0; i < points.length; i++) {
-        const p = points[i]!
-        const off = i * 14
-        pointsDv.setFloat32(off, p.x, true)
-        pointsDv.setFloat32(off + 4, p.y, true)
-        pointsDv.setUint16(off + 8, Math.round((p.speed ?? 1.0) * 4), true)
-        pointsDv.setUint16(off + 10, Math.round((p.width ?? 2.0) * 4), true)
-        pointsData[off + 12] = Math.round(((p.direction ?? 0) * 255) / (Math.PI * 2))
-        pointsData[off + 13] = Math.round((p.pressure ?? 1.0) * 255)
+    let pointsData: Uint8Array
+    if (pointVersion === 1) {
+        // v1: 24 bytes per point, six float32s in natural units
+        pointsData = new Uint8Array(points.length * 24)
+        const pointsDv = new DataView(pointsData.buffer)
+        for (let i = 0; i < points.length; i++) {
+            const p = points[i]!
+            const off = i * 24
+            pointsDv.setFloat32(off, p.x, true)
+            pointsDv.setFloat32(off + 4, p.y, true)
+            pointsDv.setFloat32(off + 8, p.speed ?? 1.0, true)
+            pointsDv.setFloat32(off + 12, p.direction ?? 0, true)
+            pointsDv.setFloat32(off + 16, p.width ?? 2.0, true)
+            pointsDv.setFloat32(off + 20, p.pressure ?? 1.0, true)
+        }
+    } else {
+        // v2: 14 bytes per point, packed integers
+        pointsData = new Uint8Array(points.length * 14)
+        const pointsDv = new DataView(pointsData.buffer)
+        for (let i = 0; i < points.length; i++) {
+            const p = points[i]!
+            const off = i * 14
+            pointsDv.setFloat32(off, p.x, true)
+            pointsDv.setFloat32(off + 4, p.y, true)
+            pointsDv.setUint16(off + 8, Math.round((p.speed ?? 1.0) * 4), true)
+            pointsDv.setUint16(off + 10, Math.round((p.width ?? 2.0) * 4), true)
+            pointsData[off + 12] = Math.round(((p.direction ?? 0) * 255) / (Math.PI * 2))
+            pointsData[off + 13] = Math.round((p.pressure ?? 1.0) * 255)
+        }
     }
 
     // Build value subblock content (scene type + tagged fields + points subblock)
@@ -366,6 +385,80 @@ describe('rm-file-parser', () => {
             expect(stroke.penType).toBe(PenType.CalligraphyPen)
             expect(stroke.color).toBe(StrokeColor.Red)
             expect(stroke.thickness).toBe(3.5)
+        })
+    })
+
+    describe('version 1 blocks (24-byte float points)', () => {
+        test('parses v1 points from a version-1 SceneLineItemBlock', () => {
+            const lineData = buildLineItemData({
+                toolId: PenType.FinelinerV2,
+                colorId: StrokeColor.Black,
+                thickness: 2.0,
+                pointVersion: 1,
+                points: [
+                    { x: 100.5, y: 200.75, speed: 3.5, direction: Math.PI / 2, width: 2.25, pressure: 0.8 },
+                    { x: 150, y: 250 }
+                ]
+            })
+
+            const buffer = new RmFileBuilder()
+                .writeHeader()
+                .writeBlock(BlockType.SceneLineItemBlock, lineData, 1, 1)
+                .build()
+
+            const page = parseRmFile(buffer, 'test', 0)
+            expect(page.strokes).toHaveLength(1)
+
+            const stroke = page.strokes[0]!
+            expect(stroke.points).toHaveLength(2)
+            expect(stroke.points[0]!.x).toBeCloseTo(100.5, 2)
+            expect(stroke.points[0]!.y).toBeCloseTo(200.75, 2)
+            expect(stroke.points[0]!.speed).toBeCloseTo(3.5, 2)
+            expect(stroke.points[0]!.direction).toBeCloseTo(Math.PI / 2, 3)
+            expect(stroke.points[0]!.width).toBeCloseTo(2.25, 2)
+            expect(stroke.points[0]!.pressure).toBeCloseTo(0.8, 2)
+            expect(stroke.points[1]!.x).toBeCloseTo(150, 1)
+            expect(stroke.points[1]!.y).toBeCloseTo(250, 1)
+        })
+
+        test('v1 points parsed as v2 would produce garbage — regression guard', () => {
+            // A v1 block misread with the 14-byte stride yields coordinates far outside
+            // the page (this is the bug: bounds near FLT_MAX crash OffscreenCanvas).
+            // With the fix, coordinates stay within the drawn range.
+            const points = Array.from({ length: 10 }, (_, i) => ({
+                x: 100 + i * 10,
+                y: 200 + i * 5
+            }))
+            const lineData = buildLineItemData({ pointVersion: 1, points })
+
+            const buffer = new RmFileBuilder()
+                .writeHeader()
+                .writeBlock(BlockType.SceneLineItemBlock, lineData, 1, 1)
+                .build()
+
+            const page = parseRmFile(buffer, 'test', 0)
+            expect(page.strokes).toHaveLength(1)
+            for (const p of page.strokes[0]!.points) {
+                expect(Math.abs(p.x)).toBeLessThan(2000)
+                expect(Math.abs(p.y)).toBeLessThan(2000)
+            }
+        })
+
+        test('version 2 blocks still parse with the packed 14-byte format', () => {
+            const lineData = buildLineItemData({
+                pointVersion: 2,
+                points: [{ x: 42, y: 84 }]
+            })
+
+            const buffer = new RmFileBuilder()
+                .writeHeader()
+                .writeBlock(BlockType.SceneLineItemBlock, lineData, 0, 2)
+                .build()
+
+            const page = parseRmFile(buffer, 'test', 0)
+            expect(page.strokes).toHaveLength(1)
+            expect(page.strokes[0]!.points[0]!.x).toBeCloseTo(42, 1)
+            expect(page.strokes[0]!.points[0]!.y).toBeCloseTo(84, 1)
         })
     })
 

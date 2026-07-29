@@ -119,7 +119,7 @@ function skipTagValue(reader: BinaryReader, tagType: TagType): number {
  */
 function parseSceneLineItemBlock(
     reader: BinaryReader,
-    _version: number,
+    version: number,
     blockEnd: number
 ): Stroke | null {
     // Read CRDT item tags until we find the value subblock (tag index 6, Length4)
@@ -130,7 +130,7 @@ function parseSceneLineItemBlock(
             // Value subblock found
             const subLen = reader.readUint32()
             const subEnd = reader.position + subLen
-            const stroke = parseLineValue(reader, subEnd)
+            const stroke = parseLineValue(reader, subEnd, version)
             reader.seek(subEnd)
             return stroke
         }
@@ -154,7 +154,7 @@ function parseSceneLineItemBlock(
 /**
  * Parse the line value inside a CRDT item subblock
  */
-function parseLineValue(reader: BinaryReader, subEnd: number): Stroke | null {
+function parseLineValue(reader: BinaryReader, subEnd: number, version: number): Stroke | null {
     // Scene item type byte (3 = Line)
     const sceneType: SceneItemType = reader.readUint8()
     if (sceneType !== SceneItemType.Line) {
@@ -202,7 +202,10 @@ function parseLineValue(reader: BinaryReader, subEnd: number): Stroke | null {
             case 5: // points subblock (Length4)
                 if (tag.type === TagType.Length4) {
                     const pointsLen = reader.readUint32()
-                    points = parsePointsV2(reader, pointsLen)
+                    points =
+                        version === 1
+                            ? parsePointsV1(reader, pointsLen)
+                            : parsePointsV2(reader, pointsLen)
                 } else {
                     skipTagValue(reader, tag.type)
                 }
@@ -224,6 +227,38 @@ function parseLineValue(reader: BinaryReader, subEnd: number): Stroke | null {
         thickness,
         points
     }
+}
+
+/**
+ * Parse v1 point data: 24 bytes per point (version 1 SceneLineItemBlocks,
+ * written by older reMarkable firmware)
+ * float32 x, float32 y, float32 speed, float32 direction, float32 width, float32 pressure
+ * Values are already in natural units (direction in radians, pressure 0..1),
+ * unlike v2 where they are packed integers that need scaling.
+ */
+function parsePointsV1(reader: BinaryReader, totalBytes: number): StrokePoint[] {
+    const bytesPerPoint = 24
+    const numPoints = Math.floor(totalBytes / bytesPerPoint)
+    const points: StrokePoint[] = []
+
+    for (let i = 0; i < numPoints; i++) {
+        const x = reader.readFloat32()
+        const y = reader.readFloat32()
+        const speed = reader.readFloat32()
+        const direction = reader.readFloat32()
+        const width = reader.readFloat32()
+        const pressure = reader.readFloat32()
+
+        points.push({ x, y, speed, width, direction, pressure })
+    }
+
+    // Skip any remaining bytes (e.g., if totalBytes isn't a perfect multiple)
+    const consumed = numPoints * bytesPerPoint
+    if (consumed < totalBytes) {
+        reader.skip(totalBytes - consumed)
+    }
+
+    return points
 }
 
 /**

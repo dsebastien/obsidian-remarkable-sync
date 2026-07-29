@@ -466,6 +466,14 @@ The community-plugin reviewer runs a fixed set of lint rules against every submi
 - The reviewer flags every `console.*` call in shipped code. The template's `src/utils/log.ts` ships with its `console.*` lines commented out — re-enable only behind a `debugModeEnabled` settings toggle when you actually need verbose logs.
 - Route stray `console.error(...)` from catch blocks through `log(msg, 'error', err)` so the suppression stays centralized.
 
+### API version gating
+
+- `obsidianmd/no-unsupported-api` is an **error** (blocks the scorecard): never call Obsidian APIs newer than the declared `minAppVersion` — even with a runtime fallback for older versions (the hybrid "declarative settings + `display()` fallback" pattern was rejected). Target the latest **stable** release; Catalyst-only APIs (`@since` a preview version in `obsidian.d.ts`) must wait until that version ships to everyone.
+
+### Reviewer build environment
+
+- The review's "Build verification" step runs `bun run build` in a clean environment with a **fixed, older Bun** (observed: 1.2.14), regardless of `packageManager`. Keep `scripts/build.ts` old-Bun-compatible: `sourcemap: 'none'` (not `false`), and an explicit `loader: { '.md': 'text' }` for `with { type: 'text' }` imports (old bundlers ignore import attributes). To verify locally, download the matching `bun-linux-x64.zip` from Bun's GitHub releases and run the build with it.
+
 ### Release workflow
 
 - Attach only `main.js`, `manifest.json`, and `styles.css` (if present) — never a zip. The CI release workflow in this template already does this; don't add zip-upload steps back.

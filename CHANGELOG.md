@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.11.0](https://github.com/dsebastien/obsidian-remarkable-sync/compare/1.10.0...1.11.0) (2026-07-29)
+
+### Features
+
+* **plugin:** add Knowii community to the what's new dialog and harden it ([ea31fa7](https://github.com/dsebastien/obsidian-remarkable-sync/commit/ea31fa7414ba055f24e03692fe4bd32388c2f143))
+
 ## [1.10.0](https://github.com/dsebastien/obsidian-remarkable-sync/compare/1.9.1...1.10.0) (2026-07-29)
 
 ### Features
@@ -170,6 +176,7 @@ All notable changes to this project will be documented in this file.
 - Inline progress indicators per notebook in panel
 - Settings for target folder, image format
 - Token storage outside vault for security
+
 
 
 

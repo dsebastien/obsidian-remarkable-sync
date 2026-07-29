@@ -19,7 +19,7 @@ import type { RmdocImportService } from './services/import/rmdoc-import.service'
 import { createRmdocImportService } from './services/import/rmdoc-import.service'
 import type { AutoSyncService } from './services/sync/auto-sync.service'
 import { createAutoSyncServiceForPlugin } from './services/sync/auto-sync.service'
-import { registerWhatsNewDialog } from './whats-new'
+import { registerWhatsNewView } from './whats-new'
 
 export class RemarkableSyncPlugin extends Plugin {
     override settings: PluginSettings = { ...DEFAULT_SETTINGS }
@@ -33,7 +33,7 @@ export class RemarkableSyncPlugin extends Plugin {
 
     override async onload(): Promise<void> {
         // Must run before anything can call saveData (fresh-install detection)
-        registerWhatsNewDialog(this)
+        registerWhatsNewView(this)
         log('Initializing', 'debug')
         await this.loadSettings()
 

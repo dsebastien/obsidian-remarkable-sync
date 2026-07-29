@@ -117,8 +117,14 @@ async function buildJs(): Promise<void> {
         external: EXTERNAL_MODULES,
         format: 'cjs',
         target: 'node',
+        // The reviewer's clean environment may run an older Bun whose bundler
+        // ignores `with { type: 'text' }` import attributes; the explicit
+        // loader mapping keeps the bundled CHANGELOG.md import working there.
+        loader: { '.md': 'text' },
         minify: isProd,
-        sourcemap: isProd ? false : 'inline',
+        // 'none' instead of `false`: older Bun versions (reviewer environment)
+        // only accept the string form.
+        sourcemap: isProd ? 'none' : 'inline',
         throw: isProd,
         plugins: [stripSetImmediatePolyfillPlugin]
     })

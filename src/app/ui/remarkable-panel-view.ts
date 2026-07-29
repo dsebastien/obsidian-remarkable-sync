@@ -454,19 +454,25 @@ export class RemarkablePanelView extends ItemView {
     private renderProgressIndicator(container: HTMLElement, progress: PipelineProgress): void {
         const indicator = container.createDiv({ cls: 'remarkable-progress' })
 
+        const failedPages = progress.failedPages ?? 0
         const statusMap: Record<PipelineStatus, string> = {
             idle: '',
             downloading: 'Downloading...',
             parsing: 'Parsing...',
             rendering: `Rendering page ${progress.currentPage}/${progress.totalPages}`,
-            done: 'Done',
+            done:
+                failedPages > 0
+                    ? `Done — ${failedPages} page${failedPages === 1 ? '' : 's'} failed to render`
+                    : 'Done',
             error: `Error: ${progress.error ?? 'Unknown'}`
         }
 
         const statusText = statusMap[progress.status]
         const statusClass =
             progress.status === 'done'
-                ? 'remarkable-progress-done'
+                ? failedPages > 0
+                    ? 'remarkable-progress-warn'
+                    : 'remarkable-progress-done'
                 : progress.status === 'error'
                   ? 'remarkable-progress-error'
                   : 'remarkable-progress-active'

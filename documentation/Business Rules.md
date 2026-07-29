@@ -47,6 +47,11 @@ When a new business rule is mentioned:
 - Imported files are saved under the configured target folder with no subfolder hierarchy (empty folder path)
 - Imported files are not tracked in sync state (they are one-shot imports)
 
+## Render failures
+
+- Content pages that fail to render are never dropped silently: the pipeline counts them, the panel shows "Done — N pages failed to render" (warning color), and the completion Notice reports processed/total counts
+- Failed pages are excluded from `syncedPageCount`; the notebook itself is still marked synced (a deterministic render failure would otherwise re-sync forever, especially with automatic sync)
+
 ## Output
 
 - reMarkable folder hierarchy is preserved under the target folder

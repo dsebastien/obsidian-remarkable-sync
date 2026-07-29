@@ -72,7 +72,7 @@ Each notebook row shows:
 
 A **Select all** checkbox at the top operates on the currently filtered notebooks.
 
-Progress is shown inline per notebook: downloading → parsing → rendering → done.
+Progress is shown inline per notebook: downloading → parsing → rendering → done. If any page fails to render, the done state shows a warning ("Done — N pages failed to render") and the completion notice reports how many pages were processed successfully; failed pages do not count as synced.
 
 ## Importing .rmdoc Files
 

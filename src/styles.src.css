@@ -403,6 +403,10 @@
     color: var(--text-error);
 }
 
+.remarkable-progress-warn {
+    color: var(--text-warning, var(--text-error));
+}
+
 .remarkable-progress-bar {
     @apply w-full h-1 rounded-full overflow-hidden;
     background-color: var(--background-modifier-border);

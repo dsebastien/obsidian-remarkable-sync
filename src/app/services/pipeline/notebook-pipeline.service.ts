@@ -13,6 +13,8 @@ export interface PipelineProgress {
     status: PipelineStatus
     currentPage: number
     totalPages: number
+    /** Content pages that failed to render and were dropped from the output */
+    failedPages?: number
     error?: string
 }
 
@@ -22,8 +24,20 @@ export interface NotebookPipelineService {
     processNotebook(notebook: NotebookSummary, onProgress: ProgressCallback): Promise<boolean>
 }
 
+/**
+ * Injectable pipeline steps so the orchestration (progress reporting, failed
+ * page counting, sync-state updates) can be tested without OffscreenCanvas or
+ * a live vault.
+ */
+export interface PipelineDeps {
+    parseDocument: typeof parseDocument
+    renderPage: typeof renderPage
+    writePageImage: typeof writePageImage
+}
+
 export function createNotebookPipelineService(
-    plugin: RemarkableSyncPlugin
+    plugin: RemarkableSyncPlugin,
+    deps: PipelineDeps = { parseDocument, renderPage, writePageImage }
 ): NotebookPipelineService {
     async function processNotebook(
         notebook: NotebookSummary,
@@ -47,7 +61,7 @@ export function createNotebookPipelineService(
 
             // Step 2: Parse
             onProgress({ status: 'parsing', currentPage: 0, totalPages: 0 })
-            const parsed = parseDocument(files, notebook.id)
+            const parsed = deps.parseDocument(files, notebook.id)
             if (!parsed) {
                 onProgress({
                     status: 'error',
@@ -68,6 +82,7 @@ export function createNotebookPipelineService(
             }
 
             const totalPages = contentPages.length
+            let failedPages = 0
 
             // Step 3: Render each page
             for (let i = 0; i < contentPages.length; i++) {
@@ -75,15 +90,21 @@ export function createNotebookPipelineService(
                 const pageIndex = page.pageIndex
 
                 // Render page to image
-                onProgress({ status: 'rendering', currentPage: i + 1, totalPages })
-                const imageData = await renderPage(
+                onProgress({ status: 'rendering', currentPage: i + 1, totalPages, failedPages })
+                const imageData = await deps.renderPage(
                     page,
                     settings.imageFormat,
                     settings.imageQuality
                 )
 
-                if (imageData && settings.saveImages) {
-                    await writePageImage(
+                if (!imageData) {
+                    // renderPage catches its own errors and returns null; a
+                    // content page that yields no image was dropped — count it
+                    // so the failure is visible instead of silent.
+                    failedPages++
+                    log(`Page ${pageIndex + 1} of ${notebook.visibleName} failed to render`, 'warn')
+                } else if (settings.saveImages) {
+                    await deps.writePageImage(
                         plugin.app.vault,
                         settings.targetFolder,
                         notebook.folderPath,
@@ -95,12 +116,22 @@ export function createNotebookPipelineService(
                 }
             }
 
-            onProgress({ status: 'done', currentPage: totalPages, totalPages })
-            new Notice(`${notebook.visibleName}: Processed ${totalPages} pages`)
+            onProgress({ status: 'done', currentPage: totalPages, totalPages, failedPages })
+            if (failedPages > 0) {
+                new Notice(
+                    `${notebook.visibleName}: Processed ${totalPages - failedPages}/${totalPages} pages — ${failedPages} page${failedPages === 1 ? '' : 's'} failed to render`
+                )
+            } else {
+                new Notice(`${notebook.visibleName}: Processed ${totalPages} pages`)
+            }
 
-            // Update sync state
+            // Update sync state; only successfully rendered pages are counted
             const lastModifiedCloud = parseInt(notebook.lastModified, 10) || Date.now()
-            await plugin.syncStoreService.updateState(notebook.id, lastModifiedCloud, totalPages)
+            await plugin.syncStoreService.updateState(
+                notebook.id,
+                lastModifiedCloud,
+                totalPages - failedPages
+            )
 
             return true
         } catch (error) {

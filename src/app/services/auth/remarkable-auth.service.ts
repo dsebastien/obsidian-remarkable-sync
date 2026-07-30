@@ -3,11 +3,21 @@ import { log } from '../../../utils/log'
 import { createTokenStoreForPlugin } from './token-store'
 import type { TokenStore } from './token-store'
 import { resolveCloudUrls } from '../cloud/cloud-urls'
+import { generateUuidV4 } from '../../../utils/uuid'
 import type { RemarkableSyncPlugin } from '../../plugin'
 
 // Device registration uses a fixed device description
 const DEVICE_DESC = 'desktop-windows'
-const DEVICE_ID = crypto.randomUUID()
+
+/**
+ * Generated on first use rather than at module load: this file is imported
+ * during `onload`, and a throw there stops the plugin from loading at all.
+ */
+let deviceId: string | null = null
+function getDeviceId(): string {
+    deviceId ??= generateUuidV4()
+    return deviceId
+}
 
 export interface RemarkableAuthService {
     registerDevice(oneTimeCode: string): Promise<boolean>
@@ -86,7 +96,7 @@ export function createRemarkableAuthService(
                 body: JSON.stringify({
                     code: oneTimeCode,
                     deviceDesc: DEVICE_DESC,
-                    deviceID: DEVICE_ID
+                    deviceID: getDeviceId()
                 })
             })
 

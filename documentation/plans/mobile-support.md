@@ -20,6 +20,29 @@ Tokens moved out of `~/.remarkable-sync/token.json`, which is unwritable on mobi
 Legacy file imported once per vault, never auto-deleted. See
 `documentation/history/2026-07-30.md`.
 
+### JSZip replaced with fflate (unreleased)
+
+JSZip was bundled through its Node entry point and pulled `require("buffer")`, `require("stream")`,
+`require("util")`, `require("events")` into the bundle, which would have broken `.rmdoc` import on
+mobile. Replaced with `fflate`, imported as **`fflate/browser`** — fflate's default (`node`) entry
+starts with a top-level `require("module")` + `worker_threads`, which is the same hoisted-require
+trap. `unzipSync` deliberately: the async variant pulls in worker machinery (`new Worker` over a
+blob URL) that the reviewer flags.
+
+Two alternatives were tested and rejected first:
+
+| Approach                                         | Result                                                                                                                                                                                                                                                                                                                                                                                         |
+| ------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `target: 'browser'` globally                     | **Unsafe.** Bun silently rewrites `require('node:fs')` to an empty-object stub `(()=>({}))`. `loadNodeModules()` would return the stub (its `try/catch` passes), then fail inside `readLegacyTokenFile`, whose own `catch` returns null — the legacy token import would silently never run and **existing desktop users would be logged out on upgrade, with no error**. Also grew the bundle. |
+| Alias `jszip` → its prebuilt `dist/jszip.min.js` | Functionally identical and smaller, but the prebuilt dist _inlines_ the `setimmediate` polyfill including its old-IE `document.createElement("script")` branch, which `stripSetImmediatePolyfillPlugin` can no longer reach. Reintroduces the reviewer warning fixed on 2026-07-29.                                                                                                            |
+
+Verified: byte-identical extraction vs JSZip on an archive written by Python's `zipfile` (mixed
+deflate/stored, explicit directory entry); `dist/main.js` now contains no `require()` beyond
+`obsidian` and the three guarded desktop-only Node builtins, and zero
+`createElement("script")` / `new Worker` / `createObjectURL`; builds cleanly under the reviewer's
+Bun 1.2.14 with identical output. `stripSetImmediatePolyfillPlugin` deleted — nothing pulls
+`setimmediate` any more.
+
 ### `crypto.randomUUID()` made defensive (unreleased)
 
 Was called at module load in `remarkable-auth.service.ts`. `crypto.randomUUID` is only exposed
@@ -31,35 +54,7 @@ device dependency from this item entirely.
 
 ## Before the flip
 
-### 1. JSZip pulls Node builtins into the bundle — BLOCKER
-
-`.rmdoc` import (`services/import/rmdoc-import.service.ts`) is the only JSZip consumer.
-`scripts/build.ts` uses `target: 'node'`, so Bun ignores JSZip's `browser` field and bundles
-`lib/index`, which pulls `readable-stream` and emits `require("buffer")`, `require("stream")`,
-`require("util")`, `require("events")`.
-
-Those sit inside lazy CommonJS wrappers, so they do **not** break plugin load — but they are
-evaluated the moment JSZip actually runs, which will break `.rmdoc` import on mobile.
-
-Two approaches were tested and **both rejected**:
-
-| Approach                                               | Result                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
-| ------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `target: 'browser'` globally                           | **Unsafe.** Bun silently replaces `require('node:fs')` with an empty-object stub `(()=>({}))`. `loadNodeModules()` would return a stub that passes its `try/catch`, then fail at `readLegacyTokenFile`, whose own `catch` returns null — so the legacy token import would silently never run and **existing desktop users would be logged out on upgrade** with no error. Also grew the bundle (226 KB vs 129 KB).                                                                                                        |
-| Alias `jszip` → `dist/jszip.min.js` via a build plugin | Functionally identical (verified: same entry list and byte lengths on a generated zip), removes **all** `require()` calls, and is ~30 KB smaller. **But** the prebuilt dist _inlines_ the `setimmediate` polyfill, including its old-IE `document.createElement("script")` branch. `stripSetImmediatePolyfillPlugin` matches a module path (`/setimmediate/setImmediate.js`) and can no longer reach it, so this reintroduces the "dynamic script element creation" reviewer warning that was deliberately fixed earlier. |
-
-**Recommended path:** replace JSZip with a browser-native, dependency-free zip reader
-(candidate: `fflate`). It removes the Node builtins _and_ the script-element branch in one
-move, and shrinks the bundle. The API surface actually used is small, so the swap is contained:
-
-- `JSZip.loadAsync(arrayBuffer)` → unzip the buffer
-- iterate `zip.files`, skip `entry.dir`
-- `entry.async('arraybuffer')` per file
-
-Needs: a spec covering a real `.rmdoc` fixture, confirmation that `stripSetImmediatePolyfillPlugin`
-can then be deleted, and a check that the reviewer's Bun 1.2.14 still builds it.
-
-### 2. `OffscreenCanvas` on iOS — needs a device
+### 1. `OffscreenCanvas` on iOS — needs a device
 
 `page-renderer.service.ts`, `stroke-renderer.ts`, `utils/image-utils.ts` depend on
 `OffscreenCanvas` + `convertToBlob`. Android WebView is fine. iOS needs WKWebView on
@@ -69,14 +64,14 @@ notebooks sync as empty.
 Action: verify on a real iPhone. If unsupported, add an `HTMLCanvasElement` fallback behind a
 capability check.
 
-### 3. `.rmdoc` file picker on iOS — needs a device
+### 2. `.rmdoc` file picker on iOS — needs a device
 
 `commands/import-rmdoc.ts` uses `<input type="file" accept=".rmdoc">`. iOS resolves `accept`
 through UTIs and may show no selectable files for an unknown extension.
 
 Action: verify. If broken, drop `accept` on mobile and validate the extension after selection.
 
-### 4. Mobile guards for battery and data
+### 3. Mobile guards for battery and data
 
 Auto-sync (`services/sync/auto-sync.service.ts`) plus 1404x1872 canvases over cellular.
 
@@ -92,8 +87,7 @@ section says so.
 
 ## Flip checklist
 
-1. Resolve item 1 (JSZip) — self-verifiable, no device needed.
-2. Verify items 2 and 3 on a real iPhone and a real Android device.
-3. Decide item 4.
-4. Set `isDesktopOnly: false`; update `README.md` ("desktop only, v1.4.0+") and `docs/`.
-5. Ship as experimental, and say so in the release notes.
+1. Verify items 1 and 2 on a real iPhone and a real Android device.
+2. Decide item 3.
+3. Set `isDesktopOnly: false`; update `README.md` ("desktop only, v1.4.0+") and `docs/`.
+4. Ship as experimental, and say so in the release notes.

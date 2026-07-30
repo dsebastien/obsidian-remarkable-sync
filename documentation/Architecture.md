@@ -78,11 +78,11 @@ Panel click → Pipeline → Sync protocol (root hash → signed URL → blobs) 
 ### Local Import
 
 ```
-Command/Panel button → File browser → Confirm modal → Extract ZIP (JSZip) → Parse file map → Parse .rm files → Render pages → Save images to vault
+Command/Panel button → File browser → Confirm modal → Extract ZIP (fflate) → Parse file map → Parse .rm files → Render pages → Save images to vault
 ```
 
 ## External Dependencies
 
 - **reMarkable cloud sync v1.5 API** (or rmfakecloud): Root hash, signed URL blob downloads, index tree walking
-- **JSZip**: ZIP extraction (used for .rmdoc file import)
+- **fflate**: ZIP extraction for .rmdoc import. Imported as `fflate/browser` — the default (`node`) entry point begins with a top-level `require("module")`/`worker_threads`, which throws on mobile. `unzipSync` deliberately, since the async variant pulls in worker machinery
 - **OffscreenCanvas**: Page rendering (Electron/desktop only)

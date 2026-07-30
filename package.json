@@ -82,8 +82,8 @@
     "dependencies": {
         "@leeoniya/ufuzzy": "1.0.19",
         "date-fns": "4.1.0",
+        "fflate": "0.8.3",
         "immer": "11.0.1",
-        "jszip": "3.10.1",
         "zod": "4.4.3"
     },
     "overrides": {

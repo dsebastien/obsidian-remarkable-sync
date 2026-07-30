@@ -1,4 +1,4 @@
-import JSZip from 'jszip'
+import { unzipSync } from 'fflate/browser'
 import { Notice } from 'obsidian'
 import { log } from '../../../utils/log'
 import type { RemarkableSyncPlugin } from '../../plugin'
@@ -27,16 +27,27 @@ function deriveNotebookName(fileName: string): string {
 /**
  * Extract files from a .rmdoc ZIP archive into the Map format
  * expected by parseDocument().
+ *
+ * Uses fflate's `browser` entry point deliberately: the default (`node`)
+ * one starts with a top-level `require("module")`/`worker_threads`, which
+ * throws on mobile and would stop the plugin from loading. The browser entry
+ * pulls in no Node builtins at all.
+ *
+ * Synchronous by design — the async variant would pull in fflate's worker
+ * machinery (`new Worker` over a blob URL), which the community-plugin
+ * reviewer flags. A .rmdoc holds a single notebook, so inflating it inline is
+ * cheap.
  */
-async function extractRmdocFiles(fileBuffer: ArrayBuffer): Promise<Map<string, ArrayBuffer>> {
-    const zip = await JSZip.loadAsync(fileBuffer)
+export function extractRmdocFiles(fileBuffer: ArrayBuffer): Map<string, ArrayBuffer> {
+    const unzipped = unzipSync(new Uint8Array(fileBuffer))
     const files = new Map<string, ArrayBuffer>()
 
-    const entries = Object.entries(zip.files)
-    for (const [path, zipEntry] of entries) {
-        if (zipEntry.dir) continue
-        const data = await zipEntry.async('arraybuffer')
-        files.set(path, data)
+    for (const [path, data] of Object.entries(unzipped)) {
+        // Directory entries come back with a trailing slash and no content.
+        if (path.endsWith('/')) continue
+        // Copy out of the shared backing buffer; the view may cover only part
+        // of it, and callers treat these as standalone ArrayBuffers.
+        files.set(path, data.buffer.slice(data.byteOffset, data.byteOffset + data.byteLength))
     }
 
     return files
@@ -56,7 +67,7 @@ export function createRmdocImportService(plugin: RemarkableSyncPlugin): RmdocImp
             onProgress({ status: 'parsing', currentPage: 0, totalPages: 0 })
             let files: Map<string, ArrayBuffer>
             try {
-                files = await extractRmdocFiles(fileBuffer)
+                files = extractRmdocFiles(fileBuffer)
             } catch (error) {
                 const message = error instanceof Error ? error.message : 'Unknown error'
                 log(`Failed to extract .rmdoc file: ${fileName}`, 'error', error)

@@ -78,6 +78,8 @@ Progress is shown inline per notebook: downloading → parsing → rendering →
 
 You can import `.rmdoc` files exported from a reMarkable tablet without needing a cloud connection. This is useful for processing files shared by others or exported manually.
 
+> **On iPhone and iPad**, the system file picker may not offer `.rmdoc` files for selection. Cloud sync is unaffected. Please report it if you hit this.
+
 1. Run the **"Import .rmdoc file"** command (Ctrl/Cmd+P → type "Import"), or click the **import** button in the panel header
 2. Select a `.rmdoc` file from your file system
 3. Review the file name and target folder in the confirmation dialog

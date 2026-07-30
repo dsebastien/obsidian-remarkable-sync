@@ -28,6 +28,26 @@ Connect your reMarkable tablet to Obsidian. Sync notebook pages as images with f
 4. Open the reMarkable panel from the ribbon icon or command palette
 5. Click sync on any notebook to download its pages as images
 
+## Mobile
+
+Mobile support is **experimental** as of 1.14.0 and needs testing on real devices. Please report what you find.
+
+| Platform                        | Status                            |
+| ------------------------------- | --------------------------------- |
+| Desktop (Windows, macOS, Linux) | Fully supported                   |
+| Android                         | Should work, untested on hardware |
+| iPhone / iPad                   | Needs **iOS 16.4 or later**       |
+
+Page rendering uses `OffscreenCanvas`, which arrived in iOS 16.4. On older versions the plugin tells you so directly rather than silently producing empty notebooks.
+
+Notes for mobile:
+
+- Automatic background sync stays **off** by default. Turning it on will use mobile data and battery.
+- Importing a `.rmdoc` file relies on the system file picker, which may not offer `.rmdoc` files on iOS. Cloud sync is unaffected.
+- Your credentials are stored per vault. See [Configuration](configuration.md#authentication).
+
+If something does not work, please [open an issue](https://github.com/dsebastien/obsidian-remarkable-sync/issues) with your device, OS version, and what you saw.
+
 ## About
 
 Created by [Sébastien Dubois](https://dsebastien.net).

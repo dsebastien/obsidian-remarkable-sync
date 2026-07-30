@@ -47,7 +47,9 @@ Make sure you have run the **"Connect to reMarkable cloud"** command and entered
 
 ### Token expired or authentication errors
 
-The plugin automatically refreshes tokens. If you still see auth errors, try disconnecting and reconnecting. The token file is stored at `~/.remarkable-sync/token.json` — you can delete it manually if needed.
+The plugin automatically refreshes tokens. If you still see auth errors, use **Disconnect** then **Connect** again in the plugin settings.
+
+Credentials live in the plugin's `data.json`, inside `.obsidian/plugins/remarkable-synchronizer/`. Deleting the old `~/.remarkable-sync/token.json` no longer signs you out — it is only a leftover from earlier versions, and the settings tab offers a button to remove it.
 
 ### Notebooks not appearing after refresh
 

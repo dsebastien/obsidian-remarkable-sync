@@ -24,9 +24,8 @@ Nothing here can be progressed without a device or a user report.
 
 ### 1. `OffscreenCanvas` on iOS
 
-`page-renderer.service.ts`, `stroke-renderer.ts`, `utils/image-utils.ts` need `OffscreenCanvas`
-
-- `convertToBlob`. Android's webview is fine. iOS needs 16.4+.
+`page-renderer.service.ts`, `stroke-renderer.ts` and `utils/image-utils.ts` need both
+`OffscreenCanvas` and `convertToBlob`. Android's webview is fine. iOS needs 16.4+.
 
 Users below that now get a clear message rather than empty notebooks, but **there is still no
 fallback**.

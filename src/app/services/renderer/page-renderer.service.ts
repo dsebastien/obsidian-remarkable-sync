@@ -70,6 +70,21 @@ export function renderPageToCanvas(page: Page): OffscreenCanvas | null {
 }
 
 /**
+ * Whether this platform can render pages at all.
+ *
+ * Page rendering is built on `OffscreenCanvas`, which needs iOS 16.4+ in
+ * Obsidian's mobile webview. Without this check every page simply fails to
+ * render, which is reported as a generic render failure and tells the user
+ * nothing about the cause.
+ */
+export function isPageRenderingSupported(): boolean {
+    return 'undefined' !== typeof OffscreenCanvas
+}
+
+export const PAGE_RENDERING_UNSUPPORTED_MESSAGE =
+    'This device cannot render notebook pages. Page rendering needs iOS 16.4 or later on iPhone and iPad.'
+
+/**
  * Render a page's strokes to an image
  */
 export async function renderPage(

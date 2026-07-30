@@ -6,6 +6,21 @@
 import { mock } from 'bun:test'
 
 /**
+ * `OffscreenCanvas` is a browser API and does not exist under `bun test`.
+ * Page rendering is gated on it (`isPageRenderingSupported`), so without a stub
+ * every spec that exercises the sync pipeline or .rmdoc import would take the
+ * "device cannot render" path. Specs that care about the unsupported branch
+ * delete this global themselves.
+ */
+if ('undefined' === typeof globalThis.OffscreenCanvas) {
+    Object.defineProperty(globalThis, 'OffscreenCanvas', {
+        value: class OffscreenCanvasStub {},
+        configurable: true,
+        writable: true
+    })
+}
+
+/**
  * Minimal typing for the parts of `bun:test`'s `mock` we use.
  * In environments where the `bun:test` type declarations are not resolvable
  * (e.g. the community-plugin review tooling), `mock` becomes error-typed

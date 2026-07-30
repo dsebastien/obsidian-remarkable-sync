@@ -4,7 +4,11 @@ import type { RemarkableSyncPlugin } from '../../plugin'
 import type { NotebookSummary } from '../../domain/notebook'
 import { pageHasContent } from '../parser/rm-file-parser'
 import { parseDocument } from '../parser/document-parser.service'
-import { renderPage } from '../renderer/page-renderer.service'
+import {
+    PAGE_RENDERING_UNSUPPORTED_MESSAGE,
+    isPageRenderingSupported,
+    renderPage
+} from '../renderer/page-renderer.service'
 import { writePageImage } from '../output/markdown-writer.service'
 
 export type PipelineStatus = 'idle' | 'downloading' | 'parsing' | 'rendering' | 'done' | 'error'
@@ -44,6 +48,16 @@ export function createNotebookPipelineService(
         onProgress: ProgressCallback
     ): Promise<boolean> {
         const { settings } = plugin
+
+        if (!isPageRenderingSupported()) {
+            onProgress({
+                status: 'error',
+                currentPage: 0,
+                totalPages: 0,
+                error: PAGE_RENDERING_UNSUPPORTED_MESSAGE
+            })
+            return false
+        }
 
         try {
             // Step 1: Download

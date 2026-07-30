@@ -85,4 +85,4 @@ Command/Panel button → File browser → Confirm modal → Extract ZIP (fflate)
 
 - **reMarkable cloud sync v1.5 API** (or rmfakecloud): Root hash, signed URL blob downloads, index tree walking
 - **fflate**: ZIP extraction for .rmdoc import. Imported as `fflate/browser` — the default (`node`) entry point begins with a top-level `require("module")`/`worker_threads`, which throws on mobile. `unzipSync` deliberately, since the async variant pulls in worker machinery
-- **OffscreenCanvas**: Page rendering (Electron/desktop only)
+- **OffscreenCanvas**: Page rendering. Available in Electron and in Android's webview; needs iOS 16.4+ on iPhone/iPad. `isPageRenderingSupported()` gates both the sync pipeline and .rmdoc import so an unsupported device reports a clear message instead of a generic render failure

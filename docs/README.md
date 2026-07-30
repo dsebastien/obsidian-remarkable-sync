@@ -17,7 +17,8 @@ Connect your reMarkable tablet to Obsidian. Sync notebook pages as images with f
 - Fuzzy search and filtering across notebooks
 - Render pages as JPEG, PNG, or WebP images with configurable quality
 - Import local `.rmdoc` files without a cloud connection
-- Desktop only (uses OffscreenCanvas for rendering)
+- Desktop is fully supported
+- Mobile (iOS/Android) is **experimental** — page rendering uses `OffscreenCanvas`, which needs iOS 16.4 or later
 
 ## Quick Start
 

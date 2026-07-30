@@ -91,11 +91,13 @@ function loadNodeModules(): {
         return null
     }
     try {
+        /* eslint-disable import/no-nodejs-modules -- reason: desktop-only legacy token import. These are required lazily behind the Platform.isDesktopApp guard above and are never reached on mobile; a top-level import would be hoisted and break plugin load. */
         return {
             fs: require('node:fs') as typeof import('node:fs'),
             path: require('node:path') as typeof import('node:path'),
             os: require('node:os') as typeof import('node:os')
         }
+        /* eslint-enable import/no-nodejs-modules -- reason: see above. */
     } catch {
         return null
     }

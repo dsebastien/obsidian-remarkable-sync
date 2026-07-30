@@ -61,5 +61,14 @@ export default tseslint.config(
             // Disable sentence case rule - it has false positives for already-correct text
             'obsidianmd/ui/sentence-case': 'off'
         }
+    },
+    {
+        // Specs and the test harness run under `bun test` and are never
+        // bundled into main.js, so the mobile restriction on Node builtins
+        // does not apply to them.
+        files: ['**/*.spec.ts', 'src/test-setup.ts'],
+        rules: {
+            'import/no-nodejs-modules': 'off'
+        }
     }
 )

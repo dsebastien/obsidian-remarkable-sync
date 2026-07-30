@@ -15,7 +15,8 @@ An Obsidian plugin that connects to the reMarkable cloud to list, download, and 
 
 ## Requirements
 
-- Obsidian (desktop only, v1.4.0+)
+- Obsidian v1.4.0+
+- Desktop is fully supported. **Mobile support is experimental** — see [Mobile](#mobile).
 - A reMarkable account with cloud sync enabled, or a [rmfakecloud](https://github.com/ddvk/rmfakecloud) server (optional for local .rmdoc import)
 
 ## Installation
@@ -94,6 +95,17 @@ This plugin supports [rmfakecloud](https://github.com/ddvk/rmfakecloud), a self-
 3. Run **"Connect to reMarkable cloud"** and enter a one-time code generated from your rmfakecloud web interface
 
 The authentication flow and sync protocol are identical to the official cloud. All API requests go to your self-hosted server instead of reMarkable's servers.
+
+## Mobile
+
+Mobile support is **experimental** and needs testing on real devices. Please report what you find.
+
+- **Android** should work.
+- **iPhone / iPad** need iOS 16.4 or later. Page rendering uses `OffscreenCanvas`; on older versions the plugin tells you rather than silently producing empty notebooks.
+- Automatic background sync stays off by default. Turning it on will use mobile data and battery.
+- Importing a `.rmdoc` file relies on the system file picker, which may not offer `.rmdoc` files on iOS.
+
+If something does not work, please open an issue and include your device, OS version, and what you saw.
 
 ## Privacy
 

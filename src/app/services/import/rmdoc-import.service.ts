@@ -4,7 +4,11 @@ import { log } from '../../../utils/log'
 import type { RemarkableSyncPlugin } from '../../plugin'
 import { pageHasContent } from '../parser/rm-file-parser'
 import { parseDocument } from '../parser/document-parser.service'
-import { renderPage } from '../renderer/page-renderer.service'
+import {
+    PAGE_RENDERING_UNSUPPORTED_MESSAGE,
+    isPageRenderingSupported,
+    renderPage
+} from '../renderer/page-renderer.service'
 import { writePageImage } from '../output/markdown-writer.service'
 import type { ProgressCallback } from '../pipeline/notebook-pipeline.service'
 
@@ -61,6 +65,17 @@ export function createRmdocImportService(plugin: RemarkableSyncPlugin): RmdocImp
     ): Promise<boolean> {
         const { settings } = plugin
         const notebookName = deriveNotebookName(fileName)
+
+        if (!isPageRenderingSupported()) {
+            new Notice(PAGE_RENDERING_UNSUPPORTED_MESSAGE)
+            onProgress({
+                status: 'error',
+                currentPage: 0,
+                totalPages: 0,
+                error: PAGE_RENDERING_UNSUPPORTED_MESSAGE
+            })
+            return false
+        }
 
         try {
             // Step 1: Extract ZIP

@@ -4,7 +4,7 @@
     "version": "1.13.0",
     "minAppVersion": "1.8.7",
     "description": "Connect to the reMarkable cloud, list, download, and sync notebook pages as images.",
-    "isDesktopOnly": true,
+    "isDesktopOnly": false,
     "author": "Sébastien Dubois",
     "authorUrl": "https://dsebastien.net",
     "fundingUrl": {

@@ -2,6 +2,17 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.14.0](https://github.com/dsebastien/obsidian-remarkable-sync/compare/1.13.0...1.14.0) (2026-07-30)
+
+### Features
+
+* **plugin:** enable experimental mobile support ([7b37e7d](https://github.com/dsebastien/obsidian-remarkable-sync/commit/7b37e7d9315db8f86a9188d23a6f1ba6936d2373))
+* **plugin:** replace JSZip with fflate for .rmdoc extraction ([1a59e0a](https://github.com/dsebastien/obsidian-remarkable-sync/commit/1a59e0a22450747e3998868896c5094224bc7ef2))
+
+### Bug Fixes
+
+* **plugin:** generate the device id without crypto.randomUUID ([2bd9b10](https://github.com/dsebastien/obsidian-remarkable-sync/commit/2bd9b1002efff8011b3401aed764906a7203850b))
+
 ## [1.13.0](https://github.com/dsebastien/obsidian-remarkable-sync/compare/1.12.0...1.13.0) (2026-07-30)
 
 ### Features
@@ -190,6 +201,7 @@ All notable changes to this project will be documented in this file.
 - Inline progress indicators per notebook in panel
 - Settings for target folder, image format
 - Token storage outside vault for security
+
 
 
 

@@ -1,5 +1,16 @@
 # Release Notes
 
+## 1.14.0 (2026-07-30)
+
+### Features
+
+- **plugin:** enable experimental mobile support
+- **plugin:** replace JSZip with fflate for .rmdoc extraction
+
+### Bug Fixes
+
+- **plugin:** generate the device id without crypto.randomUUID
+
 ## 1.13.0 (2026-07-30)
 
 ### Features

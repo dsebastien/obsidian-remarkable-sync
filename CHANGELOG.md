@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.13.0](https://github.com/dsebastien/obsidian-remarkable-sync/compare/1.12.0...1.13.0) (2026-07-30)
+
+### Features
+
+* **plugin:** show what's new in a tab instead of a modal dialog ([5197c10](https://github.com/dsebastien/obsidian-remarkable-sync/commit/5197c10c3ec03c5809922848b58609c5d0eecda6))
+* **plugin:** store reMarkable tokens in plugin data ([bd525fe](https://github.com/dsebastien/obsidian-remarkable-sync/commit/bd525feb5c28b12b9b903b63514d6ddfcf09e0bc)), closes [#13](https://github.com/dsebastien/obsidian-remarkable-sync/issues/13)
+* **plugin:** surface support CTAs everywhere users can see them ([db4e601](https://github.com/dsebastien/obsidian-remarkable-sync/commit/db4e6016e2fb3c65e29feeb685143ae60592386b))
+
 ## [1.12.0](https://github.com/dsebastien/obsidian-remarkable-sync/compare/1.11.0...1.12.0) (2026-07-29)
 
 ### Features
@@ -182,6 +190,7 @@ All notable changes to this project will be documented in this file.
 - Inline progress indicators per notebook in panel
 - Settings for target folder, image format
 - Token storage outside vault for security
+
 
 
 

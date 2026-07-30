@@ -1,5 +1,13 @@
 # Release Notes
 
+## 1.13.0 (2026-07-30)
+
+### Features
+
+- **plugin:** show what's new in a tab instead of a modal dialog
+- **plugin:** store reMarkable tokens in plugin data
+- **plugin:** surface support CTAs everywhere users can see them
+
 ## 1.12.0 (2026-07-29)
 
 ### Features

@@ -1,6 +1,7 @@
 import { requestUrl } from 'obsidian'
 import { log } from '../../../utils/log'
-import { readTokens, writeTokens, deleteTokens, hasValidTokens } from './token-store'
+import { createTokenStoreForPlugin } from './token-store'
+import type { TokenStore } from './token-store'
 import { resolveCloudUrls } from '../cloud/cloud-urls'
 import type { RemarkableSyncPlugin } from '../../plugin'
 
@@ -16,11 +17,62 @@ export interface RemarkableAuthService {
     disconnect(): Promise<void>
 }
 
-export function createRemarkableAuthService(plugin: RemarkableSyncPlugin): RemarkableAuthService {
+/**
+ * @param tokenStore injectable for tests; defaults to the plugin's `data.json`
+ * backed store.
+ */
+export function createRemarkableAuthService(
+    plugin: RemarkableSyncPlugin,
+    tokenStore: TokenStore = createTokenStoreForPlugin(plugin)
+): RemarkableAuthService {
     let cachedUserToken: string | null = null
     let tokenExpiryTime = 0
+    /**
+     * Bumped on every disconnect. Token refreshes capture it before awaiting
+     * the network and drop their result if it changed — otherwise a refresh
+     * still in flight when the user disconnects would write the tokens back and
+     * silently reconnect the vault.
+     */
+    let authGeneration = 0
+
+    /**
+     * Whether a disconnect happened since `generation` was captured. Callers
+     * capture it on entry and re-check after every await that precedes a
+     * mutation of the cache or the store.
+     */
+    function isStale(generation: number): boolean {
+        if (generation === authGeneration) {
+            return false
+        }
+        log('Discarding an authentication result that finished after a disconnect', 'debug')
+        return true
+    }
+
+    /**
+     * Persist tokens unless a disconnect landed first. The store write and a
+     * concurrent `clear()` are both queued on the same `data.json` writer, so a
+     * disconnect that lands mid-write is undone here rather than resurrecting
+     * the credentials.
+     */
+    async function writeTokensUnlessDisconnected(
+        generation: number,
+        tokens: { deviceToken: string; userToken: string; userTokenExpiry: number }
+    ): Promise<boolean> {
+        if (isStale(generation)) {
+            return false
+        }
+        await tokenStore.write(tokens)
+        if (isStale(generation)) {
+            await tokenStore.clear()
+            return false
+        }
+        cachedUserToken = tokens.userToken
+        tokenExpiryTime = tokens.userTokenExpiry
+        return true
+    }
 
     async function registerDevice(oneTimeCode: string): Promise<boolean> {
+        const generation = authGeneration
         try {
             const urls = resolveCloudUrls(plugin.settings)
             log(
@@ -55,14 +107,14 @@ export function createRemarkableAuthService(plugin: RemarkableSyncPlugin): Remar
                 return false
             }
 
-            writeTokens({
+            const saved = await writeTokensUnlessDisconnected(generation, {
                 deviceToken,
                 userToken: userTokenResult.token,
                 userTokenExpiry: userTokenResult.expiry
             })
-
-            cachedUserToken = userTokenResult.token
-            tokenExpiryTime = userTokenResult.expiry
+            if (!saved) {
+                return false
+            }
 
             log('Device registered successfully', 'info')
             return true
@@ -112,9 +164,11 @@ export function createRemarkableAuthService(plugin: RemarkableSyncPlugin): Remar
             return cachedUserToken
         }
 
+        const generation = authGeneration
+
         // Try to load from stored tokens
-        const stored = readTokens()
-        if (!stored) {
+        const stored = await tokenStore.read()
+        if (!stored || isStale(generation)) {
             return null
         }
 
@@ -131,21 +185,19 @@ export function createRemarkableAuthService(plugin: RemarkableSyncPlugin): Remar
             return null
         }
 
-        cachedUserToken = result.token
-        tokenExpiryTime = result.expiry
-
-        writeTokens({
+        const saved = await writeTokensUnlessDisconnected(generation, {
             deviceToken: stored.deviceToken,
             userToken: result.token,
             userTokenExpiry: result.expiry
         })
-
-        return cachedUserToken
+        return saved ? cachedUserToken : null
     }
 
     async function refreshAndGetUserToken(): Promise<string | null> {
-        const stored = readTokens()
-        if (!stored) {
+        const generation = authGeneration
+
+        const stored = await tokenStore.read()
+        if (!stored || isStale(generation)) {
             return null
         }
 
@@ -154,27 +206,28 @@ export function createRemarkableAuthService(plugin: RemarkableSyncPlugin): Remar
             return null
         }
 
-        cachedUserToken = result.token
-        tokenExpiryTime = result.expiry
-
-        writeTokens({
+        const saved = await writeTokensUnlessDisconnected(generation, {
             deviceToken: stored.deviceToken,
             userToken: result.token,
             userTokenExpiry: result.expiry
         })
+        if (!saved) {
+            return null
+        }
 
         log('User token force-refreshed', 'debug')
         return cachedUserToken
     }
 
     async function isAuthenticated(): Promise<boolean> {
-        return hasValidTokens()
+        return tokenStore.hasValid()
     }
 
     async function disconnect(): Promise<void> {
+        authGeneration++
         cachedUserToken = null
         tokenExpiryTime = 0
-        deleteTokens()
+        await tokenStore.clear()
         log('Disconnected from reMarkable cloud', 'info')
     }
 

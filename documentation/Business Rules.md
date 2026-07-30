@@ -17,11 +17,15 @@ When a new business rule is mentioned:
 
 ## Authentication
 
-- Tokens are stored outside the vault at `~/.remarkable-sync/token.json` for security
+- Tokens are stored in the plugin's `data.json` under the `tokens` key, so the same code path works on desktop and mobile (nothing outside the vault is writable on mobile)
+- Tokens MUST NOT be part of `PluginSettings`: the settings object is written to the debug log on every load and save, and users paste it into bug reports
+- Every `data.json` write goes through `plugin.persistData()`, which merges into the last known contents and serializes writes — `saveData` replaces the whole file, so a plain settings save would otherwise erase the tokens
+- Desktop installs that predate this change keep their tokens in `~/.remarkable-sync/token.json`; that file is imported once per vault on first read and is deliberately never deleted automatically (it is machine-global and shared by every vault on the machine). Users remove it explicitly from the settings tab
+- The legacy file is consulted at most once per vault, tracked via the `legacyTokensImported` key in `data.json` — otherwise disconnecting would be undone by a re-import on the next read
 - Device tokens are long-lived; user tokens expire after 24h and auto-refresh using the device token
 - All HTTP requests use Obsidian's `requestUrl` for plugin compliance and CORS handling
 - Users authenticate via a one-time code from `my.remarkable.com/device/desktop/connect` (official) or the rmfakecloud web interface
-- Plugin load must never fail because of token file contents: a malformed `token.json` is treated as disconnected (validated on read), and token writes are atomic (temp file + rename) to prevent partial writes
+- Plugin load must never fail because of stored token contents: malformed tokens (in `data.json` or in the legacy file) are treated as disconnected, validated on read
 
 ## Document Processing
 
@@ -69,5 +73,6 @@ When a new business rule is mentioned:
 
 - No telemetry or analytics
 - No data sent to third-party services other than reMarkable cloud (or rmfakecloud when enabled)
-- Token storage is outside the vault to prevent accidental sync/sharing
-- Plugin is desktop-only due to OffscreenCanvas and filesystem token storage
+- Tokens live in the plugin's `data.json` inside the vault. Consequence users must be told about: enabling Obsidian Sync's community-plugin-settings option, or syncing `.obsidian` via Git/Dropbox, propagates the credentials too
+- Tokens are per-vault, not per-machine
+- Node builtins (`fs`/`os`/`path`) must never be imported at the top level of any module under `src/`: the bundler hoists them into a top-level `require`, which throws on mobile and prevents the plugin from loading. Require them lazily inside a `Platform.isDesktopApp` guard

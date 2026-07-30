@@ -17,13 +17,15 @@ All settings are configured via **Settings → Community plugins → Remarkable 
 
 ## Authentication
 
-Tokens are stored at `~/.remarkable-sync/token.json` (outside the vault).
+Tokens are stored in the plugin's `data.json` under the `tokens` key — deliberately outside `PluginSettings`, which is written to the debug log on every load/save.
 
-The file contains:
+The entry contains:
 
 - `deviceToken`: Long-lived device registration token
 - `userToken`: Short-lived API token (24h expiry, auto-refreshed)
 - `userTokenExpiry`: Timestamp for token refresh
+
+Desktop installs predating this change kept the same fields in `~/.remarkable-sync/token.json`. That file is imported once per vault on first read (tracked by the `legacyTokensImported` key in `data.json`) and is never deleted automatically — it is machine-global and shared by every vault. The settings tab offers explicit removal.
 
 ## Environment Variables
 

@@ -92,6 +92,9 @@ void moduleMocker.module('obsidian', () => ({
         close() {}
     },
     FileSystemAdapter: class FileSystemAdapter {},
+    // Tests run outside Obsidian; the desktop-only legacy token file path is
+    // exercised through injected deps, never through the real Platform check.
+    Platform: { isDesktopApp: false, isMobile: false, isMobileApp: false },
     requestUrl: async () => ({ status: 200, text: '', json: {}, arrayBuffer: new ArrayBuffer(0) }),
     debounce: (fn: (...args: unknown[]) => unknown) => fn,
     setIcon: () => {}

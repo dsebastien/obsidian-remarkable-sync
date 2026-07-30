@@ -36,7 +36,11 @@ When **Automatic sync** is enabled, the plugin periodically syncs all notebooks 
 
 The authentication section shows your connection status and provides connect/disconnect buttons.
 
-Tokens are stored at `~/.remarkable-sync/token.json` (outside the vault for security). The user token auto-refreshes every 23 hours.
+Tokens are stored in the plugin's `data.json`, inside `.obsidian/plugins/remarkable-synchronizer/`. The user token auto-refreshes every 23 hours.
+
+They are kept separate from your plugin settings, so they never show up in the debug log. They do live inside the vault, though: if you sync `.obsidian` (Obsidian Sync's _community plugin settings_ option, Git, Dropbox, ...), your reMarkable credentials sync with it.
+
+If you used an earlier desktop version, your tokens were in `~/.remarkable-sync/token.json`. They are imported automatically the first time each vault runs this version. The old file is left in place because it is shared by all your vaults — once they have all been updated, remove it with the **Legacy token file → Remove** button in the settings tab.
 
 ## rmfakecloud
 

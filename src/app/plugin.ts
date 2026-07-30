@@ -20,6 +20,7 @@ import { createRmdocImportService } from './services/import/rmdoc-import.service
 import type { AutoSyncService } from './services/sync/auto-sync.service'
 import { createAutoSyncServiceForPlugin } from './services/sync/auto-sync.service'
 import { registerWhatsNewView } from './whats-new'
+import { createWriteQueue, mergePluginData } from './utils/plugin-data'
 
 export class RemarkableSyncPlugin extends Plugin {
     override settings: PluginSettings = { ...DEFAULT_SETTINGS }
@@ -30,6 +31,11 @@ export class RemarkableSyncPlugin extends Plugin {
     syncStoreService!: SyncStoreService
     importService!: RmdocImportService
     autoSyncService!: AutoSyncService
+
+    /** Last known contents of `data.json`, kept so writes can merge instead of replace. */
+    private rawData: Record<string, unknown> = {}
+    /** Serializes `data.json` writes; see {@link persistData}. */
+    private readonly enqueueWrite = createWriteQueue()
 
     override async onload(): Promise<void> {
         // Must run before anything can call saveData (fresh-install detection)
@@ -91,9 +97,41 @@ export class RemarkableSyncPlugin extends Plugin {
         void workspace.revealLeaf(leaf)
     }
 
+    /**
+     * Read a single top-level entry from the plugin's `data.json`.
+     * Used for data that must not travel through {@link PluginSettings} —
+     * currently the reMarkable tokens.
+     */
+    getDataValue(key: string): unknown {
+        return this.rawData[key]
+    }
+
+    /**
+     * Merge a patch into the plugin's `data.json` and persist it.
+     *
+     * All `data.json` writes MUST go through here. `saveData` replaces the
+     * whole file, so writing only the settings object would erase sibling
+     * entries (the tokens). Writes are serialized on a promise chain because
+     * a settings save and a background token refresh can otherwise interleave
+     * and lose one of the two changes.
+     *
+     * A patch entry set to `undefined` removes that key.
+     */
+    async persistData(patch: Record<string, unknown>): Promise<void> {
+        await this.enqueueWrite(async (): Promise<void> => {
+            const merged = mergePluginData(this.rawData, patch)
+            await this.saveData(merged)
+            // Only after the write landed — otherwise a failed save would leave
+            // in-memory state claiming to be persisted.
+            this.rawData = merged
+        })
+    }
+
     async loadSettings(): Promise<void> {
         log('Loading settings', 'debug')
-        const loadedSettings = (await this.loadData()) as PluginSettings | null
+        const loadedData = (await this.loadData()) as Record<string, unknown> | null
+        this.rawData = loadedData ?? {}
+        const loadedSettings = loadedData as PluginSettings | null
 
         if (!loadedSettings) {
             log('Using default settings', 'debug')
@@ -141,7 +179,7 @@ export class RemarkableSyncPlugin extends Plugin {
 
     async saveSettings(): Promise<void> {
         log('Saving settings', 'debug', this.settings)
-        await this.saveData(this.settings)
+        await this.persistData({ ...this.settings })
         log('Settings saved', 'debug', this.settings)
     }
 }

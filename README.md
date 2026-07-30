@@ -97,7 +97,9 @@ The authentication flow and sync protocol are identical to the official cloud. A
 
 ## Privacy
 
-- Authentication tokens are stored at `~/.remarkable-sync/token.json`, deliberately **outside the vault**. This keeps long-lived reMarkable credentials out of any vault sync/sharing (e.g. Obsidian Sync, Git, cloud folders) so they are never accidentally distributed alongside notes. This is the only file the plugin reads or writes outside the vault, and is why the plugin is desktop-only.
+- Authentication tokens are stored in the plugin's own `data.json`, inside `.obsidian/plugins/remarkable-synchronizer/`. They are **not** part of the plugin settings, so they never appear in the debug log or in a settings export.
+- Because they live in the vault, anything that syncs `.obsidian` syncs them too — Obsidian Sync's _community plugin settings_ option, or a vault tracked in Git or a cloud folder. Exclude `.obsidian/plugins/remarkable-synchronizer/data.json` if you do not want your reMarkable credentials to travel with your vault.
+- Tokens are per-vault. Earlier desktop versions stored a single machine-wide `~/.remarkable-sync/token.json`; that file is imported automatically on first run and then left untouched. Remove it from **Settings → Remarkable Synchronizer → Legacy token file** once all your vaults are on this version.
 - No telemetry or third-party analytics
 - Network requests only to reMarkable cloud (or your rmfakecloud server when enabled)
 

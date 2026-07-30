@@ -1,93 +1,81 @@
 # Mobile support (issue #13)
 
-Goal: flip `isDesktopOnly` to `false` so the plugin runs on Obsidian mobile.
+Status: **shipped experimental in 1.14.0.** `isDesktopOnly` is `false`. Issue #13 closed.
 
-Status: **token storage done** (released in 1.13.0). The remaining blockers are below.
-`isDesktopOnly` stays `true` until every item in "Before the flip" is resolved.
+Everything verifiable without hardware is done. What remains is field feedback and the
+contingency work it may trigger. Keep this plan open until mobile is either confirmed working
+or the fallbacks below are implemented.
 
-## Already mobile-safe (verified by reading the code)
+## Shipped
 
-- All HTTP goes through Obsidian's `requestUrl` — no `fetch`, no `node-fetch`.
-- Vault writes use `vault.createBinary`.
-- Binary parsing uses `DataView`/typed arrays, no `Buffer`.
-- Pages render sequentially (`notebook-pipeline.service.ts`), so no fan-out memory spike.
+| Change                                                                                                                                                          | Release |
+| --------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------- |
+| Tokens moved to `data.json` (nothing outside the vault is writable on mobile), legacy desktop file imported once per vault                                      | 1.13.0  |
+| `crypto.randomUUID` made defensive — it was called at module load and is secure-context gated, so it could have stopped the plugin loading entirely             | 1.14.0  |
+| JSZip → `fflate/browser`; removed `require("buffer"/"stream"/"util"/"events")` from the bundle                                                                  | 1.14.0  |
+| `isPageRenderingSupported()` gates the sync pipeline and `.rmdoc` import, so an unsupported device names the cause instead of reporting generic render failures | 1.14.0  |
+| `isDesktopOnly: false`, README/docs mobile section                                                                                                              | 1.14.0  |
 
-## Done
+Auto-sync already defaulted to off, so the battery/data concern needed no new code.
 
-### Token storage → `data.json` (1.13.0)
+## Awaiting field reports
 
-Tokens moved out of `~/.remarkable-sync/token.json`, which is unwritable on mobile.
-Legacy file imported once per vault, never auto-deleted. See
-`documentation/history/2026-07-30.md`.
+Nothing here can be progressed without a device or a user report.
 
-### JSZip replaced with fflate (unreleased)
+### 1. `OffscreenCanvas` on iOS
 
-JSZip was bundled through its Node entry point and pulled `require("buffer")`, `require("stream")`,
-`require("util")`, `require("events")` into the bundle, which would have broken `.rmdoc` import on
-mobile. Replaced with `fflate`, imported as **`fflate/browser`** — fflate's default (`node`) entry
-starts with a top-level `require("module")` + `worker_threads`, which is the same hoisted-require
-trap. `unzipSync` deliberately: the async variant pulls in worker machinery (`new Worker` over a
-blob URL) that the reviewer flags.
+`page-renderer.service.ts`, `stroke-renderer.ts`, `utils/image-utils.ts` need `OffscreenCanvas`
 
-Two alternatives were tested and rejected first:
+- `convertToBlob`. Android's webview is fine. iOS needs 16.4+.
 
-| Approach                                         | Result                                                                                                                                                                                                                                                                                                                                                                                         |
-| ------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `target: 'browser'` globally                     | **Unsafe.** Bun silently rewrites `require('node:fs')` to an empty-object stub `(()=>({}))`. `loadNodeModules()` would return the stub (its `try/catch` passes), then fail inside `readLegacyTokenFile`, whose own `catch` returns null — the legacy token import would silently never run and **existing desktop users would be logged out on upgrade, with no error**. Also grew the bundle. |
-| Alias `jszip` → its prebuilt `dist/jszip.min.js` | Functionally identical and smaller, but the prebuilt dist _inlines_ the `setimmediate` polyfill including its old-IE `document.createElement("script")` branch, which `stripSetImmediatePolyfillPlugin` can no longer reach. Reintroduces the reviewer warning fixed on 2026-07-29.                                                                                                            |
+Users below that now get a clear message rather than empty notebooks, but **there is still no
+fallback**.
 
-Verified: byte-identical extraction vs JSZip on an archive written by Python's `zipfile` (mixed
-deflate/stored, explicit directory entry); `dist/main.js` now contains no `require()` beyond
-`obsidian` and the three guarded desktop-only Node builtins, and zero
-`createElement("script")` / `new Worker` / `createObjectURL`; builds cleanly under the reviewer's
-Bun 1.2.14 with identical output. `stripSetImmediatePolyfillPlugin` deleted — nothing pulls
-`setimmediate` any more.
+If reports show this failing: render into an `HTMLCanvasElement` and use `toBlob` behind the
+existing `isPageRenderingSupported()` seam. The renderer already takes a canvas and returns an
+`ArrayBuffer`, so the change is contained to `renderPageToCanvas` and `utils/image-utils.ts`.
 
-### `crypto.randomUUID()` made defensive (unreleased)
-
-Was called at module load in `remarkable-auth.service.ts`. `crypto.randomUUID` is only exposed
-in secure contexts, so on a webview that does not qualify it would have thrown during `onload`
-and stopped the plugin from loading at all — the worst possible failure mode, and one that
-needed a device to detect. Now `utils/uuid.ts#generateUuidV4`, called lazily on first
-registration, falling back to `crypto.getRandomValues` and then `Math.random`. Removes the
-device dependency from this item entirely.
-
-## Before the flip
-
-### 1. `OffscreenCanvas` on iOS — needs a device
-
-`page-renderer.service.ts`, `stroke-renderer.ts`, `utils/image-utils.ts` depend on
-`OffscreenCanvas` + `convertToBlob`. Android WebView is fine. iOS needs WKWebView on
-iOS 16.4+. **No fallback exists today** — if it fails, every page render returns null and
-notebooks sync as empty.
-
-Action: verify on a real iPhone. If unsupported, add an `HTMLCanvasElement` fallback behind a
-capability check.
-
-### 2. `.rmdoc` file picker on iOS — needs a device
+### 2. `.rmdoc` file picker on iOS
 
 `commands/import-rmdoc.ts` uses `<input type="file" accept=".rmdoc">`. iOS resolves `accept`
-through UTIs and may show no selectable files for an unknown extension.
+through UTIs and may offer no selectable files for an unknown extension. Cloud sync is
+unaffected — this only blocks local import.
 
-Action: verify. If broken, drop `accept` on mobile and validate the extension after selection.
+If reports confirm it: drop `accept` when `Platform.isIosApp`, and validate the extension after
+selection instead.
 
-### 3. Mobile guards for battery and data
+### 3. Memory and responsiveness on phones
 
-Auto-sync (`services/sync/auto-sync.service.ts`) plus 1404x1872 canvases over cellular.
+Not measured on a real device. A 1404x1872 canvas is ~10 MB of RGBA; pages render sequentially,
+so peak use should be one page at a time, but a large notebook downloads in full before parsing.
+`unzipSync` also inflates `.rmdoc` archives on the UI thread.
 
-Action: decide the policy. Suggested — auto-sync defaults to off on mobile, and the settings
-section says so.
+Watch for reports of freezes or crashes on large notebooks before optimising — the sequential
+design may already be adequate.
 
-## Business rules already recorded
+## Verification still outstanding on desktop
 
-- Node builtins must never be imported at the top level of any module under `src/` — the
-  bundler hoists them into a top-level `require()` that throws on mobile and prevents the
-  plugin from loading. Require them lazily inside a `Platform.isDesktopApp` guard.
+Neither release was exercised in a real vault. These are cheap and worth doing once:
+
+- Upgrade an install that predates 1.13.0: it should stay connected, `data.json` should gain
+  `tokens` and `legacyTokensImported`, and `~/.remarkable-sync/token.json` should still exist.
+- Change a setting, restart, confirm still connected (guards the `saveData` clobber fix).
+- Disconnect, restart, confirm it stays disconnected (guards the legacy re-import fix).
+- Import a **real** `.rmdoc` export. The specs use synthetic archives from four independent zip
+  writers; no genuine reMarkable export was ever tested.
+
+## Business rules recorded
+
+- Node builtins must never be imported at the top level of any module under `src/` — the bundler
+  hoists them into a top-level `require()` that throws on mobile. Require them lazily inside a
+  `Platform.isDesktopApp` guard.
+- Dependencies that ship a browser entry point must be imported through it (`fflate/browser`).
+  Do not switch the build to `target: 'browser'` — Bun then silently stubs `require('node:fs')`.
 - Tokens live in `data.json`, are per-vault, and travel with anything that syncs `.obsidian`.
 
-## Flip checklist
+## Next catalog review
 
-1. Verify items 1 and 2 on a real iPhone and a real Android device.
-2. Decide item 3.
-3. Set `isDesktopOnly: false`; update `README.md` ("desktop only, v1.4.0+") and `docs/`.
-4. Ship as experimental, and say so in the release notes.
+1.14.0 is the first release with `isDesktopOnly: false`, so the community reviewer will apply
+its mobile rules to this plugin for the first time. `import/no-nodejs-modules` is now active
+locally and clean. If the review returns findings, check sibling plugin commits for existing
+fixes before inventing new ones.

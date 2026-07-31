@@ -31,22 +31,39 @@ so the visual result matches what the plugin already produces.
 
 ## Design
 
-### Output format setting
+### Settings
 
 `imageFormat` cannot absorb `'pdf'`. It drives both the canvas encoder and the output file
-extension, and a PDF still needs an image codec inside it. Add a separate setting:
+extension, and a PDF still needs an image codec inside it.
+
+PDF export is its own setting, a plain toggle sitting beside the existing `saveImages` toggle:
 
 ```typescript
-outputFormat: 'images' | 'pdf' | 'both' | 'none'
+savePdf: boolean   // default false
 ```
+
+The two are independent, which covers every combination without a mode enum:
+
+| `saveImages` | `savePdf` | Result                                   |
+| ------------ | --------- | ---------------------------------------- |
+| true         | false     | today's behaviour, the default           |
+| false        | true      | PDF only                                 |
+| true         | true      | both                                     |
+| false        | false     | nothing written, already possible today  |
 
 `imageFormat` keeps its current meaning and additionally selects the codec embedded in the PDF.
 
-**Folds in `saveImages`.** Two independent switches ("Save images" toggle plus an output-format
-dropdown that itself offers "Images") is a confusing settings tab. `saveImages: false` migrates to
-`outputFormat: 'none'` on load, the toggle is removed, and `saveImages` stays in the interface as a
-legacy read-once field (legacy, not `@deprecated`, per the catalog rule about intentionally-read
-legacy shapes). Default is `'images'`, so existing installs see no behaviour change.
+**No settings migration.** A new boolean defaulting to `false` merges cleanly into existing
+`data.json` through the normal `DEFAULT_SETTINGS` merge, and `saveImages` keeps its exact current
+meaning. This was the alternative to folding both into an `outputFormat` enum, which would have
+needed a load-time migration and left a "Save images" toggle sitting next to a dropdown that itself
+offered "Images".
+
+**Settings tab gets a new "PDF" section**, `src/app/settings/components/pdf-section.ts`, following
+the existing component-per-heading pattern (`auth-section`, `cloud-section`, `output-section`,
+`sync-section`, `about-section`). It holds the "Save as PDF" toggle and is the natural home for
+later PDF-only options such as page size. The existing "Output" section keeps the target folder and
+the image settings, both of which the PDF path shares.
 
 ### Where the PDF is written
 
@@ -55,7 +72,7 @@ legacy shapes). Default is `'images'`, so existing installs see no behaviour cha
 ```
 
 Images already live in `<targetFolder>/<folderPath>/<notebookName>/<notebookName>-P001.jpg`, so the
-PDF sits beside that folder with no collision, and `'both'` works without extra rules. Overwrite
+PDF sits beside that folder with no collision, and both toggles on works without extra rules. Overwrite
 semantics match images (`modifyBinary` when the file exists, otherwise `createBinary`). Two
 notebooks sharing a `visibleName` in one folder already collide for images today, so that is not
 new and is not addressed here.
@@ -138,8 +155,8 @@ distort or letterbox, and it would defeat the variable-height canvas.
 | `webp`        | re-encoded to JPEG at `imageQuality` | `DCTDecode`   |
 
 PDF has no WebP filter, so WebP must be re-encoded. The canvas is still in hand at that point, so
-it costs one extra `convertToBlob`. Under `'both'` the loose files stay WebP and only the embedded
-copy differs. This must be called out in the settings description, not left as a surprise.
+it costs one extra `convertToBlob`. With both toggles on, the loose files stay WebP and only the
+embedded copy differs. This must be called out in the settings description, not left as a surprise.
 
 The PNG path deliberately does **not** embed PNG file bytes. `FlateDecode` expects raw scanline
 data, not a PNG container, so this path pulls `ImageData` from the canvas, drops the alpha channel
@@ -148,8 +165,8 @@ data, not a PNG container, so this path pulls `ImageData` from the canvas, drops
 ### Renderer seam
 
 `renderPage()` returns only an `ArrayBuffer`, which is not enough: the PDF needs pixel dimensions,
-and the lossless path needs the canvas itself. Under `'both'` a naive implementation would also
-render every page twice.
+and the lossless path needs the canvas itself. With both toggles on, a naive implementation would
+also render every page twice.
 
 Add to `page-renderer.service.ts`:
 
@@ -191,16 +208,17 @@ redesign.
 
 ## Open decisions
 
-1. **Fold `saveImages` into `outputFormat`, or keep both?** Recommendation is to fold, with the
-   migration above. Keeping both avoids a settings migration at the cost of a confusing tab.
-2. **Failed pages in a PDF.** Today a page that fails to render is dropped and counted, and the
+1. **Failed pages in a PDF.** Today a page that fails to render is dropped and counted, and the
    Notice reports "N pages failed to render". In a PDF, dropping silently shifts every later page
    number. Options: drop (consistent with images, recommended, the Notice already reports it), or
    insert a blank placeholder page. A placeholder with explanatory text would need an embedded
    font, which reintroduces the weight this design avoids.
-3. **Blank pages in a PDF.** Existing rule skips them entirely. That is right for loose images and
+2. **Blank pages in a PDF.** Existing rule skips them entirely. That is right for loose images and
    arguable for a PDF, where a document with holes in it reads oddly. Recommendation is to keep
    the existing rule for consistency and revisit only on user feedback.
+
+Settled: PDF export is a separate "Save as PDF" toggle in its own settings section, not a mode
+folded into `saveImages`. No settings migration.
 
 ## Implementation steps
 
@@ -208,17 +226,19 @@ redesign.
    committed fixture image. No plugin wiring yet.
 2. `renderPageDetailed()` in `page-renderer.service.ts`, `renderPage()` reduced to a wrapper.
 3. `buildDocumentPath()` and `writeDocumentPdf()` in `markdown-writer.service.ts`.
-4. `outputFormat` in `plugin-settings.intf.ts`, plus the `saveImages` migration on load.
+4. `savePdf: false` in `plugin-settings.intf.ts` and `DEFAULT_SETTINGS`.
 5. Extract the shared render-and-write loop and wire it into `notebook-pipeline.service.ts` and
    `rmdoc-import.service.ts`.
-6. Settings tab: output-format dropdown, revised image-format description, remove the
-   `saveImages` toggle.
+6. Settings tab: new `pdf-section.ts` with the "Save as PDF" toggle, registered in
+   `settings-tab.ts`, plus a revised image-format description naming the WebP fallback.
 7. Documentation: `Architecture.md` (service table and data flow), `Domain Model.md` (settings),
    `Business Rules.md` (rules below), `README.md`, `docs/configuration.md`, `docs/usage.md`,
    `docs/release-notes.md`, and the day's history file.
 
 ## Business rules to record
 
+- PDF export is opt-in via `savePdf` (default false) and is independent of `saveImages`. Either,
+  both, or neither may be enabled.
 - PDF export writes one PDF per notebook at `<targetFolder>/<folderPath>/<notebookName>.pdf`,
   independent of the per-page image folder.
 - PDF page size is derived from the rendered image at 226 DPI, so scrolled pages produce taller PDF
@@ -244,8 +264,8 @@ redesign.
   inflates back to the original RGB.
 - Zero pages produces either a valid empty PDF or a clear failure, not a corrupt file.
 
-Settings migration gets its own spec: `saveImages: false` with no `outputFormat` becomes `'none'`,
-and an explicit `outputFormat` always wins.
+The shared render-and-write loop gets spec coverage for all four toggle combinations, asserting
+which writers were called. No settings migration to test.
 
 ## Manual verification needed
 
@@ -255,9 +275,10 @@ Not self-verifiable, no live vault and no GUI:
   Three readers, because a broken xref is often tolerated by one and rejected by another.
 - Confirm page order matches the notebook, including a notebook that was reordered on the device.
 - A notebook with scrolled content produces a taller page, not a cropped one.
-- Each of the three `imageFormat` values with `outputFormat: 'pdf'`, checking the WebP fallback
-  really produces a readable page.
-- `'both'` writes the PDF and the loose images, and neither overwrites the other.
+- Each of the three `imageFormat` values with `savePdf` on, checking the WebP fallback really
+  produces a readable page.
+- Both toggles on writes the PDF and the loose images, and neither overwrites the other.
+- Upgrading an existing install leaves `savePdf` off and output unchanged.
 - Re-sync an unchanged notebook and confirm the PDF bytes are unchanged.
 
 ## Out of scope

@@ -6,7 +6,13 @@ import { renderPage } from '../renderer/page-renderer.service'
 import { buildPdf } from './pdf-writer.service'
 import type { PdfPageImage } from './pdf-writer.service'
 import { annotateSourcePdf } from './pdf-annotator.service'
-import { ANNOTATED_SUFFIX, writeDocumentPdf, writePageImage } from './markdown-writer.service'
+import {
+    ANNOTATED_SUFFIX,
+    writeDocumentPdf,
+    writeMarkdownNote,
+    writePageImage
+} from './markdown-writer.service'
+import { buildHighlightsNote, hasHighlights } from './highlights-markdown'
 
 /**
  * Injectable steps so the loop can be tested without OffscreenCanvas or a
@@ -16,6 +22,7 @@ export interface DocumentOutputDeps {
     renderPage: typeof renderPage
     writePageImage: typeof writePageImage
     writeDocumentPdf: typeof writeDocumentPdf
+    writeMarkdownNote: typeof writeMarkdownNote
     buildPdf: typeof buildPdf
     annotateSourcePdf: typeof annotateSourcePdf
 }
@@ -24,6 +31,7 @@ export const DEFAULT_DOCUMENT_OUTPUT_DEPS: DocumentOutputDeps = {
     renderPage,
     writePageImage,
     writeDocumentPdf,
+    writeMarkdownNote,
     buildPdf,
     annotateSourcePdf
 }
@@ -50,7 +58,12 @@ export interface RenderAndWriteResult {
     sourceWritten: boolean
     /** An annotated copy of the source was written */
     annotatedWritten: boolean
+    /** A markdown note listing the text highlights was written */
+    highlightsNoteWritten: boolean
 }
+
+/** Suffix for the markdown note listing a document's text highlights. */
+export const HIGHLIGHTS_SUFFIX = ' (highlights)'
 
 /**
  * A PDF can carry JPEG and PNG natively but has no WebP filter, so a WebP
@@ -144,6 +157,7 @@ export async function renderAndWritePages(
     let pdfWritten = false
     let sourceWritten = false
     let annotatedWritten = false
+    let highlightsNoteWritten = false
 
     if (sourceDocument) {
         // A document built from an imported file. Assembling page images into a
@@ -198,5 +212,31 @@ export async function renderAndWritePages(
         }
     }
 
-    return { totalPages, failedPages, pdfWritten, sourceWritten, annotatedWritten }
+    // Text highlights are the device's own record of what was selected, so the
+    // note is written whenever they exist, independent of the PDF toggle.
+    if (hasHighlights(pages)) {
+        await deps.writeMarkdownNote(
+            vault,
+            settings.targetFolder,
+            folderPath,
+            `${notebookName}${HIGHLIGHTS_SUFFIX}`,
+            buildHighlightsNote({
+                documentName: notebookName,
+                pages,
+                ...(annotatedWritten
+                    ? { annotatedPath: `${notebookName}${ANNOTATED_SUFFIX}.pdf` }
+                    : {})
+            })
+        )
+        highlightsNoteWritten = true
+    }
+
+    return {
+        totalPages,
+        failedPages,
+        pdfWritten,
+        sourceWritten,
+        annotatedWritten,
+        highlightsNoteWritten
+    }
 }

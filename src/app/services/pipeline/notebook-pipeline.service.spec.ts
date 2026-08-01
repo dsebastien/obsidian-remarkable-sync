@@ -37,6 +37,7 @@ interface Harness {
     progress: PipelineProgress[]
     written: number[]
     pdfsWritten: string[]
+    notesWritten: { name: string; contents: string }[]
     updateStateCalls: { remarkableId: string; syncedPageCount: number }[]
 }
 
@@ -50,6 +51,7 @@ function createHarness(config: {
     const progress: PipelineProgress[] = []
     const written: number[] = []
     const pdfsWritten: string[] = []
+    const notesWritten: Harness['notesWritten'] = []
     const updateStateCalls: Harness['updateStateCalls'] = []
 
     const fakePlugin = {
@@ -95,12 +97,21 @@ function createHarness(config: {
             pdfsWritten.push(name)
             return Promise.resolve(`${name}.pdf`)
         },
+        writeMarkdownNote: (_vault, _target, _folder, name, contents): Promise<string> => {
+            notesWritten.push({ name, contents })
+            return Promise.resolve(`${name}.md`)
+        },
         annotateSourcePdf: () =>
-            Promise.resolve({ data: new ArrayBuffer(16), annotatedPages: 1, skippedPages: 0 })
+            Promise.resolve({
+                data: new ArrayBuffer(16),
+                annotatedPages: 1,
+                skippedPages: 0,
+                highlights: 0
+            })
     }
 
     const service = createNotebookPipelineService(fakePlugin, deps)
-    return { service, progress, written, pdfsWritten, updateStateCalls }
+    return { service, progress, written, pdfsWritten, notesWritten, updateStateCalls }
 }
 
 describe('processNotebook', () => {

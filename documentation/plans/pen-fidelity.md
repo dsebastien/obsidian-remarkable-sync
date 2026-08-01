@@ -30,12 +30,12 @@ is about 45% and we drew it opaque.
 
 ## Fixed
 
-| Defect | Fix |
-| ------ | --- |
-| Green highlighter rendered yellow | read tag 8, use it over the palette |
-| Shading marker opaque | use tag 8 alpha |
-| Pen 23 unmapped | `PenType.Shader = 23` |
-| Highlighter ~10x too wide | fixed nib widths, not `width x multiplier` |
+| Defect                            | Fix                                        |
+| --------------------------------- | ------------------------------------------ |
+| Green highlighter rendered yellow | read tag 8, use it over the palette        |
+| Shading marker opaque             | use tag 8 alpha                            |
+| Pen 23 unmapped                   | `PenType.Shader = 23`                      |
+| Highlighter ~10x too wide         | fixed nib widths, not `width x multiplier` |
 
 `domain/pen-model.ts` now holds this once and both the canvas renderer and the PDF annotator route
 through it. They previously duplicated the pen logic, so every fix had to be made twice.

@@ -1,11 +1,6 @@
 import type { Stroke, StrokePoint } from './notebook'
-import { StrokeColor } from './notebook'
-import {
-    STROKE_COLOR_MAP,
-    PEN_WIDTH_MULTIPLIER,
-    FIXED_WIDTH_PENS,
-    PEN_DEFAULT_OPACITY
-} from './rm-constants'
+import { PenType, StrokeColor } from './notebook'
+import { STROKE_COLOR_MAP, FIXED_WIDTH_PENS, PEN_DEFAULT_OPACITY } from './rm-constants'
 
 /**
  * How one segment of a stroke should be drawn.
@@ -24,6 +19,79 @@ export interface SegmentStyle {
 }
 
 const MIN_WIDTH = 0.5
+
+/**
+ * rmc's pen formulas are written against its SVG output, whose units are PDF
+ * points at 226 DPI. Our stroke geometry is in .rm units, so a width straight
+ * out of those formulas is 226/72 times too small.
+ *
+ * Getting this wrong is very visible: without the conversion a brush stroke
+ * renders as a hairline, and treating the recorded width as a width instead
+ * (the previous behaviour) made it a solid slab.
+ */
+const POINTS_TO_RM_UNITS = 226 / 72
+
+/** `direction` is a byte encoding the stylus tilt around a full turn. */
+function directionToTilt(direction: number): number {
+    return (direction * Math.PI * 2) / 255
+}
+
+/**
+ * Per-pen width response, ported from rmc's pen model.
+ *
+ * The recorded per-point `width` is not a width in output units: every pen
+ * divides it by 4 and combines it with pressure, tilt and speed. Treating it as
+ * a width and applying a flat multiplier made brush strokes roughly three times
+ * too heavy, which is what turned light sketchy strokes into solid slabs.
+ *
+ * `scale` is the stroke's `thickness_scale`.
+ */
+function penWidth(
+    penType: PenType,
+    scale: number,
+    width: number,
+    pressure: number,
+    speed: number,
+    direction: number
+): number {
+    const w = width / 4
+    const tilt = directionToTilt(direction)
+
+    switch (penType) {
+        case PenType.Brush:
+        case PenType.BrushV2:
+            return 0.7 * ((1 + (1.4 * pressure) / 255) * w - 0.5 * tilt - speed / 4 / 50)
+
+        case PenType.BallPoint:
+        case PenType.BallPointV2:
+            return 0.5 + pressure / 255 + w - 0.5 * (speed / 4 / 50)
+
+        case PenType.Marker:
+        case PenType.MarkerV2:
+            return 0.9 * (w - 0.4 * tilt)
+
+        case PenType.TiltPencil:
+        case PenType.TiltPencilV2:
+            return 0.7 * ((0.8 * scale + (0.5 * pressure) / 255) * w - 0.25 * tilt ** 1.8)
+
+        case PenType.CalligraphyPen:
+            return 0.9 * ((1 + pressure / 255) * w - 0.3 * tilt)
+
+        case PenType.Fineliner:
+        case PenType.FinelinerV2:
+            return scale * 1.8
+
+        case PenType.SharpPencil:
+        case PenType.SharpPencilV2:
+            return scale ** 2
+
+        case PenType.Eraser:
+            return scale * 2
+
+        default:
+            return scale
+    }
+}
 
 /**
  * The colour a stroke should actually be drawn in.
@@ -64,12 +132,23 @@ export function strokeOpacity(stroke: Stroke): number {
 export function segmentWidth(stroke: Stroke, a: StrokePoint, b: StrokePoint): number {
     const fixed = FIXED_WIDTH_PENS[stroke.penType]
     if (undefined !== fixed) {
-        return fixed * stroke.thickness
+        // Deliberately ignores thickness_scale: the device draws these at one
+        // nib size, and folding the scale back in made the highlighter about
+        // 1.6 text lines tall instead of one.
+        return fixed * POINTS_TO_RM_UNITS
     }
 
-    const multiplier = PEN_WIDTH_MULTIPLIER[stroke.penType] ?? 1.0
-    const averaged = (a.width + b.width) / 2
-    return Math.max(averaged * multiplier * stroke.thickness, MIN_WIDTH)
+    const mid = (x: number, y: number): number => (x + y) / 2
+    const computed = penWidth(
+        stroke.penType,
+        stroke.thickness,
+        mid(a.width, b.width),
+        mid(a.pressure, b.pressure),
+        mid(a.speed, b.speed),
+        mid(a.direction, b.direction)
+    )
+
+    return Math.max(computed * POINTS_TO_RM_UNITS, MIN_WIDTH)
 }
 
 /**

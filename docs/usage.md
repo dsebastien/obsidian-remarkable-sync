@@ -57,6 +57,7 @@ The panel shows all your reMarkable notebooks grouped by folder. A connection st
 
 - **Search** — a fuzzy search box filters notebooks by name and folder path
 - **Filter buttons** — toggle between **All**, **Selected**, and **Unselected** to narrow the list
+- **Sort** — order notebooks within each folder by modified date or name, in either direction. The choice is remembered
 
 ### Notebook list
 

@@ -7,6 +7,7 @@ import type {
     PipelineStatus
 } from '../services/pipeline/notebook-pipeline.service'
 import { deriveSyncStatus } from '../domain/sync-state'
+import { SORT_MODES, parseSortValue, sortNotebooks } from '../domain/notebook-sort'
 import type { SyncStatus } from '../domain/sync-state'
 import { formatRemarkableDate } from '../../utils/date-utils'
 import { fuzzyMatch } from '../../utils/fuzzy-match'
@@ -218,6 +219,28 @@ export class RemarkablePanelView extends ItemView {
                 this.render()
             })
         }
+
+        // Sort order. A single select rather than a field button plus a
+        // direction toggle: the panel is narrow, and four named orderings are
+        // easier to scan than two controls that have to be combined mentally.
+        const sortRow = toolbar.createDiv({ cls: 'remarkable-sort-row' })
+        sortRow.createSpan({ cls: 'remarkable-sort-label', text: 'Sort' })
+        const sortSelect = sortRow.createEl('select', {
+            cls: 'remarkable-sort-select',
+            attr: { 'aria-label': 'Sort notebooks' }
+        })
+        for (const option of SORT_MODES) {
+            sortSelect.createEl('option', { value: option.value, text: option.label })
+        }
+        sortSelect.value = this.plugin.settings.panelSortOrder
+        sortSelect.addEventListener('change', () => {
+            void (async (): Promise<void> => {
+                await this.plugin.updateSettings((draft) => {
+                    draft.panelSortOrder = sortSelect.value
+                })
+                this.render()
+            })()
+        })
     }
 
     private getFilteredNotebooks(): NotebookSummary[] {
@@ -243,7 +266,10 @@ export class RemarkablePanelView extends ItemView {
                 break
         }
 
-        return filtered
+        // Sorted here rather than at load time so the cloud listing stays as
+        // received, and changing the order costs only a re-render. Grouping
+        // downstream preserves this order within each folder.
+        return sortNotebooks(filtered, parseSortValue(this.plugin.settings.panelSortOrder))
     }
 
     private renderNotebookList(container: HTMLElement): void {

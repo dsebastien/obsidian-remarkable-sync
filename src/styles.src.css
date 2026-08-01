@@ -203,6 +203,30 @@
     color: var(--text-faint);
 }
 
+/* Sort order picker, sitting under the filter buttons */
+.remarkable-sort-row {
+    @apply flex items-center gap-2 mt-2;
+}
+
+.remarkable-sort-label {
+    @apply text-xs font-medium;
+    color: var(--text-muted);
+}
+
+.remarkable-sort-select {
+    @apply flex-1 text-xs py-1 px-2 cursor-pointer;
+    border: 1px solid var(--background-modifier-border);
+    border-radius: var(--radius-s);
+    background-color: var(--background-primary);
+    color: var(--text-normal);
+    /* The panel can be narrow; never let the select force a horizontal scroll */
+    min-width: 0;
+}
+
+.remarkable-sort-select:hover {
+    background-color: var(--background-modifier-hover);
+}
+
 .remarkable-filter-row {
     @apply flex items-center gap-0;
     border: 1px solid var(--background-modifier-border);

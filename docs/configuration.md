@@ -9,17 +9,18 @@ All settings are accessible via **Settings → Community plugins → Remarkable 
 
 ## Settings
 
-| Setting         | Type     | Default | Description                                                                      |
-| --------------- | -------- | ------- | -------------------------------------------------------------------------------- |
-| Target folder   | text     | `""`    | Vault-relative path where output files are saved. Leave empty for vault root.    |
-| Save images     | toggle   | `true`  | Save rendered page images                                                        |
-| Save as PDF     | toggle   | `false` | Write one PDF per notebook, beside the page images                               |
-| Image format    | dropdown | `jpeg`  | Format for rendered images: JPEG, WebP, or PNG                                   |
-| Image quality   | slider   | `0.85`  | Quality for JPEG/WebP (0.1 = smallest, 1.0 = best). Hidden when PNG is selected. |
-| Use rmfakecloud | toggle   | `false` | Connect to a self-hosted rmfakecloud server instead of the official cloud        |
-| Server URL      | text     | `""`    | Base URL of your rmfakecloud server (only shown when rmfakecloud is enabled)     |
-| Automatic sync  | toggle   | `false` | Periodically sync all notebooks that need updating in the background             |
-| Sync interval   | slider   | `30`    | Minutes between automatic syncs, 5–240 (only shown when automatic sync is on)    |
+| Setting              | Type     | Default | Description                                                                      |
+| -------------------- | -------- | ------- | -------------------------------------------------------------------------------- |
+| Target folder        | text     | `""`    | Vault-relative path where output files are saved. Leave empty for vault root.    |
+| Save images          | toggle   | `true`  | Save rendered page images                                                        |
+| Save as PDF          | toggle   | `false` | Write one PDF per notebook, beside the page images                               |
+| Save highlights note | toggle   | `false` | Write a markdown note of text highlighted on the device                          |
+| Image format         | dropdown | `jpeg`  | Format for rendered images: JPEG, WebP, or PNG                                   |
+| Image quality        | slider   | `0.85`  | Quality for JPEG/WebP (0.1 = smallest, 1.0 = best). Hidden when PNG is selected. |
+| Use rmfakecloud      | toggle   | `false` | Connect to a self-hosted rmfakecloud server instead of the official cloud        |
+| Server URL           | text     | `""`    | Base URL of your rmfakecloud server (only shown when rmfakecloud is enabled)     |
+| Automatic sync       | toggle   | `false` | Periodically sync all notebooks that need updating in the background             |
+| Sync interval        | slider   | `30`    | Minutes between automatic syncs, 5–240 (only shown when automatic sync is on)    |
 
 ## Image Formats
 
@@ -67,13 +68,15 @@ Pages you inserted on the device have no counterpart in the original and are lef
 
 If you highlight text on the device (selecting words rather than drawing over them with the highlighter pen), those become **real PDF highlight annotations** in the annotated copy. You can select them, see the text in a reader's comment pane, and extract them like any other annotation.
 
-You also get a markdown note listing them:
+Enable **Save highlights note** to also get a markdown note listing them:
 
 ```
 Some paper (highlights).md
 ```
 
-Each highlight appears as a quote under its page number, with a link back to the annotated PDF. The text is exactly what the device recorded, not reconstructed from the shape of your ink.
+Each highlight appears as a quote under its page number, with a link back to the annotated PDF. The note is only created for documents that actually have highlights, so enabling it will not scatter empty files through your vault.
+
+The toggle controls the note only. Highlights are embedded in the annotated PDF either way, because that is part of reproducing the document rather than an extra output. The text is exactly what the device recorded, not reconstructed from the shape of your ink.
 
 One quirk worth knowing: the device stores highlighted text with the original line breaks removed, so words from the end and start of consecutive lines can run together. Obvious cases are repaired, but joins like "Windowsmachines" are left alone, because "Window smachines" is an equally valid reading and guessing wrong would corrupt the text.
 

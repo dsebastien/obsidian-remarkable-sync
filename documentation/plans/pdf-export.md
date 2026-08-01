@@ -35,29 +35,30 @@ tree, which means parsing its cross-reference data, which for anything from PDF 
 commonly a compressed cross-reference stream with objects packed into object streams. That is a
 real PDF reader, and it is exactly what pdf-lib already is.
 
-Measured against pdf-lib 1.17.1, bundled with esbuild using the same shape as `scripts/build.ts`
-(`--bundle --format=cjs --platform=node --minify`):
+Measured on pdf-lib 1.17.1 with **Bun 1.3.14's own bundler**, using the exact production settings
+from `scripts/build.ts` (`format: 'cjs'`, `target: 'node'`, `minify: true`, `sourcemap: 'none'`):
 
-| Entry point exercised                        | Minified bundle |
-| -------------------------------------------- | --------------- |
-| `PDFDocument.load` + `save` only             | 500.2 KB        |
-| plus `pushOperators`                         | 500.3 KB        |
-| plus `drawSvgPath`                           | 500.3 KB        |
+| Entry point exercised                     | Bundled   | `require()` | Reviewer flags |
+| ----------------------------------------- | --------- | ----------- | -------------- |
+| baseline, empty module                    | 0.6 KB    | none        | none           |
+| `PDFDocument.load` + `save`               | 505.3 KB  | none        | none           |
+| `create` + `embedJpg` + `drawImage`/`drawLine` | 505.5 KB | none     | none           |
 
 Tree-shaking buys nothing. pdf-lib's module graph eagerly pulls the 14 standard-font AFM tables
 (about 180 KB), UPNG and pako, none of which a stroke overlay uses. Obsidian ships a single
 `main.js`, so a lazy `import()` cannot defer the download cost either.
 
-Against a current bundle of roughly 129 KB this is about a 5x increase, and it is a **deliberate,
-documented exception** to the "keep the plugin small, avoid large dependencies" guidance in
-`AGENTS.md`. Accepted because correctness on arbitrary user PDFs (encrypted, linearized,
-hybrid-reference, object streams) matters more than the bytes, and a hand-rolled reader would fail
-on exactly the files the maintainer cannot reproduce.
+The current production bundle is **145,385 bytes** (measured, not estimated), so pdf-lib takes it to
+roughly 650 KB, about 4.5x. This is a **deliberate, documented exception** to the "keep the plugin
+small, avoid large dependencies" guidance in `AGENTS.md`. Accepted because correctness on arbitrary
+user PDFs (encrypted, linearized, hybrid-reference, object streams) matters more than the bytes, and
+a hand-rolled reader would fail on exactly the files the maintainer cannot reproduce.
 
-Checked and clean: the bundled output contains **zero `require(...)` calls**, so no Node builtins,
-no conflict with the mobile business rule, and no worker or blob-URL machinery for the catalog
-reviewer to flag. pdf-lib publishes `main: cjs/index.js` and `module: es/index.js` with no `browser`
-field, and since neither entry touches Node builtins the `fflate/browser` precedent does not bite.
+Clean on every rule that applies: **zero `require(...)` calls** in the bundled output, so no Node
+builtins and no conflict with the mobile business rule, and no `new Worker`, `createObjectURL` or
+`createElement("script")` for the catalog reviewer to flag. pdf-lib publishes `main: cjs/index.js`
+and `module: es/index.js` with no `browser` field, and since neither entry touches Node builtins the
+`fflate/browser` precedent does not apply.
 
 **Validated against real files.** Surveyed the 48 PDFs in the user's
 `remarkable/Daily Journal` vault folder (read-only). pdf-lib loaded **48 of 48 with zero failures**,
@@ -66,12 +67,9 @@ reMarkable-to-PDF tool is already built on this same library. Page geometry in t
 `rot=0` with the crop box equal to the media box, so it exercises neither the `/Rotate` nor the
 `/CropBox` branch of the phase 3 transform. Those still need material from elsewhere.
 
-**Still to verify before merging**, because the measurement above used esbuild (Bun is not
-installed on the current machine):
-
-- Same result under Bun's bundler, and under the reviewer's pinned Bun 1.2.14.
-- `dist/main.js` audit for `require(...)`, `createElement("script")`, `new Worker` and
-  `createObjectURL`, per the existing business rule.
+**Still to verify before merging**: the same build under the reviewer's older Bun (observed 1.2.14),
+and a `dist/main.js` audit on the real bundle once pdf-lib is actually wired in rather than probed
+in isolation.
 
 Taking pdf-lib also **removes** the hand-rolled PDF writer from an earlier draft of this plan. One
 PDF path, not two.
@@ -468,8 +466,14 @@ they were worth surveying.
 annotations on known parts of the page, ideally including one rotated or non-A4 page. Everything
 else in phase 3 can be built without it, but the transform cannot be confirmed correct without one.
 
-## Tooling gap
+## Baseline
 
-Bun is not installed on the current machine (`bun` is not on `PATH`), so `bun run tsc`,
-`bun run lint`, `bun test` and `bun run build` cannot run here. The definition of done in
-`AGENTS.md` requires all four. Install Bun before implementation starts.
+Bun 1.3.14 installed (matching the `packageManager` pin). Verified clean before any PDF work, the
+first local verification this repo has had:
+
+| Check          | Result                                  |
+| -------------- | --------------------------------------- |
+| `bun run tsc`  | clean                                   |
+| `bun run lint` | 0 warnings                              |
+| `bun test`     | 238 pass, 0 fail, 27 files              |
+| `bun run build`| succeeds, `dist/main.js` 145,385 bytes  |

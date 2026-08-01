@@ -1,11 +1,6 @@
 import type { Stroke } from '../../domain/notebook'
-import {
-    STROKE_COLOR_MAP,
-    PEN_WIDTH_MULTIPLIER,
-    HIGHLIGHTER_PEN_TYPES,
-    ERASER_PEN_TYPES,
-    PAGE_WIDTH
-} from '../../domain/rm-constants'
+import { HIGHLIGHTER_PEN_TYPES, ERASER_PEN_TYPES, PAGE_WIDTH } from '../../domain/rm-constants'
+import { segmentStyle, strokeColour, strokeOpacity } from '../../domain/pen-model'
 
 /**
  * The reMarkable coordinate system has its x-origin at the center of the page,
@@ -34,13 +29,16 @@ export function renderStroke(
         return
     }
 
-    const colorHex = STROKE_COLOR_MAP[stroke.color] ?? '#000000'
-    const widthMultiplier = PEN_WIDTH_MULTIPLIER[stroke.penType] ?? 1.0
+    const colorHex = strokeColour(stroke)
+    const opacity = strokeOpacity(stroke)
     const isHighlighter = HIGHLIGHTER_PEN_TYPES.has(stroke.penType)
+    const translucent = opacity < 1
 
-    if (isHighlighter) {
+    if (translucent) {
         ctx.save()
-        ctx.globalAlpha = 0.3
+        ctx.globalAlpha = opacity
+        // Multiply keeps highlighted text readable underneath. Other
+        // translucent pens (the shading marker) layer the same way.
         ctx.globalCompositeOperation = 'multiply'
     }
 
@@ -52,7 +50,7 @@ export function renderStroke(
     // Draw stroke as a series of line segments with variable width
     if (points.length === 1) {
         const point = points[0]!
-        const radius = (point.width * widthMultiplier * stroke.thickness) / 2
+        const radius = segmentStyle(stroke, point, point).width / 2
         ctx.beginPath()
         ctx.arc(point.x + xOffset, point.y, Math.max(radius, 0.5), 0, Math.PI * 2)
         ctx.fill()
@@ -61,19 +59,16 @@ export function renderStroke(
             const p1 = points[i]!
             const p2 = points[i + 1]!
 
-            const width1 = p1.width * widthMultiplier * stroke.thickness
-            const width2 = p2.width * widthMultiplier * stroke.thickness
-            const avgWidth = (width1 + width2) / 2
-
             ctx.beginPath()
-            ctx.lineWidth = Math.max(avgWidth, 0.5)
+            ctx.lineWidth = Math.max(segmentStyle(stroke, p1, p2).width, 0.5)
             ctx.moveTo(p1.x + xOffset, p1.y)
             ctx.lineTo(p2.x + xOffset, p2.y)
             ctx.stroke()
         }
     }
 
-    if (isHighlighter) {
+    if (translucent) {
         ctx.restore()
     }
+    void isHighlighter
 }

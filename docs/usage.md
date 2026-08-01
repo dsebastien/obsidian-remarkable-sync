@@ -97,4 +97,8 @@ Each page with content produces an image file:
 
 The file extension matches your configured image format (`.jpeg` by default, or `.png`/`.webp`).
 
-Blank pages (no strokes) are skipped entirely.
+If **Save as PDF** is enabled, the notebook also produces:
+
+- `{NotebookName}.pdf` — every page with content, in one file, beside the image folder
+
+Blank pages (no strokes) are skipped entirely, so PDF page numbers do not necessarily match the page numbers on your device. Pages that fail to render are skipped too, and the plugin reports how many.

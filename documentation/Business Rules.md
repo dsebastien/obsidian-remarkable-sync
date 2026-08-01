@@ -60,6 +60,13 @@ When a new business rule is mentioned:
 
 - reMarkable folder hierarchy is preserved under the target folder
 - Images are saved when `saveImages` is enabled
+- PDF export is opt-in via `savePdf` (default false) and is independent of `saveImages`: either, both, or neither may be enabled
+- A notebook PDF is written to `<targetFolder>/<folderPath>/<notebookName>.pdf`, beside the per-notebook image folder rather than inside it, so both outputs can be produced without colliding
+- PDF page size is derived from the rendered image at 226 DPI, so a page whose canvas grew for scrolled content becomes a taller PDF page rather than a cropped one
+- A PDF has no WebP filter: when `imageFormat` is `webp`, pages are embedded as JPEG at the configured quality while loose image files stay WebP. This is the only case where a page is rendered twice
+- Generated PDFs carry no creation date, modification date, producer or file ID (`updateMetadata: false`), so re-processing an unchanged notebook produces byte-identical output
+- Vault writes are skipped entirely when the new bytes match the existing file, for images as well as PDFs. Without this, deterministic output still bumped the mtime on every re-sync and read as a change to Obsidian Sync, Git or Dropbox — a device bumps `lastModified` for benign reasons such as opening a notebook, and automatic sync repeats that on a timer
+- Blank pages and pages that failed to render are absent from the PDF, so PDF page numbers do not necessarily match reMarkable page numbers
 
 ## rmfakecloud
 

@@ -339,7 +339,41 @@ A throwaway overlay was run against the real `resume` fixture. **What it proved 
   582 segments for 18 strokes.
 - The un-annotated pages 1 and 2 pass through untouched, which is the whole point of phase 2.
 
-**What it did not solve: where the ink goes.** Both candidate fit rules put the bounding box off the
+### Transform SOLVED (one sample, needs a second page size)
+
+The user supplied the missing landmark: the arrow in `resume` should point at "Senior IT Engineer".
+`PyMuPDF` puts that text at x 215.9..295.6, PDF y 565.1..574.9 on page 0. The leftmost ink point
+(the arrow tip) is at rm (6.2, 835.5). Anchoring one against the other and solving for the offsets
+showed the working scale is near **0.318**, not the ~0.42-0.45 both fit-to-screen models predicted.
+
+Reading the solved offsets back gave a clean formula, which then reproduces the correct placement
+with **no anchoring at all**:
+
+```
+scale  = cropBox.width / 1872          // 595.0 / 1872 = 0.3178
+pdfX   = cropBox.x + cropBox.width / 2 + rmX * scale      // x IS centred
+pdfY   = cropBox.y + cropBox.height    - rmY * scale      // y measured down from the page top
+```
+
+So the original structure in this plan was right (centred x, y flipped from the top). Only the
+**scale** was wrong, and the surprise is the denominator: the page width divides by the screen
+**height** (1872), not the screen width. Equivalently `(width / 1404) * (1404 / 1872)`, i.e. the
+naive width-fit scaled by the screen aspect ratio.
+
+Verified visually: the arrow lands on "Senior IT Engineer", the whole annotation sits on the page,
+and pages 1 and 2 pass through untouched. Output at
+`~/Desktop/remarkable-test-fixtures/poc-annotated-SOLVED.pdf`.
+
+**Confidence, honestly stated:** one document, one page size (A4, portrait, `rot=0`, crop equal to
+media). The `/1872` term is the part most likely to be a coincidence of this page size, so it needs
+a second sample with a **different** page size (US Letter or landscape) before being trusted.
+`getting-started` cannot serve: its only source-backed page carries no ink, all eight annotation
+layers are on device-inserted pages. `/Rotate` and a crop box offset from the media box remain
+entirely untested.
+
+### Superseded: the two fit rules that failed
+
+Both candidate fit rules put the bounding box off the
 page:
 
 | Rule       | Scale  | Resulting x span      | Verdict   |

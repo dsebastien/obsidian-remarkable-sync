@@ -12,13 +12,20 @@ Lightweight representation of a notebook for panel display. Retrieved from cloud
 
 Full notebook with parsed page data. Created after downloading and parsing a document ZIP.
 
-- `id`, `visibleName`, `parent`, `lastModified`, `pageCount`, `pages: Page[]`
+- `id`, `visibleName`, `parent`, `lastModified`, `pageCount`, `pages: Page[]`, `sourceDocument?`
 
 ### Page
 
 A single page of a notebook containing stroke data.
 
 - `pageId`, `pageIndex`, `strokes: Stroke[]`
+- `sourcePageIndex?`: index of the source-document page this layer annotates. Absent for notebook pages and for pages inserted on the device
+
+### SourceDocument
+
+The original file a document was imported from, retained so annotations can be drawn back onto it.
+
+- `kind: 'pdf' | 'epub'`, `data: ArrayBuffer`
 
 ### Stroke
 

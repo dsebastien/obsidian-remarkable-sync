@@ -48,6 +48,23 @@ Pages are sized from the rendered image at 226 DPI, which matches the physical s
 
 A PDF cannot store WebP. When the image format is WebP, pages are embedded in the PDF as JPEG at the configured quality, while the loose image files stay WebP.
 
+### Annotated PDFs and EPUBs
+
+If the document came from a PDF you imported onto your reMarkable, **Save as PDF** does something different and better: instead of assembling page images, it writes the original document through unchanged and adds an annotated copy beside it.
+
+```
+reMarkable/
+  Papers/
+    Some paper.pdf               <- the original, untouched
+    Some paper (annotated).pdf   <- the same document with your ink drawn on it
+```
+
+The annotated copy keeps the original's text layer, so it stays selectable and searchable, and every page survives even if you only annotated one. Your handwriting is drawn as vector paths, not flattened into an image, so it stays sharp at any zoom.
+
+Pages you inserted on the device have no counterpart in the original and are left out of the annotated copy. An encrypted PDF cannot be annotated, and in that case the original is still written to your vault.
+
+EPUBs are written through unchanged but not annotated, because the device lays them out itself and there are no fixed pages to draw on.
+
 Generated PDFs deliberately carry no creation or modification date. Re-syncing an unchanged notebook produces exactly the same bytes, and the plugin skips the write entirely, so nothing churns if you sync your vault with Obsidian Sync, Git or Dropbox.
 
 ## Sorting the panel

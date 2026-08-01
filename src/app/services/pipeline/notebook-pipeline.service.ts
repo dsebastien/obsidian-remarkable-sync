@@ -9,7 +9,11 @@ import {
     isPageRenderingSupported,
     renderPage
 } from '../renderer/page-renderer.service'
-import { writeDocumentPdf, writePageImage } from '../output/markdown-writer.service'
+import {
+    writeDocumentPdf,
+    writeMarkdownNote,
+    writePageImage
+} from '../output/markdown-writer.service'
 import { buildPdf } from '../output/pdf-writer.service'
 import { annotateSourcePdf } from '../output/pdf-annotator.service'
 import { renderAndWritePages } from '../output/document-output.service'
@@ -41,6 +45,7 @@ export interface PipelineDeps {
     renderPage: typeof renderPage
     writePageImage: typeof writePageImage
     writeDocumentPdf: typeof writeDocumentPdf
+    writeMarkdownNote: typeof writeMarkdownNote
     buildPdf: typeof buildPdf
     annotateSourcePdf: typeof annotateSourcePdf
 }
@@ -52,6 +57,7 @@ export function createNotebookPipelineService(
         renderPage,
         writePageImage,
         writeDocumentPdf,
+        writeMarkdownNote,
         buildPdf,
         annotateSourcePdf
     }

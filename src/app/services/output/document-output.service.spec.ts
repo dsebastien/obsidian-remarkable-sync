@@ -20,6 +20,7 @@ interface Harness {
     pdfWrites: { name: string }[]
     pdfPages: PdfPageImage[][]
     annotateCalls: { bytes: number; layers: number }[]
+    notesWritten: { name: string; contents: string }[]
 }
 
 function createHarness(
@@ -30,6 +31,7 @@ function createHarness(
     const pdfWrites: Harness['pdfWrites'] = []
     const pdfPages: PdfPageImage[][] = []
     const annotateCalls: Harness['annotateCalls'] = []
+    const notesWritten: Harness['notesWritten'] = []
 
     const deps: DocumentOutputDeps = {
         renderPage: (p, format): Promise<ArrayBuffer | null> => {
@@ -49,6 +51,10 @@ function createHarness(
             pdfWrites.push({ name })
             return Promise.resolve(`${name}.pdf`)
         },
+        writeMarkdownNote: (_vault, _target, _folder, name, contents): Promise<string> => {
+            notesWritten.push({ name, contents })
+            return Promise.resolve(`${name}.md`)
+        },
         annotateSourcePdf: (data, pages) => {
             annotateCalls.push({ bytes: data.byteLength, layers: pages.length })
             if (options.annotateFails) return Promise.resolve(null)
@@ -56,12 +62,13 @@ function createHarness(
             return Promise.resolve({
                 data: new ArrayBuffer(32),
                 annotatedPages: annotatable.length,
-                skippedPages: pages.length - annotatable.length
+                skippedPages: pages.length - annotatable.length,
+                highlights: pages.reduce((n, p) => n + (p.highlights?.length ?? 0), 0)
             })
         }
     }
 
-    return { deps, renderCalls, imageWrites, pdfWrites, pdfPages, annotateCalls }
+    return { deps, renderCalls, imageWrites, pdfWrites, pdfPages, annotateCalls, notesWritten }
 }
 
 async function run(

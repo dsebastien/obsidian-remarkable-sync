@@ -127,6 +127,25 @@ export const HIGHLIGHTER_PEN_TYPES = new Set([PenType.Highlighter, PenType.Highl
  * produced a highlighter roughly ten times too wide (about 47pt against an 11pt
  * text line). The device draws them at a fixed nib size instead.
  */
+/**
+ * Tools the firmware knows about, from xochitl 3.27.1.0 and the per-tool colour
+ * keys in a document's `.content` extraMetadata.
+ *
+ * Drawing tools with a known `.rm` tool id:
+ *   Ballpoint(2) Ballpointv2(15) Marker(3) Markerv2(16) Fineliner(4)
+ *   Finelinerv2(17) SharpPencil(7) SharpPencilv2(13) Pencil(1) Pencilv2(14)
+ *   Paintbrush(0) Paintbrushv2(12) Highlighter(5) Highlighterv2(18)
+ *   Calligraphy(21) Shader(23) Eraser(6) EraseArea(8)
+ *
+ * Present in the firmware with colour settings, but no tool id has been
+ * observed in any `.rm` file, so they are deliberately not modelled:
+ *   SolidPen, ReservedPen, ShadingMarker (the UI name for Shader), plus the
+ *   non-drawing SelectionTool, ZoomTool, ClearPage and EraseSection.
+ *
+ * Unmapped ids in the 0-24 range: 9, 10, 11, 19, 20, 22, 24. An unknown id
+ * falls back to a plain pen response rather than anything exotic, so a future
+ * tool degrades instead of rendering wrongly.
+ */
 export const FIXED_WIDTH_PENS: Record<number, number> = {
     [PenType.Highlighter]: 15,
     [PenType.HighlighterV2]: 15,

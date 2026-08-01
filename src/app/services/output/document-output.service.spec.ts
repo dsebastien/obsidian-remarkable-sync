@@ -3,7 +3,7 @@ import type { Vault } from 'obsidian'
 import { renderAndWritePages, resolvePdfImageFormat } from './document-output.service'
 import type { DocumentOutputDeps } from './document-output.service'
 import type { PdfPageImage } from './pdf-writer.service'
-import type { Page } from '../../domain/notebook'
+import type { Page, SourceDocument } from '../../domain/notebook'
 import { DEFAULT_SETTINGS } from '../../types/plugin-settings.intf'
 import type { PluginSettings } from '../../types/plugin-settings.intf'
 
@@ -19,15 +19,17 @@ interface Harness {
     imageWrites: { pageIndex: number; format: string }[]
     pdfWrites: { name: string }[]
     pdfPages: PdfPageImage[][]
+    annotateCalls: { bytes: number; layers: number }[]
 }
 
 function createHarness(
-    options: { failingPages?: number[]; pdfBuildFails?: boolean } = {}
+    options: { failingPages?: number[]; pdfBuildFails?: boolean; annotateFails?: boolean } = {}
 ): Harness {
     const renderCalls: Harness['renderCalls'] = []
     const imageWrites: Harness['imageWrites'] = []
     const pdfWrites: Harness['pdfWrites'] = []
     const pdfPages: PdfPageImage[][] = []
+    const annotateCalls: Harness['annotateCalls'] = []
 
     const deps: DocumentOutputDeps = {
         renderPage: (p, format): Promise<ArrayBuffer | null> => {
@@ -46,10 +48,20 @@ function createHarness(
         writeDocumentPdf: (_vault, _target, _folder, name): Promise<string> => {
             pdfWrites.push({ name })
             return Promise.resolve(`${name}.pdf`)
+        },
+        annotateSourcePdf: (data, pages) => {
+            annotateCalls.push({ bytes: data.byteLength, layers: pages.length })
+            if (options.annotateFails) return Promise.resolve(null)
+            const annotatable = pages.filter((p) => p.sourcePageIndex !== undefined)
+            return Promise.resolve({
+                data: new ArrayBuffer(32),
+                annotatedPages: annotatable.length,
+                skippedPages: pages.length - annotatable.length
+            })
         }
     }
 
-    return { deps, renderCalls, imageWrites, pdfWrites, pdfPages }
+    return { deps, renderCalls, imageWrites, pdfWrites, pdfPages, annotateCalls }
 }
 
 async function run(
@@ -212,5 +224,122 @@ describe('renderAndWritePages progress', () => {
             [2, 3, 1],
             [3, 3, 1]
         ])
+    })
+})
+
+const sourcePdf = (): SourceDocument => ({ kind: 'pdf', data: new ArrayBuffer(2048) })
+
+const sourcePage = (pageIndex: number, sourcePageIndex?: number): Page => ({
+    pageId: `sp${pageIndex}`,
+    pageIndex,
+    strokes: [],
+    ...(sourcePageIndex === undefined ? {} : { sourcePageIndex })
+})
+
+async function runSourceBacked(
+    h: Harness,
+    settings: Partial<PluginSettings>,
+    pages: Page[],
+    source: SourceDocument | null = sourcePdf()
+): Promise<Awaited<ReturnType<typeof renderAndWritePages>>> {
+    return renderAndWritePages(
+        {
+            pages,
+            notebookName: 'Book',
+            folderPath: 'Work',
+            settings: { ...DEFAULT_SETTINGS, ...settings },
+            vault: {} as Vault,
+            onPageProgress: () => {},
+            ...(source ? { sourceDocument: source } : {})
+        },
+        h.deps
+    )
+}
+
+describe('source-backed documents', () => {
+    test('writes the source through and an annotated copy beside it', async () => {
+        const h = createHarness()
+        const result = await runSourceBacked(h, { savePdf: true, saveImages: false }, [
+            sourcePage(0, 0)
+        ])
+
+        expect(h.pdfWrites.map((w) => w.name)).toEqual(['Book', 'Book (annotated)'])
+        expect(result.sourceWritten).toBe(true)
+        expect(result.annotatedWritten).toBe(true)
+    })
+
+    /**
+     * The bug this whole phase exists to fix: assembling page images into a PDF
+     * would discard the original document and leave ink on blank pages.
+     */
+    test('never assembles page images into a PDF when a source exists', async () => {
+        const h = createHarness()
+        await runSourceBacked(h, { savePdf: true, saveImages: false }, [sourcePage(0, 0)])
+
+        expect(h.pdfPages).toHaveLength(0)
+        expect(h.annotateCalls).toHaveLength(1)
+    })
+
+    test('writes nothing extra when savePdf is off', async () => {
+        const h = createHarness()
+        const result = await runSourceBacked(h, { savePdf: false, saveImages: true }, [
+            sourcePage(0, 0)
+        ])
+
+        expect(h.pdfWrites).toHaveLength(0)
+        expect(result.sourceWritten).toBe(false)
+        expect(result.annotatedWritten).toBe(false)
+    })
+
+    test('still writes the source when no layer maps to a source page', async () => {
+        const h = createHarness()
+        // Every layer sits on a device-inserted page
+        const result = await runSourceBacked(h, { savePdf: true, saveImages: false }, [
+            sourcePage(0),
+            sourcePage(1)
+        ])
+
+        expect(h.pdfWrites.map((w) => w.name)).toEqual(['Book'])
+        expect(result.sourceWritten).toBe(true)
+        expect(result.annotatedWritten).toBe(false)
+    })
+
+    test('a failed annotation still leaves the source in the vault', async () => {
+        const h = createHarness({ annotateFails: true })
+        const result = await runSourceBacked(h, { savePdf: true, saveImages: false }, [
+            sourcePage(0, 0)
+        ])
+
+        expect(h.pdfWrites.map((w) => w.name)).toEqual(['Book'])
+        expect(result.sourceWritten).toBe(true)
+        expect(result.annotatedWritten).toBe(false)
+    })
+
+    test('an EPUB source is written through but never annotated', async () => {
+        const h = createHarness()
+        const result = await runSourceBacked(
+            h,
+            { savePdf: true, saveImages: false },
+            [sourcePage(0, 0)],
+            { kind: 'epub', data: new ArrayBuffer(64) }
+        )
+
+        expect(h.pdfWrites.map((w) => w.name)).toEqual(['Book'])
+        expect(h.annotateCalls).toHaveLength(0)
+        expect(result.annotatedWritten).toBe(false)
+    })
+
+    test('a notebook is unaffected and still assembles its images', async () => {
+        const h = createHarness()
+        const result = await runSourceBacked(
+            h,
+            { savePdf: true, saveImages: false },
+            [page(0), page(1)],
+            null
+        )
+
+        expect(h.pdfPages).toHaveLength(1)
+        expect(result.pdfWritten).toBe(true)
+        expect(result.sourceWritten).toBe(false)
     })
 })

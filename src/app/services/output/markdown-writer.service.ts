@@ -159,6 +159,14 @@ export async function writePageImage(
 }
 
 /**
+ * Suffix distinguishing the annotated copy from the source document.
+ *
+ * The source is written through unmodified under the plain name, so the two
+ * never collide and the original is always recoverable.
+ */
+export const ANNOTATED_SUFFIX = ' (annotated)'
+
+/**
  * Write a whole-notebook PDF to the vault
  */
 export async function writeDocumentPdf(

@@ -137,6 +137,7 @@ export function createRmdocImportService(plugin: RemarkableSyncPlugin): RmdocImp
                 folderPath: '', // No folder path for local imports
                 settings,
                 vault: plugin.app.vault,
+                ...(parsed.sourceDocument ? { sourceDocument: parsed.sourceDocument } : {}),
                 onPageProgress: (currentPage, total, failed) =>
                     onProgress({
                         status: 'rendering',

@@ -212,9 +212,9 @@ export async function renderAndWritePages(
         }
     }
 
-    // Text highlights are the device's own record of what was selected, so the
-    // note is written whenever they exist, independent of the PDF toggle.
-    if (hasHighlights(pages)) {
+    // Independent of the PDF toggle: the note is useful on its own, and the
+    // text is the device's own record of what was selected.
+    if (settings.saveHighlightsNote && hasHighlights(pages)) {
         await deps.writeMarkdownNote(
             vault,
             settings.targetFolder,

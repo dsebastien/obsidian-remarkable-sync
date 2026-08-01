@@ -13,6 +13,13 @@ export interface PluginSettings {
      * Independent of `saveImages`: either, both or neither may be enabled.
      */
     savePdf: boolean
+    /**
+     * Write a markdown note listing the text highlights of a document.
+     *
+     * Only ever produces a file for documents that actually contain
+     * highlights, so it is quiet on notebooks and un-highlighted PDFs.
+     */
+    saveHighlightsNote: boolean
     imageFormat: 'png' | 'jpeg' | 'webp'
     imageQuality: number
     useRmfakecloud: boolean
@@ -26,6 +33,7 @@ export const DEFAULT_SETTINGS: PluginSettings = {
     targetFolder: '',
     saveImages: true,
     savePdf: false,
+    saveHighlightsNote: false,
     imageFormat: 'jpeg',
     imageQuality: 0.85,
     useRmfakecloud: false,

@@ -54,12 +54,12 @@ Domain Types (domain/)
 
 ### UI
 
-| Component                  | Type               | Purpose                                                             |
-| -------------------------- | ------------------ | ------------------------------------------------------------------- |
-| `RemarkablePanelView`      | `ItemView`         | Sidebar panel listing notebooks with actions                        |
-| `AuthModal`                | `Modal`            | Device code entry for authentication                                |
-| `ImportConfirmModal`       | `Modal`            | Confirmation dialog before .rmdoc file import                       |
-| `RemarkableSyncSettingTab` | `PluginSettingTab` | Plugin settings with auth, cloud, sync, output, PDF, about sections |
+| Component                  | Type               | Purpose                                                            |
+| -------------------------- | ------------------ | ------------------------------------------------------------------ |
+| `RemarkablePanelView`      | `ItemView`         | Sidebar panel listing notebooks with actions                       |
+| `AuthModal`                | `Modal`            | Device code entry for authentication                               |
+| `ImportConfirmModal`       | `Modal`            | Confirmation dialog before .rmdoc file import                      |
+| `RemarkableSyncSettingTab` | `PluginSettingTab` | Plugin settings: auth, cloud, sync, output, PDF, highlights, about |
 
 ### Commands
 

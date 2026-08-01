@@ -364,12 +364,26 @@ Verified visually: the arrow lands on "Senior IT Engineer", the whole annotation
 and pages 1 and 2 pass through untouched. Output at
 `~/Desktop/remarkable-test-fixtures/poc-annotated-SOLVED.pdf`.
 
-**Confidence, honestly stated:** one document, one page size (A4, portrait, `rot=0`, crop equal to
-media). The `/1872` term is the part most likely to be a coincidence of this page size, so it needs
-a second sample with a **different** page size (US Letter or landscape) before being trusted.
-`getting-started` cannot serve: its only source-backed page carries no ink, all eight annotation
-layers are on device-inserted pages. `/Rotate` and a crop box offset from the media box remain
-entirely untested.
+**Confirmed on a second page size.** The `/1872` denominator was the suspect term, so it was tested
+against a US Letter document (612 x 792 pt, aspect 0.7727 against A4's 0.7067). The formula holds:
+
+| Document   | Page size      | Scale  | Ink x span      | Ink y span (from top) |
+| ---------- | -------------- | ------ | --------------- | --------------------- |
+| resume     | A4 595x841.9   | 0.3178 | 299..562 of 595 | 164..274 of 841.9     |
+| journal p0 | Letter 612x792 | 0.3269 | 51..611 of 612  | 85..794 of 792        |
+| journal p1 | Letter 612x792 | 0.3269 | 39..589 of 612  | 63..581 of 792        |
+
+Every span lands on the page. The journal case is the more convincing one: ink written across a full
+page maps to x 51..611 of 612, filling the width almost exactly, which a wrong scale would either
+squeeze into the middle or throw well past the edge. The one overshoot is 2 pt on a 792 pt page
+(0.25%), for ink drawn at the very bottom edge.
+
+So the rule generalises: **the page width always spans 1872 rm units**, whatever the page's real
+dimensions. That is why the denominator is the screen height rather than its width.
+
+**Still untested:** `/Rotate` non-zero, and a crop box offset from the media box. Every sample so far
+is `rot=0` with the two boxes equal. `getting-started` cannot help: its only source-backed page
+carries no ink, all eight annotation layers sit on device-inserted pages.
 
 ### Superseded: the two fit rules that failed
 
@@ -484,6 +498,23 @@ blend mode and accept a slightly different look over highlighted text.
   phones. Add a source-size guard that warns above a threshold rather than silently failing.
 
 ---
+
+## Text highlights: not present, so not exportable
+
+reMarkable stores **text** highlights (select text, then highlight) separately from highlighter
+**strokes**, as `<docId>.highlights/<pageUuid>.json` entries in the document index. They carry the
+selected text and its rectangles, which would make them extractable as real text rather than ink.
+
+A scan of the whole account found **zero documents with any `.highlights` entry**. The raw index for
+`resume` is exactly five files: `.content`, `.metadata`, `.pagedata`, `.pdf`, and one `.rm`.
+
+So there is nothing to export today. Either no text highlight has ever been made on this account, or
+the device is not syncing them. One experiment distinguishes the two: highlight text in a PDF on the
+device, sync, and re-scan for a `.highlights` entry. If they appear, they are a far better source
+than ink for any "highlights to markdown" feature, because the text comes out as text.
+
+Highlighter _strokes_ are unaffected and do sync: the real `Notebook` fixture contains one, and it
+is what exposed the unmapped-colour-9 bug.
 
 ## Decisions, all settled
 

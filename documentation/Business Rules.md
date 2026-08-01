@@ -87,7 +87,8 @@ When a new business rule is mentioned:
 - Source PDFs above 80 MB are refused rather than loaded, since the source bytes, the parsed object graph and the output are all live at once
 - Text highlights (made by selecting text on the device) are `GlyphRange` items inside `SceneGlyphItemBlock` (0x03) in the `.rm` file, **not** a separate `.highlights` file. They carry the selected text, its colour and its rectangles
 - Text highlights are embedded in the annotated PDF as real `/Highlight` annotations with `QuadPoints`, never as painted ink, so a reader can select, display and extract them. The selected text goes in `/Contents`
-- A markdown note listing a document's text highlights is written whenever any exist, independent of the PDF toggle, since the text is the device's own record of what was selected
+- The markdown note listing a document's text highlights is opt-in via `saveHighlightsNote` (default false) and independent of `savePdf`. It only produces a file for documents that actually contain highlights
+- The toggle governs the markdown note only. Text highlights are always embedded in the annotated PDF, since that is part of reproducing the document faithfully rather than an extra output
 - The device strips the source PDF's line breaks, so highlighted text arrives with joins like "DeviceTrust" and "Backupservers". Only case-transition joins with at least three alphanumeric characters on each side are repaired, bounded to at most one repair per line break (rectangle count minus one). Ambiguous lowercase joins are left intact: without a dictionary "Backupservers" and "Backups ervers" are equally consistent, and corrupting real words is worse than leaving them joined
 - EPUB sources are written through but never annotated: the device renders them to its own layout, so there is no page-for-page original to draw on
 

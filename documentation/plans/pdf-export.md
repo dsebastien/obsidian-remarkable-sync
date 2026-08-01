@@ -59,6 +59,13 @@ no conflict with the mobile business rule, and no worker or blob-URL machinery f
 reviewer to flag. pdf-lib publishes `main: cjs/index.js` and `module: es/index.js` with no `browser`
 field, and since neither entry touches Node builtins the `fflate/browser` precedent does not bite.
 
+**Validated against real files.** Surveyed the 48 PDFs in the user's
+`remarkable/Daily Journal` vault folder (read-only). pdf-lib loaded **48 of 48 with zero failures**,
+and every one of them reports `pdf-lib` as its producer, meaning the user's existing
+reMarkable-to-PDF tool is already built on this same library. Page geometry in that corpus is all
+`rot=0` with the crop box equal to the media box, so it exercises neither the `/Rotate` nor the
+`/CropBox` branch of the phase 3 transform. Those still need material from elsewhere.
+
 **Still to verify before merging**, because the measurement above used esbuild (Bun is not
 installed on the current machine):
 
@@ -297,9 +304,27 @@ Reuse the existing pen constants verbatim (`STROKE_COLOR_MAP`, `PEN_WIDTH_MULTIP
 `HIGHLIGHTER_PEN_TYPES`, `ERASER_PEN_TYPES`) so vector output matches the raster renderer.
 
 `stroke-renderer.ts` draws each segment as its own line with the average of the two endpoint widths,
-round cap and join. The PDF equivalent is per-segment `m`/`l`/`S` with `w` set per segment, plus
-`J 1` and `j 1`. Eraser strokes are already skipped by the renderer and are skipped here too, which
-preserves parity.
+round cap and join. Eraser strokes are already skipped by the renderer and are skipped here too,
+which preserves parity.
+
+**A working reference encoding already exists.** The user's existing tool writes vector ink into
+pdf-lib documents, and its output is readable in the vault. Decompressing a page content stream from
+`remarkable/Daily Journal/2026-01-15.pdf` shows the shape to copy:
+
+```
+0.0 0.0 349.136 1651.4275 re W n      clip to the page
+1 0 0 -1 0 1651.42747 cm              the y-flip, exactly as planned above
+0 0 0 RG  /a0 gs  1 J  0 j            colour, ExtGState, round cap, miter join
+0.60075 w  q 1 0 0 1 0 0 cm           width for this run
+47.711 476.762 m  47.703 476.805 l …  a run of points at that width
+S Q
+```
+
+Operator counts on that page: 5057 `m`, 22567 `l`, 5013 `w`, 5064 `q`/`Q`. So it emits **one
+subpath per width run** at roughly 4.5 points each, not one path per segment. Worth copying: the
+naive per-segment approach the raster renderer uses would roughly quadruple the operator count for
+identical output. Note it uses round cap with **miter** join (`1 J 0 j`), and `/a0 gs` confirms
+ExtGState is the right mechanism for the highlighter alpha.
 
 **Highlighter** is the awkward case. The canvas path uses `globalAlpha = 0.3` with
 `globalCompositeOperation = 'multiply'`. The PDF equivalent is an ExtGState resource carrying
@@ -433,9 +458,15 @@ document. Nothing in the repo exercises a genuine reMarkable export, which alrea
 import (see `mobile-support.md`) and is now the **single largest risk in this plan**, because the
 phase 3 coordinate mapping cannot be derived confidently from first principles.
 
-**Needed from the user**: a real `.rmdoc` export of a PDF-backed document with a few annotations on
-known parts of the page, ideally including one rotated or non-A4 page. Everything else in phase 3
-can be built without it, but the transform cannot be confirmed correct without one.
+**Checked and ruled out**: `remarkable/Daily Journal` in the user's vault holds 48 PDFs, but they
+are *outputs* of a separate reMarkable-to-PDF tool, not raw device exports. They carry no `.rm`
+stroke layers and no source-PDF-plus-annotation pairing, so they cannot validate the transform. They
+did validate the dependency (48/48 load) and supplied the reference encoding above, which is why
+they were worth surveying.
+
+**Still needed from the user**: a real `.rmdoc` export of a PDF-backed document with a few
+annotations on known parts of the page, ideally including one rotated or non-A4 page. Everything
+else in phase 3 can be built without it, but the transform cannot be confirmed correct without one.
 
 ## Tooling gap
 

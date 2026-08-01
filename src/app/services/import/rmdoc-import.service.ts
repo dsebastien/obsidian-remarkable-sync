@@ -6,10 +6,9 @@ import { pageHasContent } from '../parser/rm-file-parser'
 import { parseDocument } from '../parser/document-parser.service'
 import {
     PAGE_RENDERING_UNSUPPORTED_MESSAGE,
-    isPageRenderingSupported,
-    renderPage
+    isPageRenderingSupported
 } from '../renderer/page-renderer.service'
-import { writePageImage } from '../output/markdown-writer.service'
+import { renderAndWritePages } from '../output/document-output.service'
 import type { ProgressCallback } from '../pipeline/notebook-pipeline.service'
 
 export interface RmdocImportService {
@@ -131,35 +130,30 @@ export function createRmdocImportService(plugin: RemarkableSyncPlugin): RmdocImp
                 return true
             }
 
-            const totalPages = contentPages.length
+            // Step 3: Render each page and write the enabled outputs
+            const { totalPages, failedPages } = await renderAndWritePages({
+                pages: contentPages,
+                notebookName: displayName,
+                folderPath: '', // No folder path for local imports
+                settings,
+                vault: plugin.app.vault,
+                onPageProgress: (currentPage, total, failed) =>
+                    onProgress({
+                        status: 'rendering',
+                        currentPage,
+                        totalPages: total,
+                        failedPages: failed
+                    })
+            })
 
-            // Step 3: Render each page and write images
-            for (let i = 0; i < contentPages.length; i++) {
-                const page = contentPages[i]!
-                const pageIndex = page.pageIndex
-
-                onProgress({ status: 'rendering', currentPage: i + 1, totalPages })
-                const imageData = await renderPage(
-                    page,
-                    settings.imageFormat,
-                    settings.imageQuality
+            onProgress({ status: 'done', currentPage: totalPages, totalPages, failedPages })
+            if (failedPages > 0) {
+                new Notice(
+                    `${displayName}: Imported ${totalPages - failedPages}/${totalPages} pages — ${failedPages} page${failedPages === 1 ? '' : 's'} failed to render`
                 )
-
-                if (imageData && settings.saveImages) {
-                    await writePageImage(
-                        plugin.app.vault,
-                        settings.targetFolder,
-                        '', // No folder path for local imports
-                        displayName,
-                        pageIndex,
-                        imageData,
-                        settings.imageFormat
-                    )
-                }
+            } else {
+                new Notice(`${displayName}: Imported ${totalPages} pages`)
             }
-
-            onProgress({ status: 'done', currentPage: totalPages, totalPages })
-            new Notice(`${displayName}: Imported ${totalPages} pages`)
             log(`Imported ${displayName} (${totalPages} pages) from .rmdoc file`, 'info')
 
             return true

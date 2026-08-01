@@ -116,10 +116,41 @@ pdf-lib's embedded image exposes `.width` and `.height`, so **no renderer change
 `renderPage()`'s existing `ArrayBuffer` feeds straight into `embedJpg`/`embedPng`, and the same
 bytes serve the loose image file when both toggles are on, so no page renders twice.
 
-**Determinism.** pdf-lib stamps `/CreationDate`, `/ModDate` and `/Producer` by default, which would
-make every re-sync rewrite the file and churn any vault sync tool. Pin them: `setCreationDate` and
-`setModificationDate` to a fixed epoch, fixed producer string, and `save({ useObjectStreams: false })`
-for stable output.
+### Determinism and sync churn
+
+pdf-lib stamps `/CreationDate`, `/ModDate` and `/Producer` by default, so two runs of the same
+notebook produce different bytes. With automatic sync enabled that would hand a vault sync tool a
+"changed" file on every run, for no reason.
+
+`updateMetadata: false` suppresses it entirely, which is better than pinning the dates to a fixed
+value. Measured on pdf-lib 1.17.1, hashing the output of two runs a second apart:
+
+| Path                                           | Two runs               |
+| ---------------------------------------------- | ---------------------- |
+| `create()` default                             | differ                 |
+| `create({ updateMetadata: false })`            | **byte-identical**     |
+| `load()` default                               | differ                 |
+| `load(bytes, { updateMetadata: false })`       | **byte-identical**     |
+
+With it off, `create()` emits no `/CreationDate`, `/ModDate`, `/Producer` or `/ID` at all. On the
+phase 3 load path it also leaves the **source document's own** metadata untouched: a source with
+`Title`, `Author` and a 2020 creation date came back through the overlay with all three intact and
+nothing restamped. Left on, pdf-lib overwrites `/Producer` with its own string and bumps `/ModDate`.
+
+So: `updateMetadata: false` on both `create()` and `load()`, and `save({ useObjectStreams: false })`
+for stable object ordering.
+
+**Deterministic bytes are only half of it.** `writePageImage()` calls `vault.modifyBinary()`
+unconditionally whenever the file already exists, so identical content still rewrites the file,
+still bumps its mtime, and still looks like a change to Obsidian Sync, Git or Dropbox. Auto-sync
+only processes notebooks marked `needs-sync` or `never-synced`, which limits how often this fires,
+but a device can bump `lastModified` for benign reasons such as simply opening a notebook, and then
+the pipeline re-runs and rewrites byte-identical output.
+
+Add a skip-if-unchanged guard to the write path: read the existing file, compare length then bytes,
+and skip the write when they match. Apply it to `writePageImage()` as well as `writeDocumentPdf()`,
+since loose images have exactly the same problem today. The cost is one read per file per re-sync,
+which is far cheaper than a needless re-upload of a large PDF.
 
 ### Page geometry
 
@@ -311,7 +342,8 @@ hand-rolled writer. Both recorded above with their rejected alternatives.
 1. Add `pdf-lib`, then audit `dist/main.js` for `require(...)`, `createElement("script")`,
    `new Worker`, `createObjectURL`, and confirm the size under Bun and under Bun 1.2.14.
 2. `pdf-writer.service.ts` plus spec: build a PDF from a list of encoded images, deterministic bytes.
-3. `buildDocumentPath()` and `writeDocumentPdf()` in `markdown-writer.service.ts`.
+3. `buildDocumentPath()` and `writeDocumentPdf()` in `markdown-writer.service.ts`, plus the
+   skip-if-unchanged guard shared with `writePageImage()`.
 4. `savePdf: false` in `plugin-settings.intf.ts` and `DEFAULT_SETTINGS`.
 5. Extract the shared render-and-write loop, wire it into the pipeline and the `.rmdoc` import.
 6. `pdf-section.ts` with the toggle, registered in `settings-tab.ts`, plus a revised image-format
@@ -339,8 +371,12 @@ fields), `Business Rules.md`, `README.md`, `docs/configuration.md`, `docs/usage.
 
 - PDF export is opt-in via `savePdf` (default false), independent of `saveImages`. Either, both or
   neither may be enabled.
-- Exported PDFs carry pinned creation and modification dates, so re-syncing an unchanged notebook
-  produces identical bytes.
+- Generated PDFs carry no creation date, modification date, producer or file ID (`updateMetadata:
+  false`), so re-processing an unchanged notebook produces byte-identical output. On the burn-in
+  path the source document's own metadata is preserved unchanged rather than restamped.
+- Vault writes skip the write entirely when the new bytes match the existing file, so an unchanged
+  page or document never bumps its mtime. Applies to images and PDFs alike, and matters most with
+  automatic sync enabled.
 - PDF page size derives from the rendered image at 226 DPI, so scrolled pages produce taller pages
   rather than cropped ones.
 - WebP cannot be embedded in a PDF and is re-encoded to JPEG at the configured quality. Loose WebP
@@ -363,7 +399,10 @@ pdf-lib carries the format correctness, so specs target our own logic:
   interleaved.
 - **Codec matrix** (phase 1): each `imageFormat` reaches the right embed call, WebP routes through
   the JPEG fallback.
-- **Determinism** (phase 1): the same notebook produces byte-identical output twice.
+- **Determinism** (phase 1): the same notebook produces byte-identical output twice, and the same
+  holds for the burn-in path over a fixed source PDF.
+- **Skip-if-unchanged**: an identical re-write calls neither `modifyBinary` nor `createBinary`, a
+  changed one still writes, and a first write still creates.
 - **Output paths**: notebook export, source passthrough and annotated copy never collide.
 - **Toggle combinations**: all four `saveImages` x `savePdf` states call the expected writers.
 - **Round-trip** (phase 3): author a small PDF with pdf-lib inside the spec, overlay a known stroke,
@@ -379,7 +418,8 @@ Not self-verifiable. No live vault, no GUI, no device.
 - Scrolled content produces a taller page, not a cropped one.
 - All three `imageFormat` values with `savePdf` on, confirming the WebP fallback is readable.
 - Both toggles on: PDF and loose images both written, neither overwriting the other.
-- Re-sync unchanged: PDF bytes identical.
+- Re-sync an unchanged notebook with automatic sync on, then confirm the vault file's mtime did not
+  move and no sync tool reports a change.
 - **Phase 3 alignment**: ink lands exactly where it does on the device, on a portrait page, a
   landscape page, a page with `/Rotate` set, and a scanned page whose crop box differs from its
   media box.

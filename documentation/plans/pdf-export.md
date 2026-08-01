@@ -329,6 +329,53 @@ PDFDocument.load(sourceBytes, { updateMetadata: false })
   → doc.save()  →  "<name> (annotated).pdf"
 ```
 
+### Prototype result: mechanics solved, placement not
+
+A throwaway overlay was run against the real `sample document` fixture. **What it proved works:**
+
+- `PDFDocument.load` handles a real 829 KB device PDF, ink draws onto the correct source page via
+  `cPages[i].redir.value`, and all three pages survive into the output (877 KB, 3 pages).
+- Per-segment width, colour and highlighter opacity translate cleanly to pdf-lib `drawLine` calls,
+  582 segments for 18 strokes.
+- The un-annotated pages 1 and 2 pass through untouched, which is the whole point of phase 2.
+
+**What it did not solve: where the ink goes.** Both candidate fit rules put the bounding box off the
+page:
+
+| Rule       | Scale  | Resulting x span      | Verdict   |
+| ---------- | ------ | --------------------- | --------- |
+| height-fit | 0.4497 | 300.3 .. 671.1 of 595 | overflows |
+| width-fit  | 0.4238 | 300.1 .. 649.5 of 595 | overflows |
+
+The assumption that broke is **x centred on zero**. That holds for the notebook case (and is what
+`stroke-renderer.ts` documents), but the document's ink spans x `6.2 .. 830.7`, entirely positive and
+past the 702 half-width. The real notebook is stranger still: x `-53.9 .. 1114.5`, y `-164.2 .. 169.0`.
+Ink simply is not confined to the nominal 1404x1872 box, which is exactly why
+`renderPageToCanvas` grows its canvas in the first place.
+
+**The missing input is view state, and it is in `.content`:**
+
+```
+zoomMode: bestFit          customZoomScale: 1
+customZoomCenterX: 0       customZoomCenterY: 936      (= 1872 / 2)
+customZoomPageWidth: 1404  customZoomPageHeight: 1872
+cPages.pages[0].verticalScroll: 2737.06                 (doc A, page 0)
+```
+
+`verticalScroll` is the one that matters and the plugin does not read it today.
+`RemarkableDocumentContent` already types the `customZoom*` fields and equally ignores them.
+
+**Consequence for the plan:** the transform is not derivable from page geometry, so it cannot be
+written as a pure function of `(rmPoint, cropBox, rotate)` as sketched below. It needs per-page view
+state as a fourth input. Getting that wrong puts annotations in plausible but incorrect places,
+which is worse than not shipping the feature.
+
+**Cheapest way to settle it:** one purpose-made export with ink at known landmarks, for example a
+mark in each corner of page 1 and a circle around a specific known word. Two or three such samples
+pin the transform exactly and turn it back into a unit-testable pure function.
+
+Prototype output kept at `~/Desktop/remarkable-test-fixtures/poc-annotated-*.pdf` for comparison.
+
 ### Coordinate mapping
 
 This is the part that will be wrong first, and the part with no way to verify it here.

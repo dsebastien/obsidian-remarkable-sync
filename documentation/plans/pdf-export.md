@@ -533,7 +533,36 @@ What they do not give:
 strokes, `pageHasContent` false). First time the parser has been checked against a genuine device
 file rather than a synthetic fixture. It is a blank page, so it does not exercise stroke decoding.
 
-**Checked and ruled out**: `remarkable/Daily Journal` in the user's vault holds 48 PDFs, but they
+**RESOLVED.** Real documents were pulled from the user's own reMarkable cloud account by reusing the
+plugin's `sync-protocol.ts` and `cloud-urls.ts` outside Obsidian, with `requestUrl` stubbed onto
+`fetch`. Read-only, and nothing was written back to `data.json`.
+
+Fixtures now live outside the repo at `~/Desktop/remarkable-test-fixtures/` (kept out of git: two of
+them are personal). Account shape: 118 documents, 75 `notebook`, 42 `pdf`, 1 `epub`.
+
+| Fixture                 | Shape                                                          |
+| ----------------------- | -------------------------------------------------------------- |
+| `notebook-real.rmdoc`   | Handwritten notebook, 38 strokes, 918 points, `P Lines medium` |
+| `sample-document.rmdoc`          | **3-page A4 PDF, ink on source page 0** — the phase 3 fixture  |
+| `getting-started.rmdoc` | 1-page source PDF + 8 device-inserted pages                    |
+| `pdf-backed.rmdoc`      | 2 source pages + 1 inserted page, no ink                       |
+
+**Page mapping confirmed against real data**, exactly as this plan hypothesised: `cPages[i].redir.value`
+holds the source page index, and device-inserted pages have **no `redir` at all**. `getting-started`
+shows the mixed case (page 0 `redir=0`, pages 1-8 `redir=None`); `sample document` shows the clean case
+(`redir` 0, 1, 2).
+
+**Phase 3 transform inputs, measured on `sample document`:** source pages are A4, 595.0 x 841.9 pt, `rot=0`,
+crop box equal to media box. Aspect 0.7067 against reMarkable's 0.7500, so the two do not match and
+the fit rule is decidable: width-fitted gives scale 0.4238, height-fitted gives 0.4497. Overlaying
+the known ink at both and seeing which aligns with the page content settles it empirically.
+
+**The gap, demonstrated.** Run through the current pipeline, `sample document` produces a single page of ink
+on white: the annotation reads "← Needs improvement" with an arrow pointing at blank space, because
+the 829 KB source PDF was downloaded and discarded. Pages 1 and 2, which have no ink, vanish
+entirely.
+
+**Superseded** (kept for the reasoning): `remarkable/Daily Journal` in the user's vault holds 48 PDFs, but they
 are _outputs_ of a separate reMarkable-to-PDF tool, not raw device exports. They carry no `.rm`
 stroke layers and no source-PDF-plus-annotation pairing, so they cannot validate the transform. They
 did validate the dependency (48/48 load) and supplied the reference encoding above, which is why

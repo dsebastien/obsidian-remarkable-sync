@@ -1,15 +1,37 @@
 # PDF support
 
-Status: **phase 1 implemented, unreleased and not yet verified in a live vault.**
-
-Three phases, each shippable on its own:
+Status: **all three phases implemented. Unreleased, and not yet verified in a live vault.**
 
 1. **Export** a notebook as a single PDF instead of loose per-page images. **Done.**
-2. **Sync PDF-backed documents** properly, keeping the source PDF instead of discarding it.
-3. **Burn annotations in**, producing the original document with the ink drawn on top.
+2. **Sync PDF-backed documents**, keeping the source instead of discarding it. **Done.**
+3. **Burn annotations in**, drawing the ink onto the original. **Done.**
 
-Phase 2 is a hard prerequisite for phase 3. Phase 1 was independent and landed first because it is
-the smallest and shares the dependency.
+## Phases 2 and 3 as built
+
+| Piece                                          | File                                |
+| ---------------------------------------------- | ----------------------------------- |
+| Retain the source blob, map layers via `redir` | `parser/document-parser.service.ts` |
+| Coordinate transform (pure, 16 specs)          | `output/pdf-coordinates.ts`         |
+| Draw layers onto the source PDF                | `output/pdf-annotator.service.ts`   |
+| Branch source-backed vs notebook output        | `output/document-output.service.ts` |
+
+Verified: `tsc` clean, `lint` 0 warnings, **344 tests** (was 301), build succeeds, bundle 667,674 B.
+
+End to end through the shipped code on the real `sample document` fixture:
+
+```
+sourceDocument: pdf, 829848 bytes      sourcePageIndexes: [0]
+19 strokes, 661 points, 326 ms
+created: sample-document.pdf, sample-document (annotated).pdf
+```
+
+The annotated file keeps all 3 pages, preserves the title "Sample Document", carries 684
+vector ops on page 0 of which 60 are the translucent highlighter, and leaves the original text
+selectable. Visually confirmed: the arrow points at "a known heading" and the highlight covers
+the intended paragraph.
+
+**Not verified:** `/Rotate` handling is written from the PDF specification, since no available
+document has a non-zero rotation. Same for a crop box offset from the media box.
 
 ## Phase 1 as built
 

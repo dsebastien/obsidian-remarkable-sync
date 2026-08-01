@@ -9,6 +9,7 @@ An Obsidian plugin that connects to the reMarkable cloud to list, download, and 
 - **Page rendering** — render .rm v6 stroke data to PNG/JPEG images
 - **Sidebar panel** — browse notebooks with foldable folder hierarchy, search, multi-select, and per-notebook download
 - **Folder hierarchy preservation** — reMarkable folder structure mirrored in vault
+- **Annotated PDFs** — documents imported onto the device sync back as the original PDF plus a copy with your handwriting drawn on it, text still selectable
 - **Local .rmdoc import** — import .rmdoc files directly without cloud connection
 - **Automatic sync** — optional background sync of all notebooks that need updating, on a configurable interval (off by default)
 - **What's new after updates.** After a plugin update, a one-time dialog shows the release notes you just received (including skipped versions) with ways to support development. Never shown on fresh installs or regular restarts.
@@ -66,14 +67,14 @@ If the plugin isn't listed in the community catalog yet (or you want a specific 
 
 ## Settings
 
-| Setting         | Default     | Description                                                            |
-| --------------- | ----------- | ---------------------------------------------------------------------- |
-| Target folder   | `""` (root) | Vault folder for output files                                          |
-| Save images     | `true`      | Save rendered page images                                              |
-| Save as PDF     | `false`     | Write one PDF per notebook, beside the page images                     |
-| Image format    | `jpeg`      | JPEG, WebP or PNG                                                      |
-| Use rmfakecloud | `false`     | Connect to a self-hosted rmfakecloud server instead of official cloud  |
-| Server URL      | `""`        | Base URL of your rmfakecloud server (only when rmfakecloud is enabled) |
+| Setting         | Default     | Description                                                                  |
+| --------------- | ----------- | ---------------------------------------------------------------------------- |
+| Target folder   | `""` (root) | Vault folder for output files                                                |
+| Save images     | `true`      | Save rendered page images                                                    |
+| Save as PDF     | `false`     | One PDF per notebook; for imported PDFs, the original plus an annotated copy |
+| Image format    | `jpeg`      | JPEG, WebP or PNG                                                            |
+| Use rmfakecloud | `false`     | Connect to a self-hosted rmfakecloud server instead of official cloud        |
+| Server URL      | `""`        | Base URL of your rmfakecloud server (only when rmfakecloud is enabled)       |
 
 ## Output Format
 

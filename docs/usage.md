@@ -102,4 +102,9 @@ If **Save as PDF** is enabled, the notebook also produces:
 
 - `{NotebookName}.pdf` — every page with content, in one file, beside the image folder
 
+For a document imported from a PDF, you get the original plus an annotated copy instead:
+
+- `{Name}.pdf` — the original document, unchanged
+- `{Name} (annotated).pdf` — the same document with your handwriting drawn on top, text still selectable
+
 Blank pages (no strokes) are skipped entirely, so PDF page numbers do not necessarily match the page numbers on your device. Pages that fail to render are skipped too, and the plugin reports how many.

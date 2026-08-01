@@ -73,7 +73,19 @@ When a new business rule is mentioned:
 - A PDF has no WebP filter: when `imageFormat` is `webp`, pages are embedded as JPEG at the configured quality while loose image files stay WebP. This is the only case where a page is rendered twice
 - Generated PDFs carry no creation date, modification date, producer or file ID (`updateMetadata: false`), so re-processing an unchanged notebook produces byte-identical output
 - Vault writes are skipped entirely when the new bytes match the existing file, for images as well as PDFs. Without this, deterministic output still bumped the mtime on every re-sync and read as a change to Obsidian Sync, Git or Dropbox — a device bumps `lastModified` for benign reasons such as opening a notebook, and automatic sync repeats that on a timer
-- Blank pages and pages that failed to render are absent from the PDF, so PDF page numbers do not necessarily match reMarkable page numbers
+- Blank pages and pages that failed to render are absent from an assembled PDF, so its page numbers do not necessarily match reMarkable page numbers
+
+## Source-backed documents (imported PDFs and EPUBs)
+
+- A document whose `content.fileType` is `pdf` or `epub` keeps its source blob; it is never discarded. Previously it was downloaded and dropped, so annotated books synced as ink floating on blank pages
+- An annotation layer maps to a source page via `cPages[i].redir.value`. Pages inserted on the device carry no `redir` and are given no source page, so their ink is never drawn onto page 0 by default
+- With `savePdf` enabled, a source-backed document writes the original through unmodified at `<name>.pdf` and an annotated copy at `<name> (annotated).pdf`. The original is never edited in place
+- Page images are never assembled into a PDF for a source-backed document: that would discard the original, which is the defect this rule exists to prevent
+- Annotation coordinates map to the page with `scale = cropBox.width / 1872`, x centred on the page and y measured down from the page top. The page width always spans 1872 rm units whatever its real size, so ink legitimately exceeds 1872 in y (an A4 page is 2649 rm units tall). Derived from real exports and confirmed on A4 and US Letter
+- Annotating preserves the source document's own metadata (`updateMetadata: false`) and produces byte-identical output across runs
+- An encrypted or unreadable source PDF is reported and the original still written through; annotations are not burned in. `ignoreEncryption` is deliberately not used because it succeeds and then produces garbage
+- Source PDFs above 80 MB are refused rather than loaded, since the source bytes, the parsed object graph and the output are all live at once
+- EPUB sources are written through but never annotated: the device renders them to its own layout, so there is no page-for-page original to draw on
 
 ## rmfakecloud
 

@@ -41,7 +41,9 @@ Domain Types (domain/)
 | `parser/document-parser.service`     | Parse document file maps into Notebook structures                       |
 | `renderer/stroke-renderer`           | Render individual strokes to canvas                                     |
 | `renderer/page-renderer.service`     | Render full pages to PNG/JPEG                                           |
-| `output/markdown-writer.service`     | Save images to vault                                                    |
+| `output/markdown-writer.service`     | Save images and PDFs to vault; skips writes whose bytes are unchanged   |
+| `output/pdf-writer.service`          | Build a PDF from rendered pages (pdf-lib), deterministic output         |
+| `output/document-output.service`     | Shared render-and-write loop for cloud sync and .rmdoc import           |
 | `pipeline/notebook-pipeline.service` | Per-notebook orchestrator: download → parse → render → save             |
 | `sync/sync-store.service`            | Sync state persistence via plugin data; prunes orphaned entries         |
 | `sync/auto-sync.service`             | Opt-in background sync timer (guards: disconnected, overlapping runs)   |
@@ -49,12 +51,12 @@ Domain Types (domain/)
 
 ### UI
 
-| Component                  | Type               | Purpose                                                  |
-| -------------------------- | ------------------ | -------------------------------------------------------- |
-| `RemarkablePanelView`      | `ItemView`         | Sidebar panel listing notebooks with actions             |
-| `AuthModal`                | `Modal`            | Device code entry for authentication                     |
-| `ImportConfirmModal`       | `Modal`            | Confirmation dialog before .rmdoc file import            |
-| `RemarkableSyncSettingTab` | `PluginSettingTab` | Plugin settings with auth, cloud, output, about sections |
+| Component                  | Type               | Purpose                                                             |
+| -------------------------- | ------------------ | ------------------------------------------------------------------- |
+| `RemarkablePanelView`      | `ItemView`         | Sidebar panel listing notebooks with actions                        |
+| `AuthModal`                | `Modal`            | Device code entry for authentication                                |
+| `ImportConfirmModal`       | `Modal`            | Confirmation dialog before .rmdoc file import                       |
+| `RemarkableSyncSettingTab` | `PluginSettingTab` | Plugin settings with auth, cloud, sync, output, PDF, about sections |
 
 ### Commands
 
@@ -85,4 +87,5 @@ Command/Panel button → File browser → Confirm modal → Extract ZIP (fflate)
 
 - **reMarkable cloud sync v1.5 API** (or rmfakecloud): Root hash, signed URL blob downloads, index tree walking
 - **fflate**: ZIP extraction for .rmdoc import. Imported as `fflate/browser` — the default (`node`) entry point begins with a top-level `require("module")`/`worker_threads`, which throws on mobile. `unzipSync` deliberately, since the async variant pulls in worker machinery
+- **pdf-lib**: PDF generation for the `savePdf` output, and the basis for future work on PDF-backed documents. Measured at ~505 KB bundled under Bun with production settings, taking `dist/main.js` from 145 KB to 665 KB. A deliberate, documented exception to the small-dependency guidance: authoring an image-only PDF is small, but reading and modifying an existing one means parsing cross-reference streams and object streams, which is a real PDF reader. Adds no `require()`, no worker and no blob URL to the bundle
 - **OffscreenCanvas**: Page rendering. Available in Electron and in Android's webview; needs iOS 16.4+ on iPhone/iPad. `isPageRenderingSupported()` gates both the sync pipeline and .rmdoc import so an unsupported device reports a clear message instead of a generic render failure

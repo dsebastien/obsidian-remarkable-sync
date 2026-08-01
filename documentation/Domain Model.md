@@ -80,7 +80,8 @@ Entries whose notebook is no longer present in a fresh cloud listing are orphane
 ### PluginSettings
 
 - `targetFolder`: Vault-relative output path
-- `saveImages`: Whether to save rendered PNGs
+- `saveImages`: Whether to save rendered page images
+- `savePdf`: Whether to write one PDF per notebook (default false), independent of `saveImages`
 - `imageFormat`: 'png' | 'jpeg'
 - `useRmfakecloud`: Connect to rmfakecloud instead of official cloud
 - `rmfakecloudUrl`: Base URL of the rmfakecloud server

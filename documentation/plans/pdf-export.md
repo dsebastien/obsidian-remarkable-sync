@@ -499,6 +499,32 @@ blend mode and accept a slightly different look over highlighted text.
 
 ---
 
+## Highlights arrive as strokes, not as `.highlights`
+
+The user highlighted text on the device and re-synced. Re-fetching the resume's document index
+showed it changed (`.rm` 10,673 → 12,563 bytes, `.content` and `.metadata` hashes moved, `.pdf`
+unchanged) but the file list is **still exactly five entries, with no `.highlights`**.
+
+The new content is a single `HighlighterV2` stroke, colour 9, 61 points, spanning rm
+x `-229..536`, y `1916..2294`. So on this firmware the highlighter tool produces **ink**, and the
+`.highlights` JSON path is not being used at all.
+
+Two consequences:
+
+1. **The colour-9 fix was load-bearing.** Without it this stroke renders as a wide opaque black bar
+   across the text it highlights, which is exactly the bug found on the notebook.
+2. **It independently confirms the transform.** Its y extends to 2294, well past 1872. Under the old
+   height-fit model that lands at 1032 on an 841.9 pt page, off the bottom entirely. Under
+   `scale = width / 1872` it maps to y 609..729 of 841.9 and x 225..468 of 595, which is where it
+   sits on the page. This was a genuine out-of-sample prediction: the stroke was drawn after the
+   formula was fixed, and it fits.
+
+It also pins the implied page size in rm units: width 1872 by height `1872 / aspect` = 2649 for A4.
+Ink can and does legitimately exceed 1872 in y.
+
+Fixture at `~/Desktop/remarkable-test-fixtures/resume-v2-with-highlight.rmdoc`, rendered result at
+`poc-annotated-WITH-HIGHLIGHT.pdf`.
+
 ## Text highlights: not present, so not exportable
 
 reMarkable stores **text** highlights (select text, then highlight) separately from highlighter

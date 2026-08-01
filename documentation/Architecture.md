@@ -44,7 +44,8 @@ Domain Types (domain/)
 | `output/markdown-writer.service`     | Save images and PDFs to vault; skips writes whose bytes are unchanged   |
 | `output/pdf-writer.service`          | Build a PDF from rendered pages (pdf-lib), deterministic output         |
 | `output/pdf-coordinates`             | Map .rm stroke coordinates onto a source PDF page (pure functions)      |
-| `output/pdf-annotator.service`       | Draw annotation layers back onto the source PDF                         |
+| `output/pdf-annotator.service`       | Draw ink and embed text highlights onto the source PDF                  |
+| `output/highlights-markdown`         | Build a markdown note from a document's text highlights                 |
 | `output/document-output.service`     | Shared render-and-write loop for cloud sync and .rmdoc import           |
 | `pipeline/notebook-pipeline.service` | Per-notebook orchestrator: download → parse → render → save             |
 | `sync/sync-store.service`            | Sync state persistence via plugin data; prunes orphaned entries         |

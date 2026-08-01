@@ -95,11 +95,11 @@ describe('segmentWidth', () => {
      */
     test('highlighter and shader use a fixed nib, ignoring recorded width', () => {
         const hl = stroke(PenType.HighlighterV2, StrokeColor.Highlight)
-        expect(segmentWidth(hl, pt(4), pt(4))).toBe(15)
+        const nib = segmentWidth(hl, pt(4), pt(4))
         // a much larger recorded width must not change it
-        expect(segmentWidth(hl, pt(400), pt(400))).toBe(15)
-
-        expect(segmentWidth(stroke(PenType.Shader, StrokeColor.Highlight), pt(4), pt(4))).toBe(12)
+        expect(segmentWidth(hl, pt(400), pt(400))).toBe(nib)
+        // and it lands near one text line once scaled to an A4 page
+        expect(nib * (595 / 1872)).toBeCloseTo(15, 0)
     })
 
     test('ordinary pens scale with the recorded width', () => {
@@ -114,15 +114,55 @@ describe('segmentWidth', () => {
         expect(segmentWidth(pen, pt(2), pt(6))).toBe(segmentWidth(pen, pt(4), pt(4)))
     })
 
+    /**
+     * The measured regression: a flat multiplier made brush strokes about three
+     * times too heavy, turning light sketchy strokes into solid slabs. Every
+     * pen formula divides the recorded width by 4 before combining it with
+     * pressure, tilt and speed.
+     */
+    test('the brush divides the recorded width rather than multiplying it', () => {
+        const brush = stroke(PenType.BrushV2, StrokeColor.Grey)
+        // Asserted in points on an A4 page, which is the unit that matters:
+        // the previous flat multiplier put this near 28pt against an 11pt line.
+        const pts = segmentWidth(brush, pt(40), pt(40)) * (595 / 1872)
+        expect(pts).toBeLessThan(15)
+    })
+
+    test('pressure widens a brush stroke', () => {
+        const brush = stroke(PenType.BrushV2, StrokeColor.Grey)
+        const soft = { ...pt(20), pressure: 20 }
+        const hard = { ...pt(20), pressure: 250 }
+        expect(segmentWidth(brush, hard, hard)).toBeGreaterThan(segmentWidth(brush, soft, soft))
+    })
+
+    test('speed narrows a brush stroke', () => {
+        const brush = stroke(PenType.BrushV2, StrokeColor.Grey)
+        const slow = { ...pt(20), speed: 0 }
+        const fast = { ...pt(20), speed: 400 }
+        expect(segmentWidth(brush, fast, fast)).toBeLessThan(segmentWidth(brush, slow, slow))
+    })
+
+    test('the fineliner is a constant nib, independent of recorded width', () => {
+        const fl = stroke(PenType.FinelinerV2, StrokeColor.Black)
+        expect(segmentWidth(fl, pt(2), pt(2))).toBe(segmentWidth(fl, pt(90), pt(90)))
+    })
+
     test('never returns a width too thin to draw', () => {
         expect(
             segmentWidth(stroke(PenType.BallPointV2, StrokeColor.Black), pt(0), pt(0))
         ).toBeGreaterThanOrEqual(0.5)
     })
 
-    test('thickness scales the fixed nib too', () => {
-        const hl: Stroke = { ...stroke(PenType.HighlighterV2, StrokeColor.Highlight), thickness: 2 }
-        expect(segmentWidth(hl, pt(4), pt(4))).toBe(30)
+    test('the fixed nib ignores thickness_scale, matching the device', () => {
+        const one: Stroke = {
+            ...stroke(PenType.HighlighterV2, StrokeColor.Highlight),
+            thickness: 1
+        }
+        const two: Stroke = {
+            ...stroke(PenType.HighlighterV2, StrokeColor.Highlight),
+            thickness: 2
+        }
+        expect(segmentWidth(two, pt(4), pt(4))).toBe(segmentWidth(one, pt(4), pt(4)))
     })
 })
 

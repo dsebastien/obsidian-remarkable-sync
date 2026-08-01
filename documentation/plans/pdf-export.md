@@ -5,6 +5,22 @@ Status: **all three phases implemented. Unreleased, and not yet verified in a li
 1. **Export** a notebook as a single PDF instead of loose per-page images. **Done.**
 2. **Sync PDF-backed documents**, keeping the source instead of discarding it. **Done.**
 3. **Burn annotations in**, drawing the ink onto the original. **Done.**
+4. **Text highlights** parsed, embedded as PDF annotations, and exported as markdown. **Done.**
+
+## Text highlights
+
+Found in the `.rm` file, not a separate `.highlights` file: they are `GlyphRange` items inside
+`SceneGlyphItemBlock` (0x03), a block type the plugin already named and never parsed. An earlier
+section of this plan concluded they were not syncing at all; that was wrong, and is left below for
+the reasoning rather than the conclusion.
+
+Shipped as `Highlight` on `Page`, real `/Highlight` annotations with `QuadPoints` in the annotated
+PDF, and a `(highlights).md` note quoting each one under its page.
+
+Line joins: the device strips the source's line breaks. Only case-transition joins with three or
+more alphanumeric characters on each side are repaired, bounded by rectangle count. Ambiguous
+lowercase joins stay intact rather than risk corrupting words. See the history entry for the two
+rejected approaches.
 
 ## Phases 2 and 3 as built
 

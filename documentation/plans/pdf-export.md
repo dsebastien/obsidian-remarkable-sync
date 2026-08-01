@@ -26,8 +26,35 @@ Verified: `tsc` clean, `lint` 0 warnings, **287 tests pass** (was 238), build su
 `require()`, no `new Worker`, no `createObjectURL`, no `createElement("script")`. The only
 `require()` calls remain `obsidian` and the three guarded desktop-only Node builtins.
 
-End-to-end check outside the test suite, on real 1404x1872 JPEGs plus one 1404x2600 page standing
-in for scrolled content:
+### Renderer-to-PDF verified in a real browser
+
+The unit suite mocks `renderPage`, because `OffscreenCanvas` does not exist under `bun test`. That
+left the join between the plugin's own renderer and the PDF writer untested. Closed by bundling
+`page-renderer.service` and `pdf-writer.service` with `bun build --target=browser` and running them
+in headless Chrome via Playwright (`channel: 'chrome'`, since the cached Playwright browser build
+did not match the installed package).
+
+Real `renderPage()` output, from strokes through `OffscreenCanvas` and `convertToBlob`, fed straight
+into `buildPdf`:
+
+| Encoding | Rendered  | Resulting PDF           |
+| -------- | --------- | ----------------------- |
+| JPEG     | 79,128 B  | 159,721 B (2 pages)     |
+| PNG      | 212,786 B | 110,026 B (1 page)      |
+| WebP     | 36,730 B  | n/a, falls back to JPEG |
+
+Pages came out 447.29 x 596.39 pt with no `CreationDate`, `ModDate` or `Producer`. Rendering the
+result back to an image confirmed correct placement and centring of a page frame, a pressure-varying
+ballpoint stroke, a marker stroke, a translucent highlighter and a fineliner, in the right colours
+and relative widths.
+
+**Still not covered by this**: strokes came from hand-built `Stroke` objects, not from parsing a real
+device `.rm`. The parser is tested separately, and agrees with `rmscene` on the one real file
+available.
+
+### Earlier check with synthetic images
+
+On real 1404x1872 JPEGs plus one 1404x2600 page standing in for scrolled content:
 
 - Standard pages come out 447.29 x 596.39 pt, which is 6.21 x 8.28 inches, matching the physical
   reMarkable screen.

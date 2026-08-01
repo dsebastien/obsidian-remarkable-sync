@@ -70,7 +70,8 @@ If the plugin isn't listed in the community catalog yet (or you want a specific 
 | --------------- | ----------- | ---------------------------------------------------------------------- |
 | Target folder   | `""` (root) | Vault folder for output files                                          |
 | Save images     | `true`      | Save rendered page images                                              |
-| Image format    | `png`       | PNG or JPEG                                                            |
+| Save as PDF     | `false`     | Write one PDF per notebook, beside the page images                     |
+| Image format    | `jpeg`      | JPEG, WebP or PNG                                                      |
 | Use rmfakecloud | `false`     | Connect to a self-hosted rmfakecloud server instead of official cloud  |
 | Server URL      | `""`        | Base URL of your rmfakecloud server (only when rmfakecloud is enabled) |
 

@@ -13,6 +13,7 @@ All settings are accessible via **Settings → Community plugins → Remarkable 
 | --------------- | -------- | ------- | -------------------------------------------------------------------------------- |
 | Target folder   | text     | `""`    | Vault-relative path where output files are saved. Leave empty for vault root.    |
 | Save images     | toggle   | `true`  | Save rendered page images                                                        |
+| Save as PDF     | toggle   | `false` | Write one PDF per notebook, beside the page images                               |
 | Image format    | dropdown | `jpeg`  | Format for rendered images: JPEG, WebP, or PNG                                   |
 | Image quality   | slider   | `0.85`  | Quality for JPEG/WebP (0.1 = smallest, 1.0 = best). Hidden when PNG is selected. |
 | Use rmfakecloud | toggle   | `false` | Connect to a self-hosted rmfakecloud server instead of the official cloud        |
@@ -26,7 +27,28 @@ All settings are accessible via **Settings → Community plugins → Remarkable 
 - **WebP** — lossy compression, smaller than JPEG at equivalent quality
 - **PNG** — lossless, larger files, no quality slider
 
-The quality slider controls the compression level for JPEG and WebP. Lower values produce smaller files; higher values preserve more detail. The slider is hidden when PNG is selected since PNG is always lossless.
+The quality slider controls the compression level for JPEG and WebP. Lower values produce smaller files, higher values preserve more detail. The slider is hidden when PNG is selected since PNG is always lossless.
+
+## PDF
+
+**Save as PDF** writes one PDF per notebook, containing every page that has content. It is independent of **Save images**, so you can enable either, both, or neither.
+
+The PDF is written beside the folder holding the page images, so both can be produced without colliding:
+
+```
+reMarkable/
+  Work/
+    Meeting.pdf          <- Save as PDF
+    Meeting/
+      Meeting-P001.jpeg  <- Save images
+      Meeting-P002.jpeg
+```
+
+Pages are sized from the rendered image at 226 DPI, which matches the physical size of the reMarkable screen (about 6.2 x 8.3 inches). A page whose content scrolled past the bottom of the device viewport produces a taller PDF page rather than a cropped one.
+
+A PDF cannot store WebP. When the image format is WebP, pages are embedded in the PDF as JPEG at the configured quality, while the loose image files stay WebP.
+
+Generated PDFs deliberately carry no creation or modification date. Re-syncing an unchanged notebook produces exactly the same bytes, and the plugin skips the write entirely, so nothing churns if you sync your vault with Obsidian Sync, Git or Dropbox.
 
 ## Sorting the panel
 

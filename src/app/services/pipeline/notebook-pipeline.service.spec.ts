@@ -94,7 +94,9 @@ function createHarness(config: {
         writeDocumentPdf: (_vault, _target, _folder, name): Promise<string> => {
             pdfsWritten.push(name)
             return Promise.resolve(`${name}.pdf`)
-        }
+        },
+        annotateSourcePdf: () =>
+            Promise.resolve({ data: new ArrayBuffer(16), annotatedPages: 1, skippedPages: 0 })
     }
 
     const service = createNotebookPipelineService(fakePlugin, deps)

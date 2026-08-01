@@ -78,6 +78,10 @@ When a new business rule is mentioned:
 - Annotating preserves the source document's own metadata (`updateMetadata: false`) and produces byte-identical output across runs
 - An encrypted or unreadable source PDF is reported and the original still written through; annotations are not burned in. `ignoreEncryption` is deliberately not used because it succeeds and then produces garbage
 - Source PDFs above 80 MB are refused rather than loaded, since the source bytes, the parsed object graph and the output are all live at once
+- Text highlights (made by selecting text on the device) are `GlyphRange` items inside `SceneGlyphItemBlock` (0x03) in the `.rm` file, **not** a separate `.highlights` file. They carry the selected text, its colour and its rectangles
+- Text highlights are embedded in the annotated PDF as real `/Highlight` annotations with `QuadPoints`, never as painted ink, so a reader can select, display and extract them. The selected text goes in `/Contents`
+- A markdown note listing a document's text highlights is written whenever any exist, independent of the PDF toggle, since the text is the device's own record of what was selected
+- The device strips the source PDF's line breaks, so highlighted text arrives with joins like "DeviceTrust" and "Windowsmachines". Only case-transition joins with at least three alphanumeric characters on each side are repaired, bounded to at most one repair per line break (rectangle count minus one). Ambiguous lowercase joins are left intact: without a dictionary "Windowsmachines" and "Window smachines" are equally consistent, and corrupting real words is worse than leaving them joined
 - EPUB sources are written through but never annotated: the device renders them to its own layout, so there is no page-for-page original to draw on
 
 ## rmfakecloud

@@ -1,11 +1,12 @@
 import type { Vault } from 'obsidian'
 import { log } from '../../../utils/log'
-import type { Page } from '../../domain/notebook'
+import type { Page, SourceDocument } from '../../domain/notebook'
 import type { PluginSettings } from '../../types/plugin-settings.intf'
 import { renderPage } from '../renderer/page-renderer.service'
 import { buildPdf } from './pdf-writer.service'
 import type { PdfPageImage } from './pdf-writer.service'
-import { writeDocumentPdf, writePageImage } from './markdown-writer.service'
+import { annotateSourcePdf } from './pdf-annotator.service'
+import { ANNOTATED_SUFFIX, writeDocumentPdf, writePageImage } from './markdown-writer.service'
 
 /**
  * Injectable steps so the loop can be tested without OffscreenCanvas or a
@@ -16,13 +17,15 @@ export interface DocumentOutputDeps {
     writePageImage: typeof writePageImage
     writeDocumentPdf: typeof writeDocumentPdf
     buildPdf: typeof buildPdf
+    annotateSourcePdf: typeof annotateSourcePdf
 }
 
 export const DEFAULT_DOCUMENT_OUTPUT_DEPS: DocumentOutputDeps = {
     renderPage,
     writePageImage,
     writeDocumentPdf,
-    buildPdf
+    buildPdf,
+    annotateSourcePdf
 }
 
 export interface RenderAndWriteOptions {
@@ -34,6 +37,8 @@ export interface RenderAndWriteOptions {
     settings: PluginSettings
     vault: Vault
     onPageProgress: (currentPage: number, totalPages: number, failedPages: number) => void
+    /** The original file, for documents built from an imported PDF or EPUB */
+    sourceDocument?: SourceDocument
 }
 
 export interface RenderAndWriteResult {
@@ -41,6 +46,10 @@ export interface RenderAndWriteResult {
     /** Content pages that failed to render and were dropped from every output */
     failedPages: number
     pdfWritten: boolean
+    /** The source file was written through to the vault unmodified */
+    sourceWritten: boolean
+    /** An annotated copy of the source was written */
+    annotatedWritten: boolean
 }
 
 /**
@@ -65,7 +74,8 @@ export async function renderAndWritePages(
     options: RenderAndWriteOptions,
     deps: DocumentOutputDeps = DEFAULT_DOCUMENT_OUTPUT_DEPS
 ): Promise<RenderAndWriteResult> {
-    const { pages, notebookName, folderPath, settings, vault, onPageProgress } = options
+    const { pages, notebookName, folderPath, settings, vault, onPageProgress, sourceDocument } =
+        options
 
     const looseFormat = settings.imageFormat
     const pdfFormat = resolvePdfImageFormat(looseFormat)
@@ -132,7 +142,47 @@ export async function renderAndWritePages(
     }
 
     let pdfWritten = false
-    if (wantPdf && pdfPages.length > 0) {
+    let sourceWritten = false
+    let annotatedWritten = false
+
+    if (sourceDocument) {
+        // A document built from an imported file. Assembling page images into a
+        // PDF would throw the original away, which is the whole problem being
+        // fixed here, so the source is written through instead and the ink is
+        // drawn back onto it.
+        if (wantPdf) {
+            await deps.writeDocumentPdf(
+                vault,
+                settings.targetFolder,
+                folderPath,
+                notebookName,
+                sourceDocument.data
+            )
+            sourceWritten = true
+
+            if ('pdf' === sourceDocument.kind) {
+                const annotated = await deps.annotateSourcePdf(sourceDocument.data, pages)
+                if (annotated && annotated.annotatedPages > 0) {
+                    await deps.writeDocumentPdf(
+                        vault,
+                        settings.targetFolder,
+                        folderPath,
+                        `${notebookName}${ANNOTATED_SUFFIX}`,
+                        annotated.data
+                    )
+                    annotatedWritten = true
+                    if (annotated.skippedPages > 0) {
+                        log(
+                            `${notebookName}: ${annotated.skippedPages} layer(s) had no source page and were left out of the annotated copy`,
+                            'warn'
+                        )
+                    }
+                } else if (!annotated) {
+                    log(`${notebookName}: could not annotate the source PDF`, 'warn')
+                }
+            }
+        }
+    } else if (wantPdf && pdfPages.length > 0) {
         const pdfData = await deps.buildPdf(pdfPages)
         if (pdfData) {
             await deps.writeDocumentPdf(
@@ -148,5 +198,5 @@ export async function renderAndWritePages(
         }
     }
 
-    return { totalPages, failedPages, pdfWritten }
+    return { totalPages, failedPages, pdfWritten, sourceWritten, annotatedWritten }
 }

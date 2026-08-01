@@ -22,6 +22,13 @@ export interface RemarkableDocumentMetadata {
 export interface RemarkableCPage {
     readonly id: string
     readonly idx?: { readonly value: string }
+    /**
+     * Index of the page in the source file this page annotates. Present only
+     * for source-backed documents, and absent on pages inserted on the device
+     * (confirmed against real exports: a PDF with inserted pages shows `redir`
+     * on the original pages and nothing on the inserted ones).
+     */
+    readonly redir?: { readonly value: number }
 }
 
 /**
@@ -37,6 +44,7 @@ export interface RemarkableCPages {
  */
 export interface RemarkableDocumentContent {
     readonly dpiScale: number
+    /** `notebook`, `pdf` or `epub`; typed loosely since firmware may add more */
     readonly fileType: string
     readonly fontName: string
     readonly lastOpenedPage: number

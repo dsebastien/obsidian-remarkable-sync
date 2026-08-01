@@ -65,6 +65,23 @@ export interface Page {
     readonly pageId: string
     readonly pageIndex: number
     readonly strokes: readonly Stroke[]
+    /**
+     * Index of the page in the source document this layer annotates.
+     *
+     * Only set for source-backed documents (a PDF imported onto the device).
+     * Absent for notebook pages and for pages inserted on the device, which
+     * have no counterpart in the source.
+     */
+    readonly sourcePageIndex?: number
+}
+
+/**
+ * The original file a document was created from, kept so annotations can be
+ * drawn back onto it. Notebooks have none.
+ */
+export interface SourceDocument {
+    readonly kind: 'pdf' | 'epub'
+    readonly data: ArrayBuffer
 }
 
 /**
@@ -77,6 +94,8 @@ export interface Notebook {
     readonly lastModified: string
     readonly pageCount: number
     readonly pages: readonly Page[]
+    /** Present only for documents backed by an imported file */
+    readonly sourceDocument?: SourceDocument
 }
 
 /**

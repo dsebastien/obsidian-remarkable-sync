@@ -63,6 +63,20 @@ The annotated copy keeps the original's text layer, so it stays selectable and s
 
 Pages you inserted on the device have no counterpart in the original and are left out of the annotated copy. An encrypted PDF cannot be annotated, and in that case the original is still written to your vault.
 
+### Highlights
+
+If you highlight text on the device (selecting words rather than drawing over them with the highlighter pen), those become **real PDF highlight annotations** in the annotated copy. You can select them, see the text in a reader's comment pane, and extract them like any other annotation.
+
+You also get a markdown note listing them:
+
+```
+Some paper (highlights).md
+```
+
+Each highlight appears as a quote under its page number, with a link back to the annotated PDF. The text is exactly what the device recorded, not reconstructed from the shape of your ink.
+
+One quirk worth knowing: the device stores highlighted text with the original line breaks removed, so words from the end and start of consecutive lines can run together. Obvious cases are repaired, but joins like "Backupservers" are left alone, because "Backups ervers" is an equally valid reading and guessing wrong would corrupt the text.
+
 EPUBs are written through unchanged but not annotated, because the device lays them out itself and there are no fixed pages to draw on.
 
 Generated PDFs deliberately carry no creation or modification date. Re-syncing an unchanged notebook produces exactly the same bytes, and the plugin skips the write entirely, so nothing churns if you sync your vault with Obsidian Sync, Git or Dropbox.

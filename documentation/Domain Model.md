@@ -20,6 +20,14 @@ A single page of a notebook containing stroke data.
 
 - `pageId`, `pageIndex`, `strokes: Stroke[]`
 - `sourcePageIndex?`: index of the source-document page this layer annotates. Absent for notebook pages and for pages inserted on the device
+- `highlights?`: text highlights on this page, present only on source-backed documents
+
+### Highlight
+
+Text highlighted by selecting it on the device, as opposed to ink drawn with the highlighter pen. Parsed from `SceneGlyphItemBlock` in the `.rm` file.
+
+- `text`: the selected text, exactly as the device recorded it
+- `color: StrokeColor`, `rects: HighlightRect[]` (one rectangle per highlighted line)
 
 ### SourceDocument
 

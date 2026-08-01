@@ -476,6 +476,36 @@ document. Nothing in the repo exercises a genuine reMarkable export, which alrea
 import (see `mobile-support.md`) and is now the **single largest risk in this plan**, because the
 phase 3 coordinate mapping cannot be derived confidently from first principles.
 
+**`rmc` / `rmscene` are installed locally** (`rmc` 0.3.0, `rmscene` 0.6.1) and are useful references,
+but they do not close this gap. They are _readers_, not a source of device data.
+
+What they do give:
+
+- **Independent confirmation of the phase 1 geometry.** `rmc/exporters/svg.py` declares
+  `SCREEN_WIDTH = 1404`, `SCREEN_HEIGHT = 1872`, `SCREEN_DPI = 226`, `SCALE = 72.0 / SCREEN_DPI`,
+  `X_SHIFT = PAGE_WIDTH_PT // 2`. Identical to what `pdf-writer.service.ts` implements, derived
+  separately.
+- **A richer pen model for the phase 3 vector emitter.** `rmc/exporters/writing_tools.py` has a
+  `Pen` class hierarchy with per-segment width, colour and opacity as functions of speed, direction
+  and pressure (e.g. Ballpoint's
+  `(0.5 + pressure/255) + (width/4) - 0.5*((speed/4)/50)`, Fineliner's `base_width * 1.8`).
+  This plugin currently uses a flat `PEN_WIDTH_MULTIPLIER` lookup, so this is a reference for
+  improving the raster renderer too, not only for the PDF overlay.
+- **A trusted differential-test oracle.** `rmscene` parses v6 into a scene tree, so it can check
+  this plugin's `rm-file-parser` on real files rather than synthetic fixtures.
+
+What they do not give:
+
+- **`rmc` does not overlay onto a source PDF at all.** `rmc/exporters/pdf.py` converts `.rm` to SVG
+  and then shells out to Inkscape. The upstream that does merge annotations onto original PDFs is
+  `maxio` (credited in that file's docstring), which is the better reference for phase 3.
+- No annotated PDF-backed document to test the transform against.
+
+**One real `.rm` was found and used**: `~/github/remarkable-daily-journal/assets/blank-page.rm`.
+`rmscene` reads it as 8 blocks with no stroke content, and this plugin's `parseRmFile` agrees (0
+strokes, `pageHasContent` false). First time the parser has been checked against a genuine device
+file rather than a synthetic fixture. It is a blank page, so it does not exercise stroke decoding.
+
 **Checked and ruled out**: `remarkable/Daily Journal` in the user's vault holds 48 PDFs, but they
 are _outputs_ of a separate reMarkable-to-PDF tool, not raw device exports. They carry no `.rm`
 stroke layers and no source-PDF-plus-annotation pairing, so they cannot validate the transform. They

@@ -2,9 +2,10 @@ import { Plugin } from 'obsidian'
 import { DEFAULT_SETTINGS } from './types/plugin-settings.intf'
 import type { PluginSettings } from './types/plugin-settings.intf'
 import { RemarkableSyncSettingTab } from './settings/settings-tab'
+import { mergeLoadedSettings } from './settings/load-settings'
 import { log } from '../utils/log'
 import { produce } from 'immer'
-import type { Draft, WritableDraft } from 'immer'
+import type { WritableDraft } from 'immer'
 import { registerCommands } from './commands'
 import { REMARKABLE_PANEL_VIEW_TYPE, RemarkablePanelView } from './ui/remarkable-panel-view'
 import type { RemarkableAuthService } from './services/auth/remarkable-auth.service'
@@ -131,43 +132,14 @@ export class RemarkableSyncPlugin extends Plugin {
         log('Loading settings', 'debug')
         const loadedData = (await this.loadData()) as Record<string, unknown> | null
         this.rawData = loadedData ?? {}
-        const loadedSettings = loadedData as PluginSettings | null
 
-        if (!loadedSettings) {
+        if (!loadedData) {
             log('Using default settings', 'debug')
             this.settings = { ...DEFAULT_SETTINGS }
             return
         }
 
-        this.settings = produce(DEFAULT_SETTINGS, (draft: Draft<PluginSettings>) => {
-            if (loadedSettings.targetFolder !== undefined) {
-                draft.targetFolder = loadedSettings.targetFolder
-            }
-            if (loadedSettings.saveImages !== undefined) {
-                draft.saveImages = loadedSettings.saveImages
-            }
-            if (loadedSettings.imageFormat !== undefined) {
-                draft.imageFormat = loadedSettings.imageFormat
-            }
-            if (loadedSettings.imageQuality !== undefined) {
-                draft.imageQuality = loadedSettings.imageQuality
-            }
-            if (loadedSettings.autoSyncEnabled !== undefined) {
-                draft.autoSyncEnabled = loadedSettings.autoSyncEnabled
-            }
-            if (loadedSettings.autoSyncIntervalMinutes !== undefined) {
-                draft.autoSyncIntervalMinutes = loadedSettings.autoSyncIntervalMinutes
-            }
-            if (loadedSettings.useRmfakecloud !== undefined) {
-                draft.useRmfakecloud = loadedSettings.useRmfakecloud
-            }
-            if (loadedSettings.rmfakecloudUrl !== undefined) {
-                draft.rmfakecloudUrl = loadedSettings.rmfakecloudUrl
-            }
-            if (loadedSettings.syncStore !== undefined) {
-                draft.syncStore = loadedSettings.syncStore
-            }
-        })
+        this.settings = mergeLoadedSettings(loadedData)
 
         log('Settings loaded', 'debug', this.settings)
     }

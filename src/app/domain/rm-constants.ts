@@ -49,7 +49,9 @@ export enum TagType {
  * Scene item types inside value subblocks
  */
 export enum SceneItemType {
-    Group = 1,
+    /** A text highlight made by selecting text in a PDF */
+    GlyphRange = 1,
+    Group = 2,
     Line = 3
 }
 

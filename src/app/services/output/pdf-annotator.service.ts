@@ -1,7 +1,7 @@
-import { PDFDocument, rgb } from 'pdf-lib'
+import { PDFDocument, PDFName, PDFNumber, PDFString, rgb } from 'pdf-lib'
 import type { PDFPage } from 'pdf-lib'
 import { log } from '../../../utils/log'
-import type { Page, Stroke } from '../../domain/notebook'
+import type { Highlight, Page, Stroke } from '../../domain/notebook'
 import {
     STROKE_COLOR_MAP,
     PEN_WIDTH_MULTIPLIER,
@@ -30,6 +30,8 @@ export interface AnnotateResult {
     annotatedPages: number
     /** Layers skipped because they map to no source page, or one out of range */
     skippedPages: number
+    /** Text highlights embedded as real PDF annotations */
+    highlights: number
 }
 
 function hexToRgb(hex: string): ReturnType<typeof rgb> {
@@ -84,6 +86,79 @@ function drawStroke(
 }
 
 /**
+ * Add a text highlight as a real PDF `/Highlight` annotation.
+ *
+ * Deliberately an annotation rather than painted ink: a reader can select it,
+ * see its text in a comment pane, and extract it. The device already knows
+ * which characters were selected and supplies the rectangles covering them, so
+ * nothing is inferred from geometry here.
+ *
+ * `/QuadPoints` lists four corners per rectangle in the order the PDF
+ * specification requires: upper-left, upper-right, lower-left, lower-right.
+ */
+function addHighlightAnnotation(
+    doc: PDFDocument,
+    pdfPage: PDFPage,
+    highlight: Highlight,
+    box: PageBox,
+    rotate: 0 | 90 | 180 | 270
+): boolean {
+    if (highlight.rects.length === 0) {
+        return false
+    }
+
+    const quads: number[] = []
+    let minX = Infinity
+    let minY = Infinity
+    let maxX = -Infinity
+    let maxY = -Infinity
+
+    for (const r of highlight.rects) {
+        const topLeft = rmPointToPdf(r.x, r.y, box, rotate)
+        const topRight = rmPointToPdf(r.x + r.width, r.y, box, rotate)
+        const bottomLeft = rmPointToPdf(r.x, r.y + r.height, box, rotate)
+        const bottomRight = rmPointToPdf(r.x + r.width, r.y + r.height, box, rotate)
+
+        quads.push(
+            topLeft.x,
+            topLeft.y,
+            topRight.x,
+            topRight.y,
+            bottomLeft.x,
+            bottomLeft.y,
+            bottomRight.x,
+            bottomRight.y
+        )
+
+        for (const p of [topLeft, topRight, bottomLeft, bottomRight]) {
+            minX = Math.min(minX, p.x)
+            maxX = Math.max(maxX, p.x)
+            minY = Math.min(minY, p.y)
+            maxY = Math.max(maxY, p.y)
+        }
+    }
+
+    const hex = STROKE_COLOR_MAP[highlight.color] ?? '#FFED75'
+    const colour = hexToRgb(hex)
+
+    const annot = doc.context.obj({
+        Type: 'Annot',
+        Subtype: 'Highlight',
+        Rect: [minX, minY, maxX, maxY].map((n) => PDFNumber.of(n)),
+        QuadPoints: quads.map((n) => PDFNumber.of(n)),
+        C: [colour.red, colour.green, colour.blue].map((n) => PDFNumber.of(n)),
+        CA: PDFNumber.of(HIGHLIGHTER_OPACITY),
+        // The selected text itself, so readers can show and extract it
+        Contents: PDFString.of(highlight.text),
+        F: PDFNumber.of(4) // Print
+    })
+
+    pdfPage.node.addAnnot(doc.context.register(annot))
+    void PDFName // kept for clarity that annotation keys are PDF names
+    return true
+}
+
+/**
  * Draw a document's annotation layers back onto its source PDF.
  *
  * Only pages carrying a `sourcePageIndex` are drawn: pages inserted on the
@@ -119,6 +194,7 @@ export async function annotateSourcePdf(
     const pageCount = doc.getPageCount()
     let annotatedPages = 0
     let skippedPages = 0
+    let highlights = 0
 
     for (const page of pages) {
         const index = page.sourcePageIndex
@@ -136,6 +212,11 @@ export async function annotateSourcePdf(
         const box = pdfPage.getCropBox()
         const rotate = (pdfPage.getRotation().angle % 360) as 0 | 90 | 180 | 270
 
+        // Text highlights first, so ink drawn afterwards sits above them
+        for (const highlight of page.highlights ?? []) {
+            if (addHighlightAnnotation(doc, pdfPage, highlight, box, rotate)) highlights++
+        }
+
         for (const stroke of page.strokes) {
             drawStroke(pdfPage, stroke, box, rotate)
         }
@@ -146,7 +227,7 @@ export async function annotateSourcePdf(
         const bytes = await doc.save({ useObjectStreams: false })
         const data = new ArrayBuffer(bytes.byteLength)
         new Uint8Array(data).set(bytes)
-        return { data, annotatedPages, skippedPages }
+        return { data, annotatedPages, skippedPages, highlights }
     } catch (error) {
         log('Failed to write the annotated PDF', 'error', error)
         return null

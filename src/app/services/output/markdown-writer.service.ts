@@ -167,6 +167,29 @@ export async function writePageImage(
 export const ANNOTATED_SUFFIX = ' (annotated)'
 
 /**
+ * Write a markdown note to the vault, skipping the write when unchanged.
+ */
+export async function writeMarkdownNote(
+    vault: Vault,
+    targetFolder: string,
+    folderPath: string,
+    noteName: string,
+    contents: string
+): Promise<string> {
+    const filePath = buildDocumentPath(targetFolder, folderPath, noteName, 'md')
+    const data = new TextEncoder().encode(contents)
+    const buffer = new ArrayBuffer(data.byteLength)
+    new Uint8Array(buffer).set(data)
+
+    const written = await writeBinaryIfChanged(vault, filePath, buffer)
+    if (written) {
+        log(`Wrote note: ${filePath}`, 'debug')
+    }
+
+    return filePath
+}
+
+/**
  * Write a whole-notebook PDF to the vault
  */
 export async function writeDocumentPdf(

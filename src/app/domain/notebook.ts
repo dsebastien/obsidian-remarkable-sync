@@ -18,7 +18,9 @@ export enum PenType {
     HighlighterV2 = 18,
     Eraser = 6,
     EraseArea = 8,
-    CalligraphyPen = 21
+    CalligraphyPen = 21,
+    /** Shading marker: wide, semi-transparent, carries its own ARGB */
+    Shader = 23
 }
 
 /**
@@ -33,7 +35,17 @@ export enum StrokeColor {
     Pink = 5,
     Blue = 6,
     Red = 7,
-    GreyOverlap = 8
+    GreyOverlap = 8,
+    /**
+     * Not a colour in itself: a marker meaning "this stroke carries its own
+     * ARGB value". Written by tools whose colour is freely chosen, such as the
+     * v2 highlighter and the shading marker.
+     */
+    Highlight = 9,
+    Green2 = 10,
+    Cyan = 11,
+    Magenta = 12,
+    Yellow2 = 13
 }
 
 /**
@@ -49,6 +61,19 @@ export interface StrokePoint {
 }
 
 /**
+ * A colour carried by the stroke itself, rather than looked up in the palette.
+ *
+ * Channels are 0-255. `alpha` is genuine transparency: a shading marker records
+ * roughly 45% here, which is why it looks light on the device.
+ */
+export interface StrokeArgb {
+    readonly red: number
+    readonly green: number
+    readonly blue: number
+    readonly alpha: number
+}
+
+/**
  * A single stroke drawn on a page
  */
 export interface Stroke {
@@ -56,6 +81,17 @@ export interface Stroke {
     readonly color: StrokeColor
     readonly thickness: number
     readonly points: readonly StrokePoint[]
+    /**
+     * The stroke's own colour, present when `color` is
+     * {@link StrokeColor.Highlight}.
+     *
+     * Newer firmware writes a per-stroke BGRA value for tools whose colour is
+     * freely chosen (the v2 highlighter and the shading marker) and sets
+     * `color` to 9 as a marker meaning "the real colour is here". Verified
+     * across 1,593 strokes: this field is present exactly when `color` is 9,
+     * and absent for every palette colour.
+     */
+    readonly argb?: StrokeArgb
 }
 
 /**

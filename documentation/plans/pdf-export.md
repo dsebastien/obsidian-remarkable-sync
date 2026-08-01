@@ -719,7 +719,7 @@ them are personal). Account shape: 118 documents, 75 `notebook`, 42 `pdf`, 1 `ep
 | Fixture                 | Shape                                                          |
 | ----------------------- | -------------------------------------------------------------- |
 | `notebook-real.rmdoc`   | Handwritten notebook, 38 strokes, 918 points, `P Lines medium` |
-| `sample-document.rmdoc`          | **3-page A4 PDF, ink on source page 0** — the phase 3 fixture  |
+| `sample-document.rmdoc` | **3-page A4 PDF, ink on source page 0** — the phase 3 fixture  |
 | `getting-started.rmdoc` | 1-page source PDF + 8 device-inserted pages                    |
 | `pdf-backed.rmdoc`      | 2 source pages + 1 inserted page, no ink                       |
 

@@ -350,3 +350,78 @@ describe('source-backed documents', () => {
         expect(result.sourceWritten).toBe(false)
     })
 })
+
+const highlightedPage = (pageIndex: number, sourcePageIndex = 0): Page => ({
+    pageId: `hp${pageIndex}`,
+    pageIndex,
+    strokes: [],
+    sourcePageIndex,
+    highlights: [{ text: 'Some highlighted words', color: 9 as never, rects: [] }]
+})
+
+describe('highlights note toggle', () => {
+    test('off by default: no note is written even when highlights exist', async () => {
+        const h = createHarness()
+        const result = await runSourceBacked(h, { savePdf: true, saveImages: false }, [
+            highlightedPage(0)
+        ])
+
+        expect(h.notesWritten).toHaveLength(0)
+        expect(result.highlightsNoteWritten).toBe(false)
+    })
+
+    test('on: writes one note named after the document', async () => {
+        const h = createHarness()
+        const result = await runSourceBacked(
+            h,
+            { savePdf: true, saveImages: false, saveHighlightsNote: true },
+            [highlightedPage(0)]
+        )
+
+        expect(h.notesWritten.map((n) => n.name)).toEqual(['Book (highlights)'])
+        expect(h.notesWritten[0]!.contents).toContain('Some highlighted words')
+        expect(result.highlightsNoteWritten).toBe(true)
+    })
+
+    test('on but no highlights: still no note, so vaults stay quiet', async () => {
+        const h = createHarness()
+        const result = await runSourceBacked(
+            h,
+            { savePdf: true, saveImages: false, saveHighlightsNote: true },
+            [sourcePage(0, 0)]
+        )
+
+        expect(h.notesWritten).toHaveLength(0)
+        expect(result.highlightsNoteWritten).toBe(false)
+    })
+
+    /**
+     * The toggle governs the markdown only. Highlights are embedded in the
+     * annotated PDF either way, since that is part of reproducing the document
+     * faithfully rather than an extra output.
+     */
+    test('the annotated PDF is written regardless of the toggle', async () => {
+        for (const saveHighlightsNote of [true, false]) {
+            const h = createHarness()
+            const result = await runSourceBacked(
+                h,
+                { savePdf: true, saveImages: false, saveHighlightsNote },
+                [highlightedPage(0)]
+            )
+            expect(result.annotatedWritten).toBe(true)
+            expect(h.annotateCalls).toHaveLength(1)
+        }
+    })
+
+    test('works without a PDF: the note does not depend on savePdf', async () => {
+        const h = createHarness()
+        const result = await runSourceBacked(
+            h,
+            { savePdf: false, saveImages: false, saveHighlightsNote: true },
+            [highlightedPage(0)]
+        )
+
+        expect(h.pdfWrites).toHaveLength(0)
+        expect(result.highlightsNoteWritten).toBe(true)
+    })
+})

@@ -59,12 +59,38 @@ export interface Stroke {
 }
 
 /**
+ * A rectangle covered by a text highlight, in .rm page coordinates.
+ */
+export interface HighlightRect {
+    readonly x: number
+    readonly y: number
+    readonly width: number
+    readonly height: number
+}
+
+/**
+ * Text highlighted by selecting it on the device, as opposed to ink drawn with
+ * the highlighter pen.
+ *
+ * The device records the actual selected text and the rectangles covering it,
+ * so no geometry has to be inferred from stroke paths and the text is exact
+ * rather than reconstructed.
+ */
+export interface Highlight {
+    readonly text: string
+    readonly color: StrokeColor
+    readonly rects: readonly HighlightRect[]
+}
+
+/**
  * A single page of a notebook, containing strokes
  */
 export interface Page {
     readonly pageId: string
     readonly pageIndex: number
     readonly strokes: readonly Stroke[]
+    /** Text highlights, present only on source-backed documents */
+    readonly highlights?: readonly Highlight[]
     /**
      * Index of the page in the source document this layer annotates.
      *

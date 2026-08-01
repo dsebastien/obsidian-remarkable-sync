@@ -8,7 +8,15 @@ import {
     SceneItemType,
     ERASER_PEN_TYPES
 } from '../../domain/rm-constants'
-import type { PenType, Stroke, StrokeColor, StrokePoint, Page } from '../../domain/notebook'
+import type {
+    PenType,
+    Stroke,
+    StrokeColor,
+    StrokePoint,
+    Page,
+    Highlight,
+    HighlightRect
+} from '../../domain/notebook'
 import { log } from '../../../utils/log'
 
 /**
@@ -17,6 +25,7 @@ import { log } from '../../../utils/log'
 export function parseRmFile(buffer: ArrayBuffer, pageId: string, pageIndex: number): Page {
     const reader = new BinaryReader(buffer)
     const strokes: Stroke[] = []
+    const highlights: Highlight[] = []
 
     // Validate header
     const header = reader.readString(RM_HEADER_LENGTH)
@@ -31,10 +40,9 @@ export function parseRmFile(buffer: ArrayBuffer, pageId: string, pageIndex: numb
     // Parse blocks until end of file
     while (reader.remaining >= BLOCK_HEADER_SIZE) {
         try {
-            const stroke = parseBlock(reader)
-            if (stroke) {
-                strokes.push(stroke)
-            }
+            const { stroke, highlight } = parseBlock(reader)
+            if (stroke) strokes.push(stroke)
+            if (highlight) highlights.push(highlight)
         } catch (error) {
             log(`Error parsing .rm block at offset ${reader.position}`, 'warn', error)
             break
@@ -44,14 +52,15 @@ export function parseRmFile(buffer: ArrayBuffer, pageId: string, pageIndex: numb
     return {
         pageId,
         pageIndex,
-        strokes
+        strokes,
+        ...(highlights.length > 0 ? { highlights } : {})
     }
 }
 
 /**
  * Block header: uint32 length | uint8 unknown | uint8 min_ver | uint8 cur_ver | uint8 type
  */
-function parseBlock(reader: BinaryReader): Stroke | null {
+function parseBlock(reader: BinaryReader): { stroke?: Stroke; highlight?: Highlight } {
     const blockLength = reader.readUint32()
     reader.readUint8() // unknown, always 0
     reader.readUint8() // min_version
@@ -59,15 +68,118 @@ function parseBlock(reader: BinaryReader): Stroke | null {
     const blockType: BlockType = reader.readUint8()
     const blockEnd = reader.position + blockLength
 
-    let stroke: Stroke | null = null
+    const result: { stroke?: Stroke; highlight?: Highlight } = {}
 
     if (blockType === BlockType.SceneLineItemBlock) {
-        stroke = parseSceneLineItemBlock(reader, currentVersion, blockEnd)
+        const stroke = parseSceneLineItemBlock(reader, currentVersion, blockEnd)
+        if (stroke) result.stroke = stroke
+    } else if (blockType === BlockType.SceneGlyphItemBlock) {
+        const highlight = parseSceneGlyphItemBlock(reader, blockEnd)
+        if (highlight) result.highlight = highlight
     }
 
     // Always seek to block end
     reader.seek(blockEnd)
-    return stroke
+    return result
+}
+
+/**
+ * Parse a SceneGlyphItemBlock, which carries a text highlight.
+ *
+ * These are produced when text is selected on the device and highlighted, as
+ * opposed to ink drawn with the highlighter pen. The device stores the selected
+ * text itself along with the rectangles covering it, so nothing has to be
+ * inferred from stroke geometry.
+ *
+ * Wire format inside the CRDT item's value subblock:
+ *   uint8 scene item type (1 = GlyphRange)
+ *   tag 2  Byte4      start   (optional, absent since firmware 3.6)
+ *   tag 3  Byte4      length  (optional, absent since firmware 3.6)
+ *   tag 4  Byte4      colour
+ *   tag 5  Length4    string subblock: varuint length, bool ascii flag, bytes
+ *   tag 6  Length4    subblock: varuint count, then count * 4 float64 (x, y, w, h)
+ */
+function parseSceneGlyphItemBlock(reader: BinaryReader, blockEnd: number): Highlight | null {
+    while (reader.position < blockEnd) {
+        const tag = readTag(reader)
+
+        if (tag.type === TagType.Length4 && tag.index === 6) {
+            const subLen = reader.readUint32()
+            const subEnd = reader.position + subLen
+            const highlight = parseGlyphValue(reader, subEnd)
+            reader.seek(subEnd)
+            return highlight
+        }
+
+        // Deleted item (tag index 5, Byte4, non-zero)
+        if (tag.type === TagType.Byte4 && tag.index === 5) {
+            if (reader.readInt32() !== 0) return null
+            continue
+        }
+
+        skipTagValue(reader, tag.type)
+    }
+
+    return null
+}
+
+function parseGlyphValue(reader: BinaryReader, subEnd: number): Highlight | null {
+    const sceneType: SceneItemType = reader.readUint8()
+    if (sceneType !== SceneItemType.GlyphRange) {
+        return null
+    }
+
+    let text = ''
+    let color: StrokeColor = 0
+    const rects: HighlightRect[] = []
+
+    while (reader.position < subEnd) {
+        const tag = readTag(reader)
+
+        if (tag.index === 4 && tag.type === TagType.Byte4) {
+            color = reader.readInt32() as StrokeColor
+            continue
+        }
+
+        if (tag.index === 5 && tag.type === TagType.Length4) {
+            const len = reader.readUint32()
+            const end = reader.position + len
+            const strLen = reader.readVarUint()
+            reader.readUint8() // ascii flag, unused: the bytes are decoded as UTF-8
+            // Highlighted text can contain any character the source PDF holds,
+            // so this is decoded as UTF-8 rather than through the ASCII-only
+            // `readString` used for the file header.
+            text = new TextDecoder().decode(
+                reader.readBytes(Math.min(strLen, end - reader.position))
+            )
+            reader.seek(end)
+            continue
+        }
+
+        if (tag.index === 6 && tag.type === TagType.Length4) {
+            const len = reader.readUint32()
+            const end = reader.position + len
+            const count = reader.readVarUint()
+            for (let i = 0; i < count && reader.position + 32 <= end; i++) {
+                rects.push({
+                    x: reader.readFloat64(),
+                    y: reader.readFloat64(),
+                    width: reader.readFloat64(),
+                    height: reader.readFloat64()
+                })
+            }
+            reader.seek(end)
+            continue
+        }
+
+        skipTagValue(reader, tag.type)
+    }
+
+    if (!text) {
+        return null
+    }
+
+    return { text, color, rects }
 }
 
 /**

@@ -9,7 +9,9 @@ import {
     isPageRenderingSupported,
     renderPage
 } from '../renderer/page-renderer.service'
-import { writePageImage } from '../output/markdown-writer.service'
+import { writeDocumentPdf, writePageImage } from '../output/markdown-writer.service'
+import { buildPdf } from '../output/pdf-writer.service'
+import { renderAndWritePages } from '../output/document-output.service'
 
 export type PipelineStatus = 'idle' | 'downloading' | 'parsing' | 'rendering' | 'done' | 'error'
 
@@ -37,11 +39,13 @@ export interface PipelineDeps {
     parseDocument: typeof parseDocument
     renderPage: typeof renderPage
     writePageImage: typeof writePageImage
+    writeDocumentPdf: typeof writeDocumentPdf
+    buildPdf: typeof buildPdf
 }
 
 export function createNotebookPipelineService(
     plugin: RemarkableSyncPlugin,
-    deps: PipelineDeps = { parseDocument, renderPage, writePageImage }
+    deps: PipelineDeps = { parseDocument, renderPage, writePageImage, writeDocumentPdf, buildPdf }
 ): NotebookPipelineService {
     async function processNotebook(
         notebook: NotebookSummary,
@@ -95,40 +99,24 @@ export function createNotebookPipelineService(
                 return true
             }
 
-            const totalPages = contentPages.length
-            let failedPages = 0
-
-            // Step 3: Render each page
-            for (let i = 0; i < contentPages.length; i++) {
-                const page = contentPages[i]!
-                const pageIndex = page.pageIndex
-
-                // Render page to image
-                onProgress({ status: 'rendering', currentPage: i + 1, totalPages, failedPages })
-                const imageData = await deps.renderPage(
-                    page,
-                    settings.imageFormat,
-                    settings.imageQuality
-                )
-
-                if (!imageData) {
-                    // renderPage catches its own errors and returns null; a
-                    // content page that yields no image was dropped — count it
-                    // so the failure is visible instead of silent.
-                    failedPages++
-                    log(`Page ${pageIndex + 1} of ${notebook.visibleName} failed to render`, 'warn')
-                } else if (settings.saveImages) {
-                    await deps.writePageImage(
-                        plugin.app.vault,
-                        settings.targetFolder,
-                        notebook.folderPath,
-                        notebook.visibleName,
-                        pageIndex,
-                        imageData,
-                        settings.imageFormat
-                    )
-                }
-            }
+            // Step 3: Render each page and write the enabled outputs
+            const { totalPages, failedPages } = await renderAndWritePages(
+                {
+                    pages: contentPages,
+                    notebookName: notebook.visibleName,
+                    folderPath: notebook.folderPath,
+                    settings,
+                    vault: plugin.app.vault,
+                    onPageProgress: (currentPage, total, failed) =>
+                        onProgress({
+                            status: 'rendering',
+                            currentPage,
+                            totalPages: total,
+                            failedPages: failed
+                        })
+                },
+                deps
+            )
 
             onProgress({ status: 'done', currentPage: totalPages, totalPages, failedPages })
             if (failedPages > 0) {

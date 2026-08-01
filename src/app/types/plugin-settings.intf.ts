@@ -8,6 +8,11 @@ export const DEFAULT_AUTO_SYNC_INTERVAL_MINUTES = 30
 export interface PluginSettings {
     targetFolder: string
     saveImages: boolean
+    /**
+     * Write one PDF per notebook, beside the per-page image folder.
+     * Independent of `saveImages`: either, both or neither may be enabled.
+     */
+    savePdf: boolean
     imageFormat: 'png' | 'jpeg' | 'webp'
     imageQuality: number
     useRmfakecloud: boolean
@@ -20,6 +25,7 @@ export interface PluginSettings {
 export const DEFAULT_SETTINGS: PluginSettings = {
     targetFolder: '',
     saveImages: true,
+    savePdf: false,
     imageFormat: 'jpeg',
     imageQuality: 0.85,
     useRmfakecloud: false,

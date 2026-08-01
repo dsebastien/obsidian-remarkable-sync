@@ -1,19 +1,52 @@
 # PDF support
 
-Status: **planned, not started.**
+Status: **phase 1 implemented, unreleased and not yet verified in a live vault.**
 
 Three phases, each shippable on its own:
 
-1. **Export** a notebook as a single PDF instead of loose per-page images.
+1. **Export** a notebook as a single PDF instead of loose per-page images. **Done.**
 2. **Sync PDF-backed documents** properly, keeping the source PDF instead of discarding it.
 3. **Burn annotations in**, producing the original document with the ink drawn on top.
 
-Phase 2 is a hard prerequisite for phase 3. Phase 1 is independent and lands first because it is
+Phase 2 is a hard prerequisite for phase 3. Phase 1 was independent and landed first because it is
 the smallest and shares the dependency.
 
-## What exists today
+## Phase 1 as built
 
-Nothing in the codebase writes or reads a PDF. Verified by reading the pipeline end to end:
+| Piece                                                                  | File                                 |
+| ---------------------------------------------------------------------- | ------------------------------------ |
+| PDF assembly over pdf-lib, deterministic                               | `output/pdf-writer.service.ts`       |
+| Shared render-and-write loop for cloud sync and `.rmdoc` import        | `output/document-output.service.ts`  |
+| `buildDocumentPath`, `writeDocumentPdf`, skip-if-unchanged write guard | `output/markdown-writer.service.ts`  |
+| `savePdf` setting                                                      | `types/plugin-settings.intf.ts`      |
+| "Save as PDF" toggle                                                   | `settings/components/pdf-section.ts` |
+
+Verified: `tsc` clean, `lint` 0 warnings, **287 tests pass** (was 238), build succeeds.
+`dist/main.js` went from 145,385 to 665,121 bytes. Bundle audit clean: pdf-lib added no
+`require()`, no `new Worker`, no `createObjectURL`, no `createElement("script")`. The only
+`require()` calls remain `obsidian` and the three guarded desktop-only Node builtins.
+
+End-to-end check outside the test suite, on real 1404x1872 JPEGs plus one 1404x2600 page standing
+in for scrolled content:
+
+- Standard pages come out 447.29 x 596.39 pt, which is 6.21 x 8.28 inches, matching the physical
+  reMarkable screen.
+- The tall page came out 447.29 x 828.32 pt: same width, proportionally taller, not cropped.
+- Two runs a second apart produced byte-identical files.
+- Rendered the result back to an image and inspected it: frame, grid and a corner-to-corner
+  diagonal all land correctly, so there is no aspect distortion.
+
+**Deviation from this plan, deliberate:** no renderer change was needed. pdf-lib's embedded image
+exposes `.width`/`.height`, so `renderPage()`'s existing `ArrayBuffer` feeds straight into
+`embedJpg`/`embedPng` and `renderPageDetailed` was never required.
+
+**Open decisions were resolved as recommended:** blank pages and failed pages are both dropped from
+the PDF, consistent with the image path, with the existing failure Notice carrying the report. The
+`.rmdoc` import now reports failed pages too, which it previously swallowed.
+
+## What existed before this plan
+
+Nothing in the codebase wrote or read a PDF. Verified by reading the pipeline end to end:
 
 - `renderPage()` encodes a page to PNG, JPEG or WebP only.
 - `writePageImage()` writes exactly one binary file per page, extension from `settings.imageFormat`.
@@ -38,11 +71,11 @@ real PDF reader, and it is exactly what pdf-lib already is.
 Measured on pdf-lib 1.17.1 with **Bun 1.3.14's own bundler**, using the exact production settings
 from `scripts/build.ts` (`format: 'cjs'`, `target: 'node'`, `minify: true`, `sourcemap: 'none'`):
 
-| Entry point exercised                     | Bundled   | `require()` | Reviewer flags |
-| ----------------------------------------- | --------- | ----------- | -------------- |
-| baseline, empty module                    | 0.6 KB    | none        | none           |
-| `PDFDocument.load` + `save`               | 505.3 KB  | none        | none           |
-| `create` + `embedJpg` + `drawImage`/`drawLine` | 505.5 KB | none     | none           |
+| Entry point exercised                          | Bundled  | `require()` | Reviewer flags |
+| ---------------------------------------------- | -------- | ----------- | -------------- |
+| baseline, empty module                         | 0.6 KB   | none        | none           |
+| `PDFDocument.load` + `save`                    | 505.3 KB | none        | none           |
+| `create` + `embedJpg` + `drawImage`/`drawLine` | 505.5 KB | none        | none           |
 
 Tree-shaking buys nothing. pdf-lib's module graph eagerly pulls the 14 standard-font AFM tables
 (about 180 KB), UPNG and pako, none of which a stroke overlay uses. Obsidian ships a single
@@ -67,9 +100,10 @@ reMarkable-to-PDF tool is already built on this same library. Page geometry in t
 `rot=0` with the crop box equal to the media box, so it exercises neither the `/Rotate` nor the
 `/CropBox` branch of the phase 3 transform. Those still need material from elsewhere.
 
-**Still to verify before merging**: the same build under the reviewer's older Bun (observed 1.2.14),
-and a `dist/main.js` audit on the real bundle once pdf-lib is actually wired in rather than probed
-in isolation.
+**Audit done on the real bundle** after wiring: `dist/main.js` contains only `require("obsidian")`
+and the three guarded desktop-only Node builtins, with no `new Worker`, `createObjectURL`,
+`createElement("script")` or `eval(`. **Still to verify**: the same build under the reviewer's older
+Bun (observed 1.2.14).
 
 Taking pdf-lib also **removes** the hand-rolled PDF writer from an earlier draft of this plan. One
 PDF path, not two.
@@ -85,7 +119,7 @@ extension, and a PDF still needs an image codec inside it. PDF export is its own
 existing `saveImages`:
 
 ```typescript
-savePdf: boolean   // default false
+savePdf: boolean // default false
 ```
 
 | `saveImages` | `savePdf` | Result                                  |
@@ -130,12 +164,12 @@ notebook produce different bytes. With automatic sync enabled that would hand a 
 `updateMetadata: false` suppresses it entirely, which is better than pinning the dates to a fixed
 value. Measured on pdf-lib 1.17.1, hashing the output of two runs a second apart:
 
-| Path                                           | Two runs               |
-| ---------------------------------------------- | ---------------------- |
-| `create()` default                             | differ                 |
-| `create({ updateMetadata: false })`            | **byte-identical**     |
-| `load()` default                               | differ                 |
-| `load(bytes, { updateMetadata: false })`       | **byte-identical**     |
+| Path                                     | Two runs           |
+| ---------------------------------------- | ------------------ |
+| `create()` default                       | differ             |
+| `create({ updateMetadata: false })`      | **byte-identical** |
+| `load()` default                         | differ             |
+| `load(bytes, { updateMetadata: false })` | **byte-identical** |
 
 With it off, `create()` emits no `/CreationDate`, `/ModDate`, `/Producer` or `/ID` at all. On the
 phase 3 load path it also leaves the **source document's own** metadata untouched: a source with
@@ -173,11 +207,11 @@ since the reMarkable aspect ratio is not A4's.
 
 ### Codec matrix
 
-| `imageFormat` | Embedded via                          |
-| ------------- | ------------------------------------- |
-| `jpeg`        | `embedJpg`, bytes passed through      |
-| `png`         | `embedPng`                            |
-| `webp`        | re-encoded to JPEG at `imageQuality`  |
+| `imageFormat` | Embedded via                         |
+| ------------- | ------------------------------------ |
+| `jpeg`        | `embedJpg`, bytes passed through     |
+| `png`         | `embedPng`                           |
+| `webp`        | re-encoded to JPEG at `imageQuality` |
 
 PDF has no WebP filter. The canvas is still in hand at that point so re-encoding costs one extra
 `convertToBlob`. With both toggles on the loose files stay WebP and only the embedded copy differs.
@@ -231,7 +265,7 @@ annotation layer onto its page. reMarkable also lets you insert new pages into a
 no source page at all.
 
 **Unverified against a real export**, since the only fixture in the repo is synthetic. Fallback if
-the redirect is absent: assume page *i* maps to source page *i* for the first N pages, and log when
+the redirect is absent: assume page _i_ maps to source page _i_ for the first N pages, and log when
 that assumption is used so bug reports say so.
 
 ### Blank pages: a rule conflict
@@ -343,48 +377,34 @@ blend mode and accept a slightly different look over highlighted text.
 
 ---
 
-## Open decisions
+## Decisions, all settled
 
-1. **Failed pages in an exported PDF (phase 1).** Today a page that fails to render is dropped and
-   counted, and the Notice reports "N pages failed to render". In a PDF, dropping silently shifts
-   every later page number. Options: drop (consistent with images, recommended, the Notice already
-   reports it), or insert a blank placeholder. A placeholder carrying explanatory text needs an
-   embedded font, though pdf-lib now makes that cheap since the standard fonts are already in the
-   bundle whether used or not.
-2. **Blank notebook pages in an exported PDF (phase 1).** The existing rule skips them. Arguable for
-   a PDF, where a document with holes reads oddly. Recommendation is to keep the rule and revisit on
-   feedback. Distinct from the phase 2 rule conflict above, which is not optional.
+- Separate "Save as PDF" toggle rather than an output-format enum, so `saveImages` keeps its exact
+  meaning and no settings migration is needed.
+- pdf-lib rather than a hand-rolled writer.
+- Blank pages and failed pages are dropped from the PDF, matching the image path. Revisit only on
+  user feedback. A placeholder page carrying explanatory text would need an embedded font, though
+  pdf-lib makes that cheap now that the standard fonts are in the bundle whether used or not.
 
-Settled: separate "Save as PDF" toggle rather than an output-format enum. pdf-lib rather than a
-hand-rolled writer. Both recorded above with their rejected alternatives.
+Each is recorded above with its rejected alternative.
 
 ## Implementation steps
 
-**Phase 1**
-
-1. Add `pdf-lib`, then audit `dist/main.js` for `require(...)`, `createElement("script")`,
-   `new Worker`, `createObjectURL`, and confirm the size under Bun and under Bun 1.2.14.
-2. `pdf-writer.service.ts` plus spec: build a PDF from a list of encoded images, deterministic bytes.
-3. `buildDocumentPath()` and `writeDocumentPdf()` in `markdown-writer.service.ts`, plus the
-   skip-if-unchanged guard shared with `writePageImage()`.
-4. `savePdf: false` in `plugin-settings.intf.ts` and `DEFAULT_SETTINGS`.
-5. Extract the shared render-and-write loop, wire it into the pipeline and the `.rmdoc` import.
-6. `pdf-section.ts` with the toggle, registered in `settings-tab.ts`, plus a revised image-format
-   description naming the WebP fallback.
+**Phase 1 — done**, except confirming the build under the reviewer's older Bun.
 
 **Phase 2**
 
-7. Narrow `fileType`, retain the source blob in `parseDocument()`, add `sourceDocument` and
+1. Narrow `fileType`, retain the source blob in `parseDocument()`, add `sourceDocument` and
    `sourcePageIndex` to the domain types.
-8. Page-mapping function plus spec, including the no-redirect fallback.
-9. Scope the blank-page rule to notebook pages and amend `Business Rules.md`.
-10. Write the source PDF through to the vault.
+2. Page-mapping function plus spec, including the no-redirect fallback.
+3. Scope the blank-page rule to notebook pages and amend `Business Rules.md`.
+4. Write the source PDF through to the vault.
 
 **Phase 3**
 
-11. Coordinate transform as a pure function, with its own spec, before anything draws.
-12. Stroke-to-PDF-operator emitter reusing the pen constants.
-13. Overlay assembly, encrypted-PDF detection, size guard.
+1. Coordinate transform as a pure function, with its own spec, before anything draws.
+2. Stroke-to-PDF-operator emitter reusing the pen constants.
+3. Overlay assembly, encrypted-PDF detection, size guard.
 
 **Throughout**: `Architecture.md` (service table, data flow), `Domain Model.md` (settings, new
 fields), `Business Rules.md`, `README.md`, `docs/configuration.md`, `docs/usage.md`,
@@ -395,7 +415,7 @@ fields), `Business Rules.md`, `README.md`, `docs/configuration.md`, `docs/usage.
 - PDF export is opt-in via `savePdf` (default false), independent of `saveImages`. Either, both or
   neither may be enabled.
 - Generated PDFs carry no creation date, modification date, producer or file ID (`updateMetadata:
-  false`), so re-processing an unchanged notebook produces byte-identical output. On the burn-in
+false`), so re-processing an unchanged notebook produces byte-identical output. On the burn-in
   path the source document's own metadata is preserved unchanged rather than restamped.
 - Vault writes skip the write entirely when the new bytes match the existing file, so an unchanged
   page or document never bumps its mtime. Applies to images and PDFs alike, and matters most with
@@ -457,7 +477,7 @@ import (see `mobile-support.md`) and is now the **single largest risk in this pl
 phase 3 coordinate mapping cannot be derived confidently from first principles.
 
 **Checked and ruled out**: `remarkable/Daily Journal` in the user's vault holds 48 PDFs, but they
-are *outputs* of a separate reMarkable-to-PDF tool, not raw device exports. They carry no `.rm`
+are _outputs_ of a separate reMarkable-to-PDF tool, not raw device exports. They carry no `.rm`
 stroke layers and no source-PDF-plus-annotation pairing, so they cannot validate the transform. They
 did validate the dependency (48/48 load) and supplied the reference encoding above, which is why
 they were worth surveying.
@@ -471,9 +491,9 @@ else in phase 3 can be built without it, but the transform cannot be confirmed c
 Bun 1.3.14 installed (matching the `packageManager` pin). Verified clean before any PDF work, the
 first local verification this repo has had:
 
-| Check          | Result                                  |
-| -------------- | --------------------------------------- |
-| `bun run tsc`  | clean                                   |
-| `bun run lint` | 0 warnings                              |
-| `bun test`     | 238 pass, 0 fail, 27 files              |
-| `bun run build`| succeeds, `dist/main.js` 145,385 bytes  |
+| Check           | Result                                 |
+| --------------- | -------------------------------------- |
+| `bun run tsc`   | clean                                  |
+| `bun run lint`  | 0 warnings                             |
+| `bun test`      | 238 pass, 0 fail, 27 files             |
+| `bun run build` | succeeds, `dist/main.js` 145,385 bytes |

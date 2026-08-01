@@ -15,7 +15,8 @@ import type {
     StrokePoint,
     Page,
     Highlight,
-    HighlightRect
+    HighlightRect,
+    StrokeArgb
 } from '../../domain/notebook'
 import { log } from '../../../utils/log'
 
@@ -277,6 +278,7 @@ function parseLineValue(reader: BinaryReader, subEnd: number, version: number): 
     let colorId: StrokeColor = 0
     let thickness = 1.0
     let points: StrokePoint[] = []
+    let argb: StrokeArgb | undefined
 
     // Read tagged fields
     while (reader.position < subEnd) {
@@ -330,6 +332,21 @@ function parseLineValue(reader: BinaryReader, subEnd: number, version: number): 
                     skipTagValue(reader, tag.type)
                 }
                 break
+            case 8: // per-stroke colour (Byte4, BGRA little-endian)
+                if (tag.type === TagType.Byte4) {
+                    // Written by tools whose colour is freely chosen rather
+                    // than picked from the palette. `color` is 9 in that case,
+                    // which is a marker rather than a colour, so without this
+                    // the renderer falls back to a guess and loses the alpha.
+                    const blue = reader.readUint8()
+                    const green = reader.readUint8()
+                    const red = reader.readUint8()
+                    const alpha = reader.readUint8()
+                    argb = { red, green, blue, alpha }
+                } else {
+                    skipTagValue(reader, tag.type)
+                }
+                break
             default:
                 // Skip unknown tags (timestamp, move_id, etc.)
                 skipTagValue(reader, tag.type)
@@ -342,6 +359,7 @@ function parseLineValue(reader: BinaryReader, subEnd: number, version: number): 
     }
 
     return {
+        ...(argb ? { argb } : {}),
         penType: toolId,
         color: colorId,
         thickness,

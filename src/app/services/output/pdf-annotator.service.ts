@@ -2,12 +2,8 @@ import { PDFDocument, PDFName, PDFNumber, PDFString, rgb } from 'pdf-lib'
 import type { PDFPage } from 'pdf-lib'
 import { log } from '../../../utils/log'
 import type { Highlight, Page, Stroke } from '../../domain/notebook'
-import {
-    STROKE_COLOR_MAP,
-    PEN_WIDTH_MULTIPLIER,
-    HIGHLIGHTER_PEN_TYPES,
-    ERASER_PEN_TYPES
-} from '../../domain/rm-constants'
+import { STROKE_COLOR_MAP, ERASER_PEN_TYPES } from '../../domain/rm-constants'
+import { segmentStyle, strokeColour, strokeOpacity } from '../../domain/pen-model'
 import { rmPointToPdf, rmWidthToPdf } from './pdf-coordinates'
 import type { PageBox } from './pdf-coordinates'
 
@@ -65,14 +61,13 @@ function drawStroke(
         return
     }
 
-    const colour = hexToRgb(STROKE_COLOR_MAP[stroke.color] ?? '#000000')
-    const multiplier = PEN_WIDTH_MULTIPLIER[stroke.penType] ?? 1.0
-    const opacity = HIGHLIGHTER_PEN_TYPES.has(stroke.penType) ? HIGHLIGHTER_OPACITY : 1
+    const colour = hexToRgb(strokeColour(stroke))
+    const opacity = strokeOpacity(stroke)
 
     for (let i = 0; i < points.length - 1; i++) {
         const a = points[i]!
         const b = points[i + 1]!
-        const rmWidth = ((a.width + b.width) / 2) * multiplier * stroke.thickness
+        const rmWidth = segmentStyle(stroke, a, b).width
 
         pdfPage.drawLine({
             start: rmPointToPdf(a.x, a.y, box, rotate),

@@ -120,6 +120,34 @@ export const PEN_WIDTH_MULTIPLIER: Record<number, number> = {
 export const HIGHLIGHTER_PEN_TYPES = new Set([PenType.Highlighter, PenType.HighlighterV2])
 
 /**
+ * Pens whose on-screen width is a constant rather than derived from the
+ * stroke's own width values.
+ *
+ * Measured against a real export: multiplying the recorded width for these
+ * produced a highlighter roughly ten times too wide (about 47pt against an 11pt
+ * text line). The device draws them at a fixed nib size instead.
+ */
+export const FIXED_WIDTH_PENS: Record<number, number> = {
+    [PenType.Highlighter]: 15,
+    [PenType.HighlighterV2]: 15,
+    [PenType.Shader]: 12
+}
+
+/**
+ * Default opacity per pen, used only when the stroke carries no ARGB alpha of
+ * its own. Newer firmware supplies real alpha for the highlighter and shader,
+ * so these are fallbacks for older files.
+ */
+export const PEN_DEFAULT_OPACITY: Record<number, number> = {
+    [PenType.Highlighter]: 0.3,
+    [PenType.HighlighterV2]: 0.3,
+    [PenType.Shader]: 0.1,
+    [PenType.SharpPencil]: 0.7,
+    [PenType.SharpPencilV2]: 0.7,
+    [PenType.EraseArea]: 0
+}
+
+/**
  * PenType values that are erasers (should not be rendered)
  */
 export const ERASER_PEN_TYPES = new Set([PenType.Eraser, PenType.EraseArea])

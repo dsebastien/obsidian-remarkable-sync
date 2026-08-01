@@ -49,7 +49,9 @@ export enum TagType {
  * Scene item types inside value subblocks
  */
 export enum SceneItemType {
-    Group = 1,
+    /** A text highlight made by selecting text in a PDF */
+    GlyphRange = 1,
+    Group = 2,
     Line = 3
 }
 
@@ -57,7 +59,20 @@ export enum SceneItemType {
 export const BLOCK_HEADER_SIZE = 8
 
 /**
- * Maps StrokeColor enum values to CSS color strings
+ * Maps StrokeColor enum values to CSS color strings.
+ *
+ * Values 9 to 13 come from firmware newer than the original nine. They matter
+ * more than they look: an unmapped colour falls back to black in
+ * `stroke-renderer`, and colour 9 is what the v2 highlighter uses, so a
+ * highlighter stroke was painting a ~105px opaque black bar straight over the
+ * writing it was meant to highlight. Confirmed against a real device export and
+ * against rmscene's `PenColor` enum, which is the reference for the range.
+ *
+ * The 10-13 values are rmc's palette. Colour 9 is a default: the device stores
+ * the exact highlight colour per notebook as an ARGB code in the `.content`
+ * file's `extraMetadata` (`LastHighlighterv2ColorCode`), which the renderer does
+ * not read yet. This default matches the code observed on a real device
+ * (4294962549 = 0xFFFFED75).
  */
 export const STROKE_COLOR_MAP: Record<number, string> = {
     0: '#000000', // Black
@@ -68,7 +83,12 @@ export const STROKE_COLOR_MAP: Record<number, string> = {
     5: '#FF69B4', // Pink
     6: '#0000FF', // Blue
     7: '#FF0000', // Red
-    8: '#C0C0C0' // GreyOverlap
+    8: '#C0C0C0', // GreyOverlap
+    9: '#FFED75', // Highlight (default; real colour lives in extraMetadata)
+    10: '#A1D87D', // Green 2
+    11: '#8BD0E5', // Cyan
+    12: '#B782CD', // Magenta
+    13: '#F7E851' // Yellow 2
 }
 
 /**

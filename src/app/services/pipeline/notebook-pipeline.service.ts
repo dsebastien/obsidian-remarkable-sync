@@ -11,6 +11,7 @@ import {
 } from '../renderer/page-renderer.service'
 import { writeDocumentPdf, writePageImage } from '../output/markdown-writer.service'
 import { buildPdf } from '../output/pdf-writer.service'
+import { annotateSourcePdf } from '../output/pdf-annotator.service'
 import { renderAndWritePages } from '../output/document-output.service'
 
 export type PipelineStatus = 'idle' | 'downloading' | 'parsing' | 'rendering' | 'done' | 'error'
@@ -41,11 +42,19 @@ export interface PipelineDeps {
     writePageImage: typeof writePageImage
     writeDocumentPdf: typeof writeDocumentPdf
     buildPdf: typeof buildPdf
+    annotateSourcePdf: typeof annotateSourcePdf
 }
 
 export function createNotebookPipelineService(
     plugin: RemarkableSyncPlugin,
-    deps: PipelineDeps = { parseDocument, renderPage, writePageImage, writeDocumentPdf, buildPdf }
+    deps: PipelineDeps = {
+        parseDocument,
+        renderPage,
+        writePageImage,
+        writeDocumentPdf,
+        buildPdf,
+        annotateSourcePdf
+    }
 ): NotebookPipelineService {
     async function processNotebook(
         notebook: NotebookSummary,
@@ -107,6 +116,7 @@ export function createNotebookPipelineService(
                     folderPath: notebook.folderPath,
                     settings,
                     vault: plugin.app.vault,
+                    ...(parsed.sourceDocument ? { sourceDocument: parsed.sourceDocument } : {}),
                     onPageProgress: (currentPage, total, failed) =>
                         onProgress({
                             status: 'rendering',

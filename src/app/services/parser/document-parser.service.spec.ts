@@ -1,5 +1,10 @@
 import { test, expect, describe } from 'bun:test'
-import { parseDocument, extractPageOrder } from './document-parser.service'
+import {
+    parseDocument,
+    extractPageOrder,
+    extractSourceDocument,
+    extractSourcePageMap
+} from './document-parser.service'
 import { RM_HEADER, RM_HEADER_LENGTH } from '../../domain/rm-constants'
 import type { RemarkableDocumentContent } from '../../domain/remarkable-types'
 
@@ -195,5 +200,90 @@ describe('extractPageOrder', () => {
 
         const result = extractPageOrder(content)
         expect(result).toBeNull()
+    })
+})
+
+describe('extractSourcePageMap', () => {
+    const content = (pages: unknown[]): RemarkableDocumentContent =>
+        ({ cPages: { pages } }) as unknown as RemarkableDocumentContent
+
+    test('maps page ids to their source page index', () => {
+        const map = extractSourcePageMap(
+            content([
+                { id: 'a', redir: { value: 0 } },
+                { id: 'b', redir: { value: 1 } },
+                { id: 'c', redir: { value: 2 } }
+            ])
+        )
+        expect(map.get('a')).toBe(0)
+        expect(map.get('b')).toBe(1)
+        expect(map.get('c')).toBe(2)
+    })
+
+    /**
+     * The case that matters: a device-inserted page has no redir. Defaulting it
+     * to 0 would draw its ink onto the first page of the source document.
+     */
+    test('omits pages inserted on the device, rather than defaulting them to 0', () => {
+        const map = extractSourcePageMap(
+            content([
+                { id: 'original', redir: { value: 0 } },
+                { id: 'inserted' },
+                { id: 'alsoInserted', redir: undefined }
+            ])
+        )
+        expect(map.get('original')).toBe(0)
+        expect(map.has('inserted')).toBe(false)
+        expect(map.has('alsoInserted')).toBe(false)
+        expect(map.size).toBe(1)
+    })
+
+    test('a notebook has no mapping at all', () => {
+        expect(extractSourcePageMap(content([{ id: 'a' }, { id: 'b' }])).size).toBe(0)
+        expect(extractSourcePageMap(null).size).toBe(0)
+    })
+})
+
+describe('extractSourceDocument', () => {
+    const files = (entries: Record<string, ArrayBuffer>): Map<string, ArrayBuffer> =>
+        new Map(Object.entries(entries))
+    const content = (fileType: string): RemarkableDocumentContent =>
+        ({ fileType }) as unknown as RemarkableDocumentContent
+
+    test('finds the source PDF of a PDF-backed document', () => {
+        const pdf = new ArrayBuffer(10)
+        const source = extractSourceDocument(
+            files({ 'doc.pdf': pdf, 'doc.content': new ArrayBuffer(1) }),
+            content('pdf')
+        )
+        expect(source?.kind).toBe('pdf')
+        expect(source?.data).toBe(pdf)
+    })
+
+    test('finds the source EPUB of an epub document', () => {
+        const source = extractSourceDocument(
+            files({ 'doc.epub': new ArrayBuffer(4) }),
+            content('epub')
+        )
+        expect(source?.kind).toBe('epub')
+    })
+
+    test('a notebook has no source document', () => {
+        expect(
+            extractSourceDocument(files({ 'doc.pdf': new ArrayBuffer(4) }), content('notebook'))
+        ).toBeUndefined()
+        expect(extractSourceDocument(files({}), null)).toBeUndefined()
+    })
+
+    test('ignores anything nested under the page folder', () => {
+        expect(
+            extractSourceDocument(files({ 'doc/page.pdf': new ArrayBuffer(4) }), content('pdf'))
+        ).toBeUndefined()
+    })
+
+    test('a claimed fileType with no blob returns undefined rather than throwing', () => {
+        expect(
+            extractSourceDocument(files({ 'doc.content': new ArrayBuffer(1) }), content('pdf'))
+        ).toBeUndefined()
     })
 })

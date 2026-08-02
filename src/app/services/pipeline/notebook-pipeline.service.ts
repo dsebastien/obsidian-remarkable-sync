@@ -123,6 +123,7 @@ export function createNotebookPipelineService(
                     settings,
                     vault: plugin.app.vault,
                     ...(parsed.sourceDocument ? { sourceDocument: parsed.sourceDocument } : {}),
+                    ...(parsed.deviceScreen ? { deviceScreen: parsed.deviceScreen } : {}),
                     onPageProgress: (currentPage, total, failed) =>
                         onProgress({
                             status: 'rendering',

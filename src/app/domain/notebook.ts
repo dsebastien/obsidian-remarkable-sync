@@ -1,3 +1,5 @@
+import type { DeviceScreen } from './device-screen'
+
 /**
  * Pen types supported by the reMarkable tablet
  */
@@ -166,6 +168,11 @@ export interface Notebook {
     readonly pages: readonly Page[]
     /** Present only for documents backed by an imported file */
     readonly sourceDocument?: SourceDocument
+    /**
+     * The screen this was written on, which sets the scale from `.rm` units to
+     * PDF points. Absent when the document does not record it.
+     */
+    readonly deviceScreen?: DeviceScreen
 }
 
 /**

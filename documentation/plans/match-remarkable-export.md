@@ -118,10 +118,10 @@ per-segment call so grain can return without touching either renderer.
 Found by solving the transform from the device thumbnail, using the two text-highlight rectangles
 whose `.rm` coordinates are known exactly:
 
-| axis | derived from | pt per .rm unit | implied dpi |
-| --- | --- | --- | --- |
-| x | the width of one band | 0.317147 | 227.02 |
-| y | the gap between two bands | 0.317162 | 227.01 |
+| axis | derived from              | pt per .rm unit | implied dpi |
+| ---- | ------------------------- | --------------- | ----------- |
+| x    | the width of one band     | 0.317147        | 227.02      |
+| y    | the gap between two bands | 0.317162        | 227.01      |
 
 The two axes agreeing to five decimals says the scale is uniform and **independent of the page**.
 The old model, `cropBox.width / 1872`, gives 0.326923 on this US Letter page: **3.08% too large**.
@@ -135,18 +135,35 @@ with distance from the origin, which is why ink drifted lower down the page and 
 
 Fixed, and confirmed against the device render. Highlight bands, in thumbnail rows:
 
-| | band 1 | band 2 | band 3 | band 4 |
-| --- | --- | --- | --- | --- |
-| device | 131-139 | 152-173 | 185-201 | 216-223 |
+|              | band 1  | band 2  | band 3  | band 4  |
+| ------------ | ------- | ------- | ------- | ------- |
+| device       | 131-139 | 152-173 | 185-201 | 216-223 |
 | ours, before | 135-143 | 158-179 | 191-207 | 222-230 |
-| ours, after | 131-139 | 154-173 | 185-201 | 216-223 |
+| ours, after  | 131-139 | 154-173 | 185-201 | 216-223 |
 
 Three of four match exactly; the second differs by 2 px on its top edge, an anti-aliased freehand
 stroke rather than a rectangle.
 
-**Limitation.** The constant is for the 1404x1872 devices. The Paper Pro (1620x2160 over 180 mm) and
-Paper Pro Move (954x1696 over 91 mm) work out to 228.6 and 266.3 dpi, and nothing read so far names
-the device, so documents from those will still be placed slightly wrong.
+**All five models are now handled**, in `domain/device-screen.ts`. They share three screens:
+
+| screen | models | dpi | pt per .rm unit |
+| --- | --- | --- | --- |
+| 1404x1872, 157x209 mm | reMarkable 1, reMarkable 2, Paper Pure | 227.14 | 0.31698 |
+| 1620x2160, 180x240 mm | Paper Pro | 228.60 | 0.31496 |
+| 954x1696, 91x162 mm | Paper Pro Move | 266.27 | 0.27040 |
+
+The device is identified from `customZoomPageWidth` and `customZoomPageHeight` in `.content`, which
+hold the **screen** size rather than anything about the page: the sample records 1404x1872 with a
+`customZoomCenterY` of 936, exactly half the screen height. Nothing else read so far names the
+device. An absent or unrecognised resolution falls back to the 1404x1872 panel, which covers three
+of the five models and everything sold before the Paper Pro.
+
+The Paper Pro is within 0.6% of the default so the fallback barely hurts there. The Paper Pro Move
+is 15% out, which is a whole line of text a third of the way down a page, so that one genuinely
+needs the lookup.
+
+Only the 1404x1872 figure is measured. The other two are derived from published screen sizes and are
+**unverified** for want of a document from those devices.
 
 ## The device thumbnail also confirms colour
 

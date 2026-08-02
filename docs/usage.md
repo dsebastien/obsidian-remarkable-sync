@@ -106,6 +106,6 @@ For a document imported from a PDF, you get the original plus an annotated copy 
 - `{Name}.pdf` — the original document, unchanged
 - `{Name} (annotated).pdf` — the same document with your handwriting drawn on top, text still selectable
 - `{Name} (highlights).md` — a note quoting any text you highlighted, when **Save highlights note** is enabled
-- `{Name} (text).md` — a note holding text you typed on the device, when **Save typed text note** is enabled
+- `{Name} (text).md` — a note holding text you typed on the device's keyboard, when **Save typed text note** is enabled. Handwriting is not included; it stays as ink in the page image
 
 Blank pages (no strokes) are skipped entirely, so PDF page numbers do not necessarily match the page numbers on your device. Pages that fail to render are skipped too, and the plugin reports how many.

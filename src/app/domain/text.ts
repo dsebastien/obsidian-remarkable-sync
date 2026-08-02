@@ -1,6 +1,9 @@
 /**
- * Typed text on a page, from the Type Folio keyboard or from handwriting the
- * device converted to text.
+ * Text typed on a page with a keyboard.
+ *
+ * Handwriting is not this: it is stored as strokes and stays ink. The device's
+ * own "Convert to text" is a share action rather than an edit, so it does not
+ * write text back into the page.
  *
  * Stored as a CRDT so two devices editing the same note can merge, which means
  * the items are not held in reading order and have to be sorted. See

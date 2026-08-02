@@ -2,8 +2,15 @@
 
 Closes upstream issue #7. Status: **implemented and verified against a device notebook.**
 
-Typed text, from the Type Folio keyboard or from handwriting converted on the device, is dropped
-entirely. This extracts it into the generated note as **text**, not pixels.
+Text typed on a keyboard is dropped entirely. This extracts it into the generated note as **text**,
+not pixels.
+
+**Handwriting is out of scope and cannot be brought in.** It is stored as strokes, and the device's
+"Convert to text" is a share action rather than an edit, so the converted text is never written back
+into the page. Confirmed on a device notebook: its handwritten line is 21 stroke items and the
+`RootTextBlock` holds only the keyboard text. Turning handwriting into text would mean the plugin
+doing its own recognition, which needs a network service and an opt-in, and is a different feature
+from this one.
 
 ## Why, in order of weight
 
@@ -20,8 +27,6 @@ success. Today that is indistinguishable from an empty notebook.
 
 **Search, links and the graph.** Text in the note is indexed by Obsidian, and typed `[[wikilinks]]`
 become real links.
-
-**On-device handwriting conversion** arrives as text rather than being lost.
 
 Explicitly **not** in scope: drawing typed text into the page images or the PDF. That needs font
 files we cannot ship and, on the reference implementation's `experimental` branch, FreeType and

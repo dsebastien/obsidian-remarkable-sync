@@ -14,6 +14,7 @@ import {
     writePageImage
 } from './markdown-writer.service'
 import { buildHighlightsNote, hasHighlights } from './highlights-markdown'
+import { buildTypedTextNote, hasTypedText } from './typed-text-markdown'
 
 /**
  * Injectable steps so the loop can be tested without OffscreenCanvas or a
@@ -65,9 +66,14 @@ export interface RenderAndWriteResult {
     sourceWritten: boolean
     /** An annotated copy of the source was written */
     annotatedWritten: boolean
+    /** A markdown note holding the typed text was written */
+    typedTextNoteWritten: boolean
     /** A markdown note listing the text highlights was written */
     highlightsNoteWritten: boolean
 }
+
+/** Suffix for the markdown note holding a document's typed text. */
+const TYPED_TEXT_SUFFIX = ' (text)'
 
 /** Suffix for the markdown note listing a document's text highlights. */
 export const HIGHLIGHTS_SUFFIX = ' (highlights)'
@@ -173,6 +179,7 @@ export async function renderAndWritePages(
     let sourceWritten = false
     let annotatedWritten = false
     let highlightsNoteWritten = false
+    let typedTextNoteWritten = false
 
     if (sourceDocument) {
         // A document built from an imported file. Assembling page images into a
@@ -250,12 +257,26 @@ export async function renderAndWritePages(
         highlightsNoteWritten = true
     }
 
+    // Typed text is written as text rather than drawn into the page, which is
+    // the whole point: Obsidian can only search and link what is text.
+    if (settings.saveTypedTextNote && hasTypedText(pages)) {
+        await deps.writeMarkdownNote(
+            vault,
+            settings.targetFolder,
+            folderPath,
+            `${notebookName}${TYPED_TEXT_SUFFIX}`,
+            buildTypedTextNote({ documentName: notebookName, pages })
+        )
+        typedTextNoteWritten = true
+    }
+
     return {
         totalPages,
         failedPages,
         pdfWritten,
         sourceWritten,
         annotatedWritten,
-        highlightsNoteWritten
+        highlightsNoteWritten,
+        typedTextNoteWritten
     }
 }

@@ -20,6 +20,11 @@ export interface PluginSettings {
      * highlights, so it is quiet on notebooks and un-highlighted PDFs.
      */
     saveHighlightsNote: boolean
+    /**
+     * Write a note holding the page's typed text, from the Type Folio keyboard
+     * or from handwriting the device converted.
+     */
+    saveTypedTextNote: boolean
     imageFormat: 'png' | 'jpeg' | 'webp'
     imageQuality: number
     useRmfakecloud: boolean
@@ -34,6 +39,7 @@ export const DEFAULT_SETTINGS: PluginSettings = {
     saveImages: true,
     savePdf: false,
     saveHighlightsNote: false,
+    saveTypedTextNote: false,
     imageFormat: 'jpeg',
     imageQuality: 0.85,
     useRmfakecloud: false,

@@ -18,6 +18,9 @@ import type {
     HighlightRect,
     StrokeArgb
 } from '../../domain/notebook'
+import { END_MARKER } from '../../domain/text'
+import type { CrdtId, PageText, TextItem, TextStyle, ParagraphStyle } from '../../domain/text'
+import { hasText } from './text-sequence'
 import { log } from '../../../utils/log'
 
 /**
@@ -26,6 +29,7 @@ import { log } from '../../../utils/log'
 export function parseRmFile(buffer: ArrayBuffer, pageId: string, pageIndex: number): Page {
     const reader = new BinaryReader(buffer)
     const strokes: Stroke[] = []
+    let pageText: PageText | undefined
     const highlights: Highlight[] = []
 
     // Validate header
@@ -41,9 +45,10 @@ export function parseRmFile(buffer: ArrayBuffer, pageId: string, pageIndex: numb
     // Parse blocks until end of file
     while (reader.remaining >= BLOCK_HEADER_SIZE) {
         try {
-            const { stroke, highlight } = parseBlock(reader)
+            const { stroke, highlight, text } = parseBlock(reader)
             if (stroke) strokes.push(stroke)
             if (highlight) highlights.push(highlight)
+            if (text) pageText = text
         } catch (error) {
             log(`Error parsing .rm block at offset ${reader.position}`, 'warn', error)
             break
@@ -54,14 +59,19 @@ export function parseRmFile(buffer: ArrayBuffer, pageId: string, pageIndex: numb
         pageId,
         pageIndex,
         strokes,
-        ...(highlights.length > 0 ? { highlights } : {})
+        ...(highlights.length > 0 ? { highlights } : {}),
+        ...(pageText ? { text: pageText } : {})
     }
 }
 
 /**
  * Block header: uint32 length | uint8 unknown | uint8 min_ver | uint8 cur_ver | uint8 type
  */
-function parseBlock(reader: BinaryReader): { stroke?: Stroke; highlight?: Highlight } {
+function parseBlock(reader: BinaryReader): {
+    stroke?: Stroke
+    highlight?: Highlight
+    text?: PageText
+} {
     const blockLength = reader.readUint32()
     reader.readUint8() // unknown, always 0
     reader.readUint8() // min_version
@@ -69,9 +79,12 @@ function parseBlock(reader: BinaryReader): { stroke?: Stroke; highlight?: Highli
     const blockType: BlockType = reader.readUint8()
     const blockEnd = reader.position + blockLength
 
-    const result: { stroke?: Stroke; highlight?: Highlight } = {}
+    const result: { stroke?: Stroke; highlight?: Highlight; text?: PageText } = {}
 
-    if (blockType === BlockType.SceneLineItemBlock) {
+    if (blockType === BlockType.RootTextBlock) {
+        const text = parseRootTextBlock(reader, blockEnd)
+        if (text) result.text = text
+    } else if (blockType === BlockType.SceneLineItemBlock) {
         const stroke = parseSceneLineItemBlock(reader, currentVersion, blockEnd)
         if (stroke) result.stroke = stroke
     } else if (blockType === BlockType.SceneGlyphItemBlock) {
@@ -207,6 +220,177 @@ function readTag(reader: BinaryReader): { index: number; type: TagType } {
         index: raw >> 4,
         type: raw & 0x0f
     }
+}
+
+/**
+ * Read a CrdtId: uint8 (author) + varuint (counter)
+ */
+function readCrdtId(reader: BinaryReader): CrdtId {
+    const author = reader.readUint8()
+    const counter = reader.readVarUint()
+    return { author, counter }
+}
+
+/**
+ * Read a tag that must be an ID, returning the end marker if it is not.
+ */
+function readIdTag(reader: BinaryReader, index: number): CrdtId {
+    const tag = readTag(reader)
+    if (tag.index !== index || tag.type !== TagType.ID) {
+        skipTagValue(reader, tag.type)
+        return END_MARKER
+    }
+    return readCrdtId(reader)
+}
+
+/**
+ * Open a length-prefixed subblock, returning where it ends.
+ */
+function openSubBlock(reader: BinaryReader, index: number): number | null {
+    const tag = readTag(reader)
+    if (tag.index !== index || tag.type !== TagType.Length4) {
+        skipTagValue(reader, tag.type)
+        return null
+    }
+    return reader.position + reader.readUint32()
+}
+
+/**
+ * Parse a RootTextBlock, which carries the page's typed text.
+ *
+ * Structure, from `RootTextBlock::read` in librm_lines:
+ *
+ *   tag 1 ID        block id, always 0:0
+ *   tag 2 subblock  tag 1 subblock, twice nested
+ *                     varuint item count, then that many text items
+ *                   tag 2 then tag 1 subblock
+ *                     varuint style count, then that many styles
+ *                   tag 3 subblock
+ *                     double posX, double posY, tag 4 float width
+ *
+ * Anything unreadable returns null rather than throwing: a page whose text we
+ * cannot decode must still render its ink.
+ */
+function parseRootTextBlock(reader: BinaryReader, blockEnd: number): PageText | null {
+    try {
+        readIdTag(reader, 1)
+
+        const sectionEnd = openSubBlock(reader, 2)
+        if (null === sectionEnd) return null
+
+        // Two nested subblocks, both tagged 1, then the item count
+        if (null === openSubBlock(reader, 1)) return null
+        if (null === openSubBlock(reader, 1)) return null
+
+        const itemCount = reader.readVarUint()
+        const items: TextItem[] = []
+        for (let i = 0; i < itemCount && reader.position < blockEnd; i++) {
+            const item = readTextItem(reader)
+            if (item) items.push(item)
+        }
+
+        // Formatting: subblock 2 then subblock 1, then the style count
+        if (null === openSubBlock(reader, 2)) return { items, styles: [], x: 0, y: 0, width: 0 }
+        if (null === openSubBlock(reader, 1)) return { items, styles: [], x: 0, y: 0, width: 0 }
+
+        const styleCount = reader.readVarUint()
+        const styles: TextStyle[] = []
+        for (let i = 0; i < styleCount && reader.position < blockEnd; i++) {
+            const style = readTextStyle(reader)
+            if (style) styles.push(style)
+        }
+
+        // Position and column width
+        let x = 0
+        let y = 0
+        let width = 0
+        if (null !== openSubBlock(reader, 3) && reader.position + 16 <= blockEnd) {
+            x = reader.readFloat64()
+            y = reader.readFloat64()
+            const tag = readTag(reader)
+            if (tag.index === 4 && tag.type === TagType.Byte4) {
+                width = reader.readFloat32()
+            } else {
+                skipTagValue(reader, tag.type)
+            }
+        }
+
+        return { items, styles, x, y, width }
+    } catch (error) {
+        log('Could not read the typed text on a page', 'warn', error)
+        return null
+    }
+}
+
+/**
+ * One text item: its id, the positions it was inserted between, how much of it
+ * has been deleted, and its characters.
+ *
+ * Tag 6 is optional and may hold either a string or a uint32 format marker. An
+ * item with neither is a pure tombstone.
+ */
+function readTextItem(reader: BinaryReader): TextItem | null {
+    const itemEnd = openSubBlock(reader, 0)
+    if (null === itemEnd) return null
+
+    const itemId = readIdTag(reader, 2)
+    const leftId = readIdTag(reader, 3)
+    const rightId = readIdTag(reader, 4)
+
+    let deletedLength = 0
+    const delTag = readTag(reader)
+    if (delTag.index === 5 && delTag.type === TagType.Byte4) {
+        deletedLength = reader.readUint32()
+    } else {
+        skipTagValue(reader, delTag.type)
+    }
+
+    let text: string | undefined
+    let formatMarker: number | undefined
+    if (reader.position < itemEnd) {
+        const tag = readTag(reader)
+        if (tag.index === 6 && tag.type === TagType.Length4) {
+            const subEnd = reader.position + reader.readUint32()
+            const strLen = reader.readVarUint()
+            reader.readUint8() // ascii flag, unused: decoded as UTF-8 regardless
+            text = new TextDecoder().decode(
+                reader.readBytes(Math.min(strLen, Math.max(0, subEnd - reader.position)))
+            )
+            reader.seek(subEnd)
+        } else if (tag.index === 6 && tag.type === TagType.Byte4) {
+            formatMarker = reader.readUint32()
+        } else {
+            skipTagValue(reader, tag.type)
+        }
+    }
+
+    reader.seek(itemEnd)
+    return {
+        itemId,
+        leftId,
+        rightId,
+        deletedLength,
+        ...(undefined !== text ? { text } : {}),
+        ...(undefined !== formatMarker ? { formatMarker } : {})
+    }
+}
+
+/**
+ * One paragraph style: the character id it starts at, then a subblock holding
+ * a marker byte of 17 and the style itself.
+ */
+function readTextStyle(reader: BinaryReader): TextStyle | null {
+    const startId = readCrdtId(reader)
+    readIdTag(reader, 1) // timestamp, unused
+
+    const end = openSubBlock(reader, 2)
+    if (null === end) return null
+
+    reader.readUint8() // marker, always 17
+    const style = reader.readUint8() as ParagraphStyle
+    reader.seek(end)
+
+    return { startId, style }
 }
 
 /**
@@ -451,8 +635,15 @@ function parsePointsV2(reader: BinaryReader, totalBytes: number): StrokePoint[] 
 }
 
 /**
- * Check if a page has any non-eraser strokes (i.e., is not blank)
+ * Whether a page carries anything worth writing out.
+ *
+ * Ink, a text highlight, or typed text all count. Typed text especially: a page
+ * written entirely on the Type Folio has no strokes at all, and testing only
+ * for strokes silently dropped it, so a wholly typed notebook synced as "no
+ * pages with content found" and wrote nothing.
  */
 export function pageHasContent(page: Page): boolean {
-    return page.strokes.some((stroke) => !ERASER_PEN_TYPES.has(stroke.penType))
+    if (page.strokes.some((stroke) => !ERASER_PEN_TYPES.has(stroke.penType))) return true
+    if ((page.highlights?.length ?? 0) > 0) return true
+    return hasText(page.text)
 }

@@ -29,9 +29,9 @@ When a new business rule is mentioned:
 
 ## Document Processing
 
-- Blank pages (no strokes, or only eraser strokes) are skipped entirely — no image generated
+- A page is skipped only when it has no ink, no text highlight and no typed text; testing for strokes alone silently dropped pages written entirely on a keyboard
 - The plugin supports .rm v6 binary format for stroke data
-- CRDT text data in .rm files is not processed in v0.1.0
+- CRDT text data is parsed: typed text is ordered from the sequence and written into a note as text, never drawn into the page image, so it stays searchable and linkable
 
 ## Sync
 

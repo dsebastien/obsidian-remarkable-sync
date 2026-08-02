@@ -1,11 +1,45 @@
-import { PDFDocument, PDFName, PDFNumber, PDFString, rgb } from 'pdf-lib'
+import {
+    BlendMode,
+    LineCapStyle,
+    LineJoinStyle,
+    PDFArray,
+    PDFDocument,
+    PDFName,
+    PDFNumber,
+    PDFRawStream,
+    PDFString,
+    decodePDFRawStream,
+    popGraphicsState,
+    pushGraphicsState,
+    rgb,
+    setLineJoin
+} from 'pdf-lib'
 import type { PDFPage } from 'pdf-lib'
 import { log } from '../../../utils/log'
+import { PenType } from '../../domain/notebook'
 import type { Highlight, Page, Stroke } from '../../domain/notebook'
-import { STROKE_COLOR_MAP, ERASER_PEN_TYPES } from '../../domain/rm-constants'
+import {
+    STROKE_COLOR_MAP,
+    ERASER_PEN_TYPES,
+    HIGHLIGHTER_PEN_TYPES
+} from '../../domain/rm-constants'
 import { segmentStyle, strokeColour, strokeOpacity } from '../../domain/pen-model'
 import { rmPointToPdf, rmWidthToPdf } from './pdf-coordinates'
+import { decodeContentStream, extractTextLines, snapPathToLines } from './pdf-text-lines'
+import type { TextLine } from './pdf-text-lines'
 import type { PageBox } from './pdf-coordinates'
+
+/**
+ * Whether a pen lays down translucent wash that the page must show through.
+ *
+ * These are drawn with a multiply blend rather than plain coverage. The device
+ * composites them that way, and it matters even at full alpha: a v2 highlighter
+ * records ARGB alpha 255, so drawing it normally paints an opaque bar over the
+ * words it was meant to highlight.
+ */
+function isWash(penType: PenType): boolean {
+    return HIGHLIGHTER_PEN_TYPES.has(penType) || PenType.Shader === penType
+}
 
 /** Opacity used for highlighter strokes, matching the raster renderer. */
 const HIGHLIGHTER_OPACITY = 0.3
@@ -38,13 +72,94 @@ function hexToRgb(hex: string): ReturnType<typeof rgb> {
 }
 
 /**
+ * Read the text line bands of a page from its content stream.
+ *
+ * Returns an empty list on any failure, which makes the caller fall back to
+ * drawing the raw stroke path. A page whose content cannot be read must still
+ * render its ink.
+ */
+function readPageTextLines(
+    doc: PDFDocument,
+    pdfPage: PDFPage,
+    rotate: 0 | 90 | 180 | 270
+): readonly TextLine[] {
+    // A content stream's text lines are bands of constant y in user space, which
+    // only lines up with what the reader sees when the page is not rotated. With
+    // /Rotate 90 or 270 the visible lines run the other way, so a "band" would be
+    // drawn across the text rather than along it. Fall back to the raw path.
+    if (0 !== rotate) return []
+
+    try {
+        const contents = pdfPage.node.Contents()
+        if (!contents) return []
+
+        // Contents is either one stream or an array of them, and a single
+        // logical stream is often split across several objects.
+        const refs = contents instanceof PDFArray ? contents.asArray() : [contents]
+        const parts: string[] = []
+
+        for (const ref of refs) {
+            const stream = doc.context.lookup(ref)
+            if (!(stream instanceof PDFRawStream)) continue
+            const decoded = decodePDFRawStream(stream).decode()
+            const text = decodeContentStream(decoded)
+            if (text) parts.push(text)
+        }
+
+        if (0 === parts.length) return []
+        return extractTextLines(parts.join('\n'))
+    } catch (error) {
+        log('Could not read text lines for snapping', 'debug', error)
+        return []
+    }
+}
+
+/**
+ * Draw a wash stroke as clean bands on the text lines it highlights.
+ *
+ * Only strokes whose path actually behaves like a line swipe are drawn this
+ * way; `snapPathToLines` rejects circles, brackets and fluid shading, which
+ * must keep the shape they were drawn in. Returns false when the stroke is not
+ * a line highlight, and the caller draws the raw path.
+ */
+function drawSnappedHighlight(
+    pdfPage: PDFPage,
+    stroke: Stroke,
+    box: PageBox,
+    rotate: 0 | 90 | 180 | 270,
+    textLines: readonly TextLine[]
+): boolean {
+    const path = stroke.points.map((p) => rmPointToPdf(p.x, p.y, box, rotate))
+    const spans = snapPathToLines(path, textLines)
+    if (!spans || 0 === spans.length) {
+        return false
+    }
+
+    const colour = hexToRgb(strokeColour(stroke))
+    const opacity = strokeOpacity(stroke)
+
+    for (const { line, x0, x1 } of spans) {
+        pdfPage.drawRectangle({
+            x: x0,
+            y: line.bottom,
+            width: x1 - x0,
+            height: line.top - line.bottom,
+            color: colour,
+            opacity,
+            blendMode: BlendMode.Multiply,
+            borderWidth: 0
+        })
+    }
+
+    return true
+}
+
+/**
  * Draw one stroke onto a PDF page.
  *
  * Mirrors `stroke-renderer.ts`: eraser strokes are skipped, each segment takes
- * the average width of its two endpoints, and highlighters draw translucent.
- * The raster renderer uses a multiply blend as well, which PDF expresses via an
- * ExtGState; plain alpha is close enough and avoids reaching into pdf-lib's
- * resource dictionaries.
+ * the average width and colour of its two endpoints, and wash pens draw with a
+ * multiply blend so the page shows through, as the raster renderer does.
  */
 function drawStroke(
     pdfPage: PDFPage,
@@ -61,23 +176,76 @@ function drawStroke(
         return
     }
 
-    const colour = hexToRgb(strokeColour(stroke))
+    if (isWash(stroke.penType)) {
+        drawWashPath(pdfPage, stroke, box, rotate)
+        return
+    }
+
     const opacity = strokeOpacity(stroke)
 
     for (let i = 0; i < points.length - 1; i++) {
         const a = points[i]!
         const b = points[i + 1]!
-        const rmWidth = segmentStyle(stroke, a, b).width
+        const style = segmentStyle(stroke, a, b)
 
         pdfPage.drawLine({
             start: rmPointToPdf(a.x, a.y, box, rotate),
             end: rmPointToPdf(b.x, b.y, box, rotate),
-            thickness: Math.max(rmWidthToPdf(rmWidth, box), MIN_STROKE_WIDTH),
-            color: colour,
+            thickness: Math.max(rmWidthToPdf(style.width, box), MIN_STROKE_WIDTH),
+            // Per segment, so textured pens keep their grain
+            color: hexToRgb(style.colour),
             opacity,
-            lineCap: 1 // round, matching the canvas renderer
+            lineCap: LineCapStyle.Round // matching the canvas renderer
         })
     }
+}
+
+/**
+ * Draw a freehand wash stroke as one continuous path.
+ *
+ * It has to be a single path rather than a segment per point pair. A multiply
+ * blend composites each drawing operation separately, so a stroke drawn as
+ * hundreds of overlapping segments multiplies itself at every overlap: the ink
+ * darkens far past its real colour and the round caps show up as a string of
+ * beads. Drawn as one path, the whole stroke composites once, which is what the
+ * device does.
+ *
+ * Safe here precisely because these pens have a fixed nib and a single colour,
+ * so nothing varies along the stroke that a single path would flatten. Textured
+ * pens keep the per-segment loop for that reason.
+ *
+ * pdf-lib's SVG paths use the SVG y axis, so the y values are negated and the
+ * path is placed at the origin.
+ */
+function drawWashPath(
+    pdfPage: PDFPage,
+    stroke: Stroke,
+    box: PageBox,
+    rotate: 0 | 90 | 180 | 270
+): void {
+    const points = stroke.points
+    const path = points
+        .map((p, i) => {
+            const { x, y } = rmPointToPdf(p.x, p.y, box, rotate)
+            return `${0 === i ? 'M' : 'L'} ${x.toFixed(3)} ${(-y).toFixed(3)}`
+        })
+        .join(' ')
+
+    const width = segmentStyle(stroke, points[0]!, points[1]!).width
+
+    // Round joins as well as caps: at highlighter widths a mitred corner throws
+    // a spike off every turn of the hand.
+    pdfPage.pushOperators(pushGraphicsState(), setLineJoin(LineJoinStyle.Round))
+    pdfPage.drawSvgPath(path, {
+        x: 0,
+        y: 0,
+        borderColor: hexToRgb(strokeColour(stroke)),
+        borderWidth: Math.max(rmWidthToPdf(width, box), MIN_STROKE_WIDTH),
+        borderOpacity: strokeOpacity(stroke),
+        borderLineCap: LineCapStyle.Round,
+        blendMode: BlendMode.Multiply
+    })
+    pdfPage.pushOperators(popGraphicsState())
 }
 
 /**
@@ -212,7 +380,21 @@ export async function annotateSourcePdf(
             if (addHighlightAnnotation(doc, pdfPage, highlight, box, rotate)) highlights++
         }
 
+        // Text line positions, read once per page and only when a highlighter
+        // stroke actually needs them.
+        let textLines: readonly TextLine[] | null = null
+        const linesForPage = (): readonly TextLine[] => {
+            textLines ??= readPageTextLines(doc, pdfPage, rotate)
+            return textLines
+        }
+
         for (const stroke of page.strokes) {
+            if (
+                isWash(stroke.penType) &&
+                drawSnappedHighlight(pdfPage, stroke, box, rotate, linesForPage())
+            ) {
+                continue
+            }
             drawStroke(pdfPage, stroke, box, rotate)
         }
         annotatedPages++

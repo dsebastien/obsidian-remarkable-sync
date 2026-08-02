@@ -277,10 +277,23 @@ describe('widths on a real page', () => {
         expect(pts).toBeCloseTo(9.51, 2)
     })
 
-    test('the shader sits on its floor of 30 over K', () => {
+    /**
+     * The device draws the sample's isolated shading-marker sweep at 4.51 pt,
+     * measured as the width at half maximum on its own render. The previous
+     * model collapsed to a constant 2.55 pt because a floor won on every point.
+     */
+    test('the shading marker is about as wide as the device draws it', () => {
         const sh = stroke(PenType.Shader, StrokeColor.Argb)
-        const pts = segmentWidth(sh, p(4, 0.3, 10), p(4, 0.3, 10)) * SCALE
-        expect(pts).toBeCloseTo(1.9, 1)
+        const pts = segmentWidth(sh, p(9, 0.3, 10), p(9, 0.3, 10)) * SCALE
+        expect(pts).toBeGreaterThan(3.5)
+        expect(pts).toBeLessThan(6.5)
+    })
+
+    test('the shading marker still varies with the recorded width', () => {
+        const sh = stroke(PenType.Shader, StrokeColor.Argb)
+        const narrow = segmentWidth(sh, p(5, 0.3, 10), p(5, 0.3, 10))
+        const wide = segmentWidth(sh, p(14, 0.3, 10), p(14, 0.3, 10))
+        expect(wide).toBeGreaterThan(narrow)
     })
 
     test('the ballpoint is a plausible pen width for 11pt text', () => {

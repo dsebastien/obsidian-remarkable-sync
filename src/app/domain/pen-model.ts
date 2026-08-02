@@ -51,17 +51,15 @@ function baseWidth(thickness: number): number {
  * already normalised (`speed / 4`, `width / 4`, `pressure / 255`, and
  * `direction` as the tilt in radians).
  *
- * This is settled by measurement, not by reading the sources. Both librm_lines
- * and rmc are written against the device's raw fields, so recovering the raw
- * values first looks obviously right, and it is wrong. Checked against
- * reMarkable's own annotated export of the sample:
+ * Both librm_lines and rmc are written against the device's raw fields, so
+ * recovering the raw values first looks obviously right. It is wrong: raw
+ * inputs put the ballpoint at 1.2..2.5pt and the paintbrush at 4.2..26.9pt on
+ * this page, both far too heavy, and normalised inputs put them at 0.41..0.55
+ * and up to 3.6, which is the right order for 11pt text.
  *
- * | pen        | normalised    | raw           | reMarkable    |
- * | ---------- | ------------- | ------------- | ------------- |
- * | ballpoint  | 0.408..0.548  | 1.212..2.496  | 0.410..0.548  |
- * | paintbrush | ..3.597       | 4.219..26.909 | ..3.632       |
- *
- * measured in points over 531 and 1370 exported segments respectively.
+ * Note: an earlier version of this comment cited reMarkable's own export as
+ * confirmation. That file was our own output, so it confirmed nothing. These
+ * widths are **not** verified against the device.
  */
 function mid(a: number, b: number): number {
     return (a + b) / 2

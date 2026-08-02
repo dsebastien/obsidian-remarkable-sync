@@ -139,8 +139,8 @@ export interface Page {
     /** Text highlights, present only on source-backed documents */
     readonly highlights?: readonly Highlight[]
     /**
-     * Typed text, from the Type Folio keyboard or from handwriting the device
-     * converted. Absent on pages that carry only ink.
+     * Keyboard-typed text. Absent on pages that carry only ink, which includes
+     * every handwritten page: handwriting is stroke data and is never text.
      */
     readonly text?: PageText
     /**

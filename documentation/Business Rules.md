@@ -31,7 +31,7 @@ When a new business rule is mentioned:
 
 - A page is skipped only when it has no ink, no text highlight and no typed text; testing for strokes alone silently dropped pages written entirely on a keyboard
 - The plugin supports .rm v6 binary format for stroke data
-- CRDT text data is parsed: typed text is ordered from the sequence and written into a note as text, never drawn into the page image, so it stays searchable and linkable
+- CRDT text data is parsed: keyboard-typed text is ordered from the sequence and written into a note as text, never drawn into the page image, so it stays searchable and linkable. Handwriting is stroke data and is never converted
 
 ## Sync
 

@@ -22,8 +22,8 @@ export interface PluginSettings {
      */
     saveHighlightsNote: boolean
     /**
-     * Write a note holding the page's typed text, from the Type Folio keyboard
-     * or from handwriting the device converted.
+     * Write a note holding the page's keyboard-typed text. Handwriting is
+     * stroke data and is not included.
      */
     saveTypedTextNote: boolean
     imageFormat: 'png' | 'jpeg' | 'webp'

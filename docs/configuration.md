@@ -15,7 +15,7 @@ All settings are accessible via **Settings → Community plugins → Remarkable 
 | Save images          | toggle   | `true`  | Save rendered page images                                                        |
 | Save as PDF          | toggle   | `false` | Write one PDF per notebook, beside the page images                               |
 | Save highlights note | toggle   | `false` | Write a markdown note of text highlighted on the device                          |
-| Save typed text note | toggle   | `false` | Write a markdown note of text typed on the device, or handwriting it converted   |
+| Save typed text note | toggle   | `false` | Write a markdown note of text typed on the device's keyboard                     |
 | Image format         | dropdown | `jpeg`  | Format for rendered images: JPEG, WebP, or PNG                                   |
 | Image quality        | slider   | `0.85`  | Quality for JPEG/WebP (0.1 = smallest, 1.0 = best). Hidden when PNG is selected. |
 | Use rmfakecloud      | toggle   | `false` | Connect to a self-hosted rmfakecloud server instead of the official cloud        |
@@ -71,9 +71,13 @@ If you highlight text on the device (selecting words rather than drawing over th
 
 ### Typed text
 
-Text you type on a keyboard, or handwriting the device converts to text, is not ink and is not part
-of the page image. Enable **Save typed text note** to have it written into a markdown note as real
-text, so Obsidian can search it and any `[[links]]` you typed become real links.
+Text you type on a keyboard is not ink and is not part of the page image. Enable **Save typed text
+note** to have it written into a markdown note as real text, so Obsidian can search it and any
+`[[links]]` you typed become real links.
+
+Handwriting is **not** included. It is stored as strokes and stays as ink in the page image. The
+device's own "Convert to text" is a share action rather than an edit, so the converted text is not
+written back into the page and there is nothing in the file to read.
 
 Enable **Save highlights note** to also get a markdown note listing them:
 

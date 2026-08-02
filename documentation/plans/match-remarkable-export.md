@@ -1,6 +1,21 @@
 # Match reMarkable's own annotated PDF export
 
-Status: **reference obtained and read. Geometry and annotations now match it exactly. Ink texture open.**
+Status: **NO reference obtained. Phase 1 still blocks everything.**
+
+> **Correction.** An earlier revision of this plan reported the reference as obtained and a long list
+> of things as confirmed against it. That was wrong. The file taken as the reference,
+> `remarkable/sample (annotated).pdf` in the vault, is **our own plugin's output**: the vault is
+> where the plugin writes, and the device carries a document named "sample (annotated)", so our sync
+> overwrites that path. It can never hold reMarkable's export.
+>
+> Proved by our own renderer's signature in it: pdf-lib's `drawSvgPath` emits an identity translate
+> and a `1 0 0 -1 0 0 cm` y-flip per call, and the file has exactly 5 flips for our 5 wash strokes,
+> 10 identity translates, and the same 709 three-decimal and 5703 six-decimal path coordinates as a
+> known-ours build. The untouched `sample.pdf` has none of them.
+>
+> Everything below marked as measured against "the reference" is therefore a comparison of our
+> output with our own output, and confirms nothing. It is kept, struck through in intent, only so the
+> mistake is not repeated. **Do not treat any of it as evidence.**
 
 Goal: our annotated PDF for the `sample` document should look like the annotated PDF reMarkable
 itself produces for that same document. Their export is the reference; ours is what has to move.
@@ -8,9 +23,10 @@ itself produces for that same document. Their export is the reference; ours is w
 Reference: `sample (annotated).pdf`, reMarkable's own export, US Letter (612 x 792), 1 page, 1906
 stroke operations, 2 annotations.
 
-## Measured against the reference
+## VOID: "measured against the reference"
 
-Everything below is a comparison against that file, not a judgement about appearance.
+**None of this is evidence.** It compares our output against our own output. Retained only as a
+record of the error.
 
 **The page transform is exact, and the earlier doubt about it was wrong.** The reference draws its
 highlighter strokes at line width `9.807692307692308`. Our nib of 30 .rm units times `612/1872` is
@@ -42,7 +58,11 @@ each with its own `w`. That is the split already implemented.
 **Shader width is `1.9615384615384617`**, which is `(30 / K) x 612/1872` with librm_lines' `K` of 5,
 on both shader strokes.
 
-## The output is structurally the same as theirs
+## Structure of our output (the one comparison that was real)
+
+The untouched `sample.pdf` is byte-identical (sha256) to the source PDF we extract from the
+`.rmdoc`, so the pipeline reads the true original. The "reMarkable" row below is in fact an older
+build of ours and proves nothing about them, but the original row is real and shows we preserve it.
 
 The untouched `sample.pdf` is byte-identical (sha256) to the source PDF we extract from the `.rmdoc`,
 so the pipeline reads the true original. Comparing all three:
@@ -58,19 +78,13 @@ re-embedding, and leave the title and producer alone. The page text stays select
 original is not redrawn. "Clean, and like the original" holds, and ours lands within 0.5% of their
 file size.
 
-## The paintbrush, and what the screenshot actually shows
+## VOID: "reMarkable's export loses the paintbrush"
 
-reMarkable's own export **draws the paintbrush in white**, `1 1 1 RG`, 1370 segments at widths
-1.098..3.632, across the region where the brush strokes were drawn. Rendered through two independent
-engines, CoreGraphics and poppler, that region contains **zero** non-white pixels. Their PDF export
-loses the paintbrush.
-
-So a screenshot showing grey paintbrush strokes is not a render of this file. It is the app or web
-viewer, which draws from the `.rm` directly with a per-pixel noise function. Worth settling which of
-the two we are matching, because they disagree.
-
-We render the brush (3183 non-white pixels in the same region), which is closer to the app than to
-their export.
+Also wrong, and the same root cause. The white paintbrush segments were **ours**: fed an
+already-normalised pressure, the per-segment fade collapsed to a full fade and drew the brush in
+pure white. Concluding that reMarkable's exporter loses the paintbrush was reading our own defect
+back out of our own file. A screenshot showing grey brush strokes is entirely consistent with their
+export being correct.
 
 ## The double-normalisation defect
 
@@ -96,6 +110,13 @@ per-segment call so grain can return without touching either renderer.
 
 ## Still open
 
+- **Phase 1 has not happened.** A genuine reMarkable export is still needed, and it must be written
+  somewhere the plugin does not sync to, or it will be overwritten by our own output. Every claim
+  about matching them is unsupported until then.
+- The text highlight band sits about a pixel off in a viewer comparison. Our `/Highlight`
+  annotations carry no `/AP` appearance stream, so each viewer synthesises the band from
+  `QuadPoints` and they differ slightly in how they inset it. An explicit appearance stream would
+  make it deterministic.
 - Ink **texture**. The device's brush, ballpoint and pencil grain comes from per-pixel Perlin noise
   in librm_lines, and from a per-segment drawn-or-white decision in the export. We draw flat.
 - Whether the app or the export is the thing to match, given they disagree about the paintbrush.

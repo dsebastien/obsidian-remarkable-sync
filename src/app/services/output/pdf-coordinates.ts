@@ -1,5 +1,3 @@
-import { PAGE_HEIGHT } from '../../domain/rm-constants'
-
 /**
  * The rectangle of a PDF page that the device displays, in PDF points.
  * Matches the shape pdf-lib's `getCropBox()` returns.
@@ -20,31 +18,49 @@ export interface PdfPoint {
 }
 
 /**
+ * Screen resolution over screen size for the 1404x1872 devices: the reMarkable
+ * 2, Paper Pure and the original. 157 mm across 1404 pixels is 227.14 dpi.
+ *
+ * The Paper Pro (1620x2160 over 180 mm) and the Paper Pro Move (954x1696 over
+ * 91 mm) work out to 228.6 and 266.3, so a document annotated on one of those
+ * will be placed slightly wrong until the device is identified. Nothing read so
+ * far names it.
+ */
+const DEVICE_DPI = 1404 / (157 / 25.4)
+
+/**
+ * One .rm unit in PDF points.
+ *
+ * A page is placed at its **true physical size** at the device's resolution: a
+ * pixel on the screen is a pixel of the document. So an 8.5 inch wide page is
+ * 8.5 x 227.14 = 1931 .rm units across, and A4 is 1877.
+ */
+const RM_UNIT_IN_POINTS = 72 / DEVICE_DPI
+
+/**
  * Maps .rm stroke coordinates onto a source PDF page.
  *
- * Derived empirically against real device exports, because the obvious models
- * are all wrong. The rule is:
+ * The scale is a **constant**, not a function of the page. An earlier version
+ * fitted the page width to a fixed 1872 .rm units, which is wrong, and wrong in
+ * a way that hides on A4: A4 is 8.268 in wide, so it really spans 1878 units and
+ * the fit was off by 0.3%, well inside what eyeballing a landmark can catch. US
+ * Letter really spans 1931, where the same fit is off by 3.1%, which shows up as
+ * ink drifting further down and further out the further it is from the origin.
  *
- *   **the page width always spans `PAGE_HEIGHT` (1872) .rm units**, whatever
- *   the page's real dimensions.
+ * Measured against the device's own thumbnail render of the sample, using the
+ * two text-highlight rectangles, whose .rm coordinates are known exactly:
  *
- * So the scale is `cropBox.width / 1872`. The denominator being the screen
- * *height* rather than its width looks like a mistake and is not: it is
- * equivalent to `(width / 1404) * (1404 / 1872)`, the naive width-fit scaled by
- * the screen aspect ratio.
+ * | axis | pt per .rm unit | implied dpi |
+ * | ---- | --------------- | ----------- |
+ * | x, from a band's width | 0.317147 | 227.02 |
+ * | y, from the gap between two bands | 0.317162 | 227.01 |
  *
- * Confirmed three ways:
- *  - A4 595x841.9: an arrow drawn at a known word lands on that word.
- *  - US Letter 612x792: full-width writing maps to x 51..611 of 612.
- *  - Out of sample: a highlighter stroke drawn afterwards reaches y 2294,
- *    which the earlier height-fit model placed off the bottom of the page and
- *    this one places correctly at y 609..729 from the top.
- *
- * The implied page size in .rm units is therefore 1872 wide by
- * `1872 / aspect` tall (2649 for A4), so ink legitimately exceeds 1872 in y.
+ * against 0.316980 for the physical figure used here, and 0.326923 for the old
+ * page-width fit. The two axes agreeing to five decimals is what says the scale
+ * is uniform and independent of the page.
  */
-export function pdfScaleForPage(box: PageBox): number {
-    return box.width / PAGE_HEIGHT
+export function pdfScaleForPage(_box: PageBox): number {
+    return RM_UNIT_IN_POINTS
 }
 
 /**

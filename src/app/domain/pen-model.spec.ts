@@ -249,13 +249,17 @@ describe('highlightOpacity', () => {
 })
 
 /**
- * Widths checked against reMarkable's own annotated export of the sample, a
- * US Letter page (612pt wide, so .rm units scale by 612/1872). These are the
- * only numbers here taken from the device rather than from a formula, so they
- * are what the model is actually accountable to.
+ * Widths in points on a US Letter page, to keep the model anchored to a size
+ * that can be reasoned about against 11pt text.
+ *
+ * These are **not** verified against the device. An earlier version claimed
+ * they were checked against reMarkable's own export; that file turned out to be
+ * our own output. The nib figures come from librm_lines' source, the rest from
+ * its formulas.
  */
-describe('widths against the reMarkable export', () => {
-    const SCALE = 612 / 1872
+describe('widths on a real page', () => {
+    // the measured device scale, ~227 dpi
+    const SCALE = 72 / (1404 / (157 / 25.4))
     /** A point as the parser produces it: already normalised. */
     const p = (width: number, pressure: number, speed: number, direction = 0): StrokePoint => ({
         x: 0,
@@ -266,27 +270,26 @@ describe('widths against the reMarkable export', () => {
         direction
     })
 
-    test('the highlighter matches the exported line width exactly', () => {
+    test('the highlighter nib is librm_lines constant 30 units', () => {
         const hl = stroke(PenType.HighlighterV2, StrokeColor.Argb)
         const pts = segmentWidth(hl, p(4, 0.5, 10), p(4, 0.5, 10)) * SCALE
-        expect(pts).toBeCloseTo(9.807692307692308, 10)
+        // 30 units at ~227 dpi, a little under one 11pt line
+        expect(pts).toBeCloseTo(9.51, 2)
     })
 
-    test('the shader matches its exported line width', () => {
+    test('the shader sits on its floor of 30 over K', () => {
         const sh = stroke(PenType.Shader, StrokeColor.Argb)
-        // both exported shader strokes sit on the floor of 30/K units
         const pts = segmentWidth(sh, p(4, 0.3, 10), p(4, 0.3, 10)) * SCALE
-        expect(pts).toBeCloseTo(1.9615384615384617, 10)
+        expect(pts).toBeCloseTo(1.9, 1)
     })
 
-    test('the ballpoint lands in the exported range', () => {
+    test('the ballpoint is a plausible pen width for 11pt text', () => {
         const bp = stroke(PenType.BallPointV2, StrokeColor.Black)
-        // the export spans 0.410..0.548pt over 531 segments
         const typical = segmentWidth(bp, p(4, 0.5, 10), p(4, 0.5, 10)) * SCALE
-        expect(typical).toBeGreaterThan(0.41)
-        expect(typical).toBeLessThan(0.548)
+        expect(typical).toBeGreaterThan(0.3)
+        expect(typical).toBeLessThan(0.6)
 
-        // and it still responds the right way round
+        // and it responds the right way round
         const light = segmentWidth(bp, p(2, 0.25, 20), p(2, 0.25, 20))
         const heavy = segmentWidth(bp, p(6, 0.66, 2), p(6, 0.66, 2))
         expect(heavy).toBeGreaterThan(light)
@@ -295,9 +298,9 @@ describe('widths against the reMarkable export', () => {
     /**
      * The regression that hid the paintbrush: feeding these formulas the raw
      * device values instead of the parser's normalised ones put the brush at
-     * 4.2..26.9pt against an exported 1.1..3.6.
+     * 4.2..26.9pt, several text lines thick.
      */
-    test('the paintbrush stays inside the exported range', () => {
+    test('the paintbrush stays a brush stroke, not a slab', () => {
         const br = stroke(PenType.BrushV2, StrokeColor.Grey)
         const wide = segmentWidth(br, p(5, 0.66, 2), p(5, 0.66, 2)) * SCALE
         expect(wide).toBeLessThan(3.7)

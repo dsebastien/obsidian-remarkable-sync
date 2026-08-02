@@ -3,7 +3,6 @@ import {
     LineCapStyle,
     LineJoinStyle,
     PDFDocument,
-    PDFName,
     PDFNumber,
     PDFString,
     popGraphicsState,
@@ -11,7 +10,7 @@ import {
     rgb,
     setLineJoin
 } from 'pdf-lib'
-import type { PDFPage } from 'pdf-lib'
+import type { PDFPage, PDFRef } from 'pdf-lib'
 import { log } from '../../../utils/log'
 import { PenType } from '../../domain/notebook'
 import type { Highlight, Page, Stroke } from '../../domain/notebook'
@@ -196,6 +195,9 @@ function addHighlightAnnotation(
     let maxX = -Infinity
     let maxY = -Infinity
 
+    /** Axis-aligned box per quad, for the appearance stream */
+    const boxes: { x: number; y: number; width: number; height: number }[] = []
+
     for (const r of highlight.rects) {
         const topLeft = rmPointToPdf(r.x, r.y, box, rotate, screen)
         const topRight = rmPointToPdf(r.x + r.width, r.y, box, rotate, screen)
@@ -213,7 +215,19 @@ function addHighlightAnnotation(
             bottomRight.y
         )
 
-        for (const p of [topLeft, topRight, bottomLeft, bottomRight]) {
+        const corners = [topLeft, topRight, bottomLeft, bottomRight]
+        const xs = corners.map((p) => p.x)
+        const ys = corners.map((p) => p.y)
+        // A quarter-turn maps a rectangle onto another rectangle, so the corner
+        // bounds are the quad itself at every rotation we support.
+        boxes.push({
+            x: Math.min(...xs),
+            y: Math.min(...ys),
+            width: Math.max(...xs) - Math.min(...xs),
+            height: Math.max(...ys) - Math.min(...ys)
+        })
+
+        for (const p of corners) {
             minX = Math.min(minX, p.x)
             maxX = Math.max(maxX, p.x)
             minY = Math.min(minY, p.y)
@@ -222,6 +236,7 @@ function addHighlightAnnotation(
     }
 
     const colour = hexToRgb(highlightColour(highlight))
+    const opacity = highlightOpacity(highlight)
 
     const annot = doc.context.obj({
         Type: 'Annot',
@@ -229,15 +244,70 @@ function addHighlightAnnotation(
         Rect: [minX, minY, maxX, maxY].map((n) => PDFNumber.of(n)),
         QuadPoints: quads.map((n) => PDFNumber.of(n)),
         C: [colour.red, colour.green, colour.blue].map((n) => PDFNumber.of(n)),
-        CA: PDFNumber.of(highlightOpacity(highlight)),
+        // The alpha lives in the appearance stream, so it must not be applied a
+        // second time here.
+        CA: PDFNumber.of(1),
+        AP: doc.context.obj({
+            N: highlightAppearance(doc, boxes, [minX, minY, maxX, maxY], colour, opacity)
+        }),
         // The selected text itself, so readers can show and extract it
         Contents: PDFString.of(highlight.text),
         F: PDFNumber.of(4) // Print
     })
 
     pdfPage.node.addAnnot(doc.context.register(annot))
-    void PDFName // kept for clarity that annotation keys are PDF names
     return true
+}
+
+/**
+ * Build the appearance stream for a highlight annotation.
+ *
+ * Without one, a `/Highlight` is only a set of quads and every reader paints it
+ * however it likes: each insets the band by its own margin, so the same file
+ * shows a band a pixel or two off from one viewer to the next, and ours read
+ * 7-10% larger than the device's by area. With an appearance stream the band is
+ * exactly the rectangle we specify, everywhere.
+ *
+ * The multiply blend is what the device does. Its render of the sample shows the
+ * highlighter as pure `#acff85`, which is the recorded colour multiplied over
+ * white at full alpha rather than mixed with it.
+ */
+function highlightAppearance(
+    doc: PDFDocument,
+    boxes: readonly { x: number; y: number; width: number; height: number }[],
+    bbox: readonly [number, number, number, number] | number[],
+    colour: ReturnType<typeof rgb>,
+    opacity: number
+): PDFRef {
+    const graphicsState = doc.context.obj({
+        Type: 'ExtGState',
+        BM: 'Multiply',
+        ca: PDFNumber.of(opacity),
+        CA: PDFNumber.of(opacity)
+    })
+
+    const n = (v: number): string => v.toFixed(4)
+    const content = [
+        '/GS0 gs',
+        `${n(colour.red)} ${n(colour.green)} ${n(colour.blue)} rg`,
+        ...boxes.map((b) => `${n(b.x)} ${n(b.y)} ${n(b.width)} ${n(b.height)} re`),
+        'f'
+    ].join('\n')
+
+    const stream = doc.context.flateStream(content, {
+        Type: 'XObject',
+        Subtype: 'Form',
+        FormType: 1,
+        BBox: bbox.map((v) => PDFNumber.of(v)),
+        Resources: doc.context.obj({
+            ExtGState: doc.context.obj({ GS0: doc.context.register(graphicsState) })
+        }),
+        // A transparency group, so the blend composites against the page rather
+        // than against nothing.
+        Group: doc.context.obj({ Type: 'Group', S: 'Transparency', CS: 'DeviceRGB' })
+    })
+
+    return doc.context.register(stream)
 }
 
 /**

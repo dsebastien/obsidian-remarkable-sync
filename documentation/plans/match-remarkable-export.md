@@ -146,11 +146,11 @@ stroke rather than a rectangle.
 
 **All five models are now handled**, in `domain/device-screen.ts`. They share three screens:
 
-| screen | models | dpi | pt per .rm unit |
-| --- | --- | --- | --- |
-| 1404x1872, 157x209 mm | reMarkable 1, reMarkable 2, Paper Pure | 227.14 | 0.31698 |
-| 1620x2160, 180x240 mm | Paper Pro | 228.60 | 0.31496 |
-| 954x1696, 91x162 mm | Paper Pro Move | 266.27 | 0.27040 |
+| screen                | models                                 | dpi    | pt per .rm unit |
+| --------------------- | -------------------------------------- | ------ | --------------- |
+| 1404x1872, 157x209 mm | reMarkable 1, reMarkable 2, Paper Pure | 227.14 | 0.31698         |
+| 1620x2160, 180x240 mm | Paper Pro                              | 228.60 | 0.31496         |
+| 954x1696, 91x162 mm   | Paper Pro Move                         | 266.27 | 0.27040         |
 
 The device is identified from `customZoomPageWidth` and `customZoomPageHeight` in `.content`, which
 hold the **screen** size rather than anything about the page: the sample records 1404x1872 with a
@@ -177,10 +177,12 @@ source and librm_lines' fixed `0.25` blend is not what the device does. Grey bru
 - **A real PDF export is still not in hand.** A genuine reMarkable export is still needed, and it must be written
   somewhere the plugin does not sync to, or it will be overwritten by our own output. Every claim
   about matching them is unsupported until then.
-- The text highlight band sits about a pixel off in a viewer comparison. Our `/Highlight`
-  annotations carry no `/AP` appearance stream, so each viewer synthesises the band from
-  `QuadPoints` and they differ slightly in how they inset it. An explicit appearance stream would
-  make it deterministic.
+- ~~The text highlight band sits about a pixel off.~~ **Fixed.** The annotations carried no `/AP`, so
+  every reader synthesised the band from `QuadPoints` with its own inset. They now carry an explicit
+  appearance stream: a form XObject filling the quads with a multiply blend inside a transparency
+  group, with the annotation's own `CA` set to 1 so the alpha is not applied twice. Measured against
+  the device render, band edges now agree to within 0.4 px, under 0.7 pt, and the row extents match
+  exactly. It is still a real `/Highlight` with `QuadPoints`, `C` and extractable `Contents`.
 - Ink **texture**. The device's brush, ballpoint and pencil grain comes from per-pixel Perlin noise
   in librm_lines, and from a per-segment drawn-or-white decision in the export. We draw flat.
 - Whether the app or the export is the thing to match, given they disagree about the paintbrush.

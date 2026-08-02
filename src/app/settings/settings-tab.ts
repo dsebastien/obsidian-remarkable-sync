@@ -6,6 +6,7 @@ import { renderSyncSection } from './components/sync-section'
 import { renderOutputSection } from './components/output-section'
 import { renderPdfSection } from './components/pdf-section'
 import { renderHighlightsSection } from './components/highlights-section'
+import { renderTypedTextSection } from './components/typed-text-section'
 import { renderAboutSection } from './components/about-section'
 
 export class RemarkableSyncSettingTab extends PluginSettingTab {
@@ -26,6 +27,7 @@ export class RemarkableSyncSettingTab extends PluginSettingTab {
         renderOutputSection(containerEl, this.plugin)
         renderPdfSection(containerEl, this.plugin)
         renderHighlightsSection(containerEl, this.plugin)
+        renderTypedTextSection(containerEl, this.plugin)
         renderAboutSection(containerEl)
     }
 }

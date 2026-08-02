@@ -182,15 +182,15 @@ collapsed to a constant `30 / K`. None of its pressure or speed response ever en
 the device draws, so that is what the pen uses now. Measured on the isolated near-horizontal sweep,
 by width at half maximum, and by total ink area:
 
-| | sweep width | ink area |
-| --- | --- | --- |
-| device | 4.51 pt | 2427 px |
-| ours, before | 2.55 pt | 1953 px |
-| ours, after | 3.69 pt | 2790 px |
+|              | sweep width | ink area |
+| ------------ | ----------- | -------- |
+| device       | 4.51 pt     | 2427 px  |
+| ours, before | 2.55 pt     | 1953 px  |
+| ours, after  | 3.69 pt     | 2790 px  |
 
 Both errors shrank, from 43% to 18% on width and from 20% to 15% on area, but they now point in
 opposite directions: we are narrow on the isolated sweep and heavy on the dense scribble. That says
-the *shape* of the response is still not right, not just its scale. Fit to one document, so worth
+the _shape_ of the response is still not right, not just its scale. Fit to one document, so worth
 re-checking against a second before tuning further.
 
 The alpha is right and was not touched: peak ink signal is 0.316 on the device against 0.342 for us.

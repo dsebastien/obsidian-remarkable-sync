@@ -70,11 +70,22 @@ describe('STROKE_COLOR_MAP coverage', () => {
         expect(STROKE_COLOR_MAP[9]).not.toBe('#000000')
     })
 
-    test('the original nine colours are unchanged', () => {
+    /**
+     * Values taken from `getColorFromPalette` in librm_lines. The previous
+     * values were round web primaries (`#FFFF00`, `#FF0000`, `#0000FF`) that
+     * had been guessed; nine of the thirteen were wrong.
+     */
+    test('the palette matches the librm_lines reference', () => {
         expect(STROKE_COLOR_MAP[0]).toBe('#000000')
-        expect(STROKE_COLOR_MAP[3]).toBe('#FFFF00')
-        expect(STROKE_COLOR_MAP[7]).toBe('#FF0000')
-        expect(STROKE_COLOR_MAP[8]).toBe('#C0C0C0')
+        expect(STROKE_COLOR_MAP[1]).toBe('#7D7D7D')
+        expect(STROKE_COLOR_MAP[3]).toBe('#FFFF63')
+        expect(STROKE_COLOR_MAP[5]).toBe('#FF1493')
+        expect(STROKE_COLOR_MAP[6]).toBe('#0062CC')
+        expect(STROKE_COLOR_MAP[7]).toBe('#D90707')
+        // grey overlap is the same grey, not a lighter one
+        expect(STROKE_COLOR_MAP[8]).toBe('#7D7D7D')
+        expect(STROKE_COLOR_MAP[11]).toBe('#74D2E8')
+        expect(STROKE_COLOR_MAP[13]).toBe('#FAE719')
     })
 })
 

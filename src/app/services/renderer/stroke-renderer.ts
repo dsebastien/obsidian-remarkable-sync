@@ -59,8 +59,12 @@ export function renderStroke(
             const p1 = points[i]!
             const p2 = points[i + 1]!
 
+            const style = segmentStyle(stroke, p1, p2)
             ctx.beginPath()
-            ctx.lineWidth = Math.max(segmentStyle(stroke, p1, p2).width, 0.5)
+            ctx.lineWidth = Math.max(style.width, 0.5)
+            // Set per segment: textured pens fade with pressure and speed, so
+            // hoisting this out of the loop would flatten the grain.
+            ctx.strokeStyle = style.colour
             ctx.moveTo(p1.x + xOffset, p1.y)
             ctx.lineTo(p2.x + xOffset, p2.y)
             ctx.stroke()

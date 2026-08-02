@@ -1,7 +1,14 @@
 import { test, expect, describe } from 'bun:test'
-import { segmentWidth, strokeColour, strokeOpacity, hasOwnColour } from './pen-model'
+import {
+    segmentWidth,
+    strokeColour,
+    strokeOpacity,
+    hasOwnColour,
+    highlightColour,
+    highlightOpacity
+} from './pen-model'
 import { PenType, StrokeColor } from './notebook'
-import type { Stroke, StrokeArgb, StrokePoint } from './notebook'
+import type { Highlight, Stroke, StrokeArgb, StrokePoint } from './notebook'
 
 const pt = (width: number): StrokePoint => ({
     x: 0,
@@ -23,7 +30,7 @@ const stroke = (penType: PenType, color: StrokeColor, argb?: StrokeArgb): Stroke
 describe('strokeColour', () => {
     test('a palette colour resolves through the map', () => {
         expect(strokeColour(stroke(PenType.BallPointV2, StrokeColor.Black))).toBe('#000000')
-        expect(strokeColour(stroke(PenType.FinelinerV2, StrokeColor.Cyan))).toBe('#8BD0E5')
+        expect(strokeColour(stroke(PenType.FinelinerV2, StrokeColor.Cyan))).toBe('#74D2E8')
     })
 
     /**
@@ -32,7 +39,7 @@ describe('strokeColour', () => {
      * palette rendered a green highlighter as yellow.
      */
     test('a stroke carrying its own ARGB uses that, not the palette', () => {
-        const green = stroke(PenType.HighlighterV2, StrokeColor.Highlight, {
+        const green = stroke(PenType.HighlighterV2, StrokeColor.Argb, {
             red: 0xac,
             green: 0xff,
             blue: 0x85,
@@ -42,7 +49,7 @@ describe('strokeColour', () => {
     })
 
     test('the shading marker keeps its own colour too', () => {
-        const shader = stroke(PenType.Shader, StrokeColor.Highlight, {
+        const shader = stroke(PenType.Shader, StrokeColor.Argb, {
             red: 0xfe,
             green: 0xb2,
             blue: 0x00,
@@ -58,7 +65,7 @@ describe('strokeColour', () => {
 
 describe('strokeOpacity', () => {
     test('alpha from the stroke wins over any default', () => {
-        const shader = stroke(PenType.Shader, StrokeColor.Highlight, {
+        const shader = stroke(PenType.Shader, StrokeColor.Argb, {
             red: 0,
             green: 0,
             blue: 0,
@@ -68,7 +75,7 @@ describe('strokeOpacity', () => {
     })
 
     test('fully opaque alpha reads as 1', () => {
-        const hl = stroke(PenType.HighlighterV2, StrokeColor.Highlight, {
+        const hl = stroke(PenType.HighlighterV2, StrokeColor.Argb, {
             red: 0,
             green: 0,
             blue: 0,
@@ -93,13 +100,26 @@ describe('segmentWidth', () => {
      * about ten times too wide, roughly 47pt against an 11pt text line. These
      * pens draw at a fixed nib size.
      */
-    test('highlighter and shader use a fixed nib, ignoring recorded width', () => {
-        const hl = stroke(PenType.HighlighterV2, StrokeColor.Highlight)
+    test('the highlighter uses a fixed nib, ignoring recorded width', () => {
+        const hl = stroke(PenType.HighlighterV2, StrokeColor.Argb)
         const nib = segmentWidth(hl, pt(4), pt(4))
         // a much larger recorded width must not change it
         expect(segmentWidth(hl, pt(400), pt(400))).toBe(nib)
-        // and it lands near one text line once scaled to an A4 page
-        expect(nib * (595 / 1872)).toBeCloseTo(15, 0)
+        // librm_lines sets this pen to a constant 30 .rm units
+        expect(nib).toBe(30)
+    })
+
+    /**
+     * The shading marker is not a fixed nib, which we previously assumed. It
+     * has its own width response with a floor, so a heavier recorded width
+     * widens it.
+     */
+    test('the shader varies with recorded width, above a floor', () => {
+        const sh = stroke(PenType.Shader, StrokeColor.Argb)
+        const narrow = segmentWidth(sh, pt(4), pt(4))
+        const wide = segmentWidth(sh, pt(400), pt(400))
+        expect(wide).toBeGreaterThan(narrow)
+        expect(narrow).toBeGreaterThanOrEqual(6)
     })
 
     test('ordinary pens scale with the recorded width', () => {
@@ -155,11 +175,11 @@ describe('segmentWidth', () => {
 
     test('the fixed nib ignores thickness_scale, matching the device', () => {
         const one: Stroke = {
-            ...stroke(PenType.HighlighterV2, StrokeColor.Highlight),
+            ...stroke(PenType.HighlighterV2, StrokeColor.Argb),
             thickness: 1
         }
         const two: Stroke = {
-            ...stroke(PenType.HighlighterV2, StrokeColor.Highlight),
+            ...stroke(PenType.HighlighterV2, StrokeColor.Argb),
             thickness: 2
         }
         expect(segmentWidth(two, pt(4), pt(4))).toBe(segmentWidth(one, pt(4), pt(4)))
@@ -168,12 +188,119 @@ describe('segmentWidth', () => {
 
 describe('hasOwnColour', () => {
     test('true for colour 9 and for any stroke carrying ARGB', () => {
-        expect(hasOwnColour(stroke(PenType.HighlighterV2, StrokeColor.Highlight))).toBe(true)
-        expect(hasOwnColour(stroke(PenType.Shader, StrokeColor.Highlight))).toBe(true)
+        expect(hasOwnColour(stroke(PenType.HighlighterV2, StrokeColor.Argb))).toBe(true)
+        expect(hasOwnColour(stroke(PenType.Shader, StrokeColor.Argb))).toBe(true)
     })
 
     test('false for palette colours', () => {
         expect(hasOwnColour(stroke(PenType.BallPointV2, StrokeColor.Black))).toBe(false)
         expect(hasOwnColour(stroke(PenType.FinelinerV2, StrokeColor.Cyan))).toBe(false)
+    })
+})
+
+describe('highlightColour', () => {
+    const highlight = (color: StrokeColor, argb?: StrokeArgb): Highlight => ({
+        text: 'marked',
+        color,
+        rects: [],
+        ...(argb ? { argb } : {})
+    })
+
+    /**
+     * Text highlights carry their own colour the same way strokes do, but the
+     * condition is mirrored: a stroke has one when its colour id *is* 9, a
+     * glyph range when its colour id is *below* 9. We read neither before, so
+     * every text highlight took a palette colour it may not have had.
+     */
+    test('a recorded colour wins over the palette', () => {
+        const green = highlight(StrokeColor.Green, {
+            red: 0xac,
+            green: 0xff,
+            blue: 0x85,
+            alpha: 255
+        })
+        expect(highlightColour(green)).toBe('#acff85')
+    })
+
+    test('without one, the palette applies', () => {
+        expect(highlightColour(highlight(StrokeColor.Yellow))).toBe('#FFFF63')
+    })
+
+    test('an unmapped colour degrades to the highlighter yellow, not black', () => {
+        expect(highlightColour(highlight(99 as StrokeColor))).toBe('#FFED75')
+    })
+})
+
+describe('highlightOpacity', () => {
+    test('recorded alpha is used', () => {
+        expect(
+            highlightOpacity({
+                text: 't',
+                color: StrokeColor.Green,
+                rects: [],
+                argb: { red: 0, green: 0, blue: 0, alpha: 115 }
+            })
+        ).toBeCloseTo(115 / 255, 4)
+    })
+
+    test('without one, the librm_lines highlighter blend of 0.25 applies', () => {
+        expect(highlightOpacity({ text: 't', color: StrokeColor.Yellow, rects: [] })).toBe(0.25)
+    })
+})
+
+/**
+ * Widths checked against reMarkable's own annotated export of the sample, a
+ * US Letter page (612pt wide, so .rm units scale by 612/1872). These are the
+ * only numbers here taken from the device rather than from a formula, so they
+ * are what the model is actually accountable to.
+ */
+describe('widths against the reMarkable export', () => {
+    const SCALE = 612 / 1872
+    /** A point as the parser produces it: already normalised. */
+    const p = (width: number, pressure: number, speed: number, direction = 0): StrokePoint => ({
+        x: 0,
+        y: 0,
+        width,
+        pressure,
+        speed,
+        direction
+    })
+
+    test('the highlighter matches the exported line width exactly', () => {
+        const hl = stroke(PenType.HighlighterV2, StrokeColor.Argb)
+        const pts = segmentWidth(hl, p(4, 0.5, 10), p(4, 0.5, 10)) * SCALE
+        expect(pts).toBeCloseTo(9.807692307692308, 10)
+    })
+
+    test('the shader matches its exported line width', () => {
+        const sh = stroke(PenType.Shader, StrokeColor.Argb)
+        // both exported shader strokes sit on the floor of 30/K units
+        const pts = segmentWidth(sh, p(4, 0.3, 10), p(4, 0.3, 10)) * SCALE
+        expect(pts).toBeCloseTo(1.9615384615384617, 10)
+    })
+
+    test('the ballpoint lands in the exported range', () => {
+        const bp = stroke(PenType.BallPointV2, StrokeColor.Black)
+        // the export spans 0.410..0.548pt over 531 segments
+        const typical = segmentWidth(bp, p(4, 0.5, 10), p(4, 0.5, 10)) * SCALE
+        expect(typical).toBeGreaterThan(0.41)
+        expect(typical).toBeLessThan(0.548)
+
+        // and it still responds the right way round
+        const light = segmentWidth(bp, p(2, 0.25, 20), p(2, 0.25, 20))
+        const heavy = segmentWidth(bp, p(6, 0.66, 2), p(6, 0.66, 2))
+        expect(heavy).toBeGreaterThan(light)
+    })
+
+    /**
+     * The regression that hid the paintbrush: feeding these formulas the raw
+     * device values instead of the parser's normalised ones put the brush at
+     * 4.2..26.9pt against an exported 1.1..3.6.
+     */
+    test('the paintbrush stays inside the exported range', () => {
+        const br = stroke(PenType.BrushV2, StrokeColor.Grey)
+        const wide = segmentWidth(br, p(5, 0.66, 2), p(5, 0.66, 2)) * SCALE
+        expect(wide).toBeLessThan(3.7)
+        expect(wide).toBeGreaterThan(0.5)
     })
 })

@@ -140,21 +140,43 @@ describe('paragraphsOf', () => {
     })
 
     /**
-     * A style is recorded against the id of the character its paragraph starts
-     * at. Here 'one' begins at 1:16 and 'two' at 1:20, so only the first is a
-     * title.
+     * A style is keyed to the **newline that begins** its paragraph, not to the
+     * paragraph's first character, and the first paragraph is keyed to the end
+     * marker.
+     *
+     * Verified against a device notebook: its bullets start at 1:62 and 1:78
+     * and their styles are recorded at 1:60 and 1:76, the newlines in front of
+     * them. Keying on the first character put every style one paragraph late,
+     * which the synthetic fixtures alone did not catch because they encoded the
+     * same wrong assumption as the parser.
+     *
+     * Here 'one\ntwo\n' starts at 1:16, so the newline after 'one' is 1:19 and
+     * keys the paragraph 'two'.
      */
-    test('a style applies from the character it is recorded against', () => {
+    test('a style is keyed to the newline that starts its paragraph', () => {
         const p = page(
             [item(id(1, 16), END_MARKER, END_MARKER, 'one\ntwo\n')],
-            [{ startId: id(1, 16), style: ParagraphStyle.Title }]
+            [
+                { startId: END_MARKER, style: ParagraphStyle.Title },
+                { startId: id(1, 19), style: ParagraphStyle.Bullet }
+            ]
         )
         const out = paragraphsOf(p)
         expect(out[0]).toEqual({ text: 'one', style: ParagraphStyle.Title })
-        expect(out[1]).toEqual({ text: 'two', style: ParagraphStyle.PlainText })
+        expect(out[1]).toEqual({ text: 'two', style: ParagraphStyle.Bullet })
     })
 
-    test('a style recorded against a character that no longer exists is ignored', () => {
+    test('the first paragraph takes the style keyed to the end marker', () => {
+        const p = page(
+            [item(id(1, 16), END_MARKER, END_MARKER, 'heading\nbody\n')],
+            [{ startId: END_MARKER, style: ParagraphStyle.Title }]
+        )
+        const out = paragraphsOf(p)
+        expect(out[0]!.style).toBe(ParagraphStyle.Title)
+        expect(out[1]!.style).toBe(ParagraphStyle.PlainText)
+    })
+
+    test('a style keyed to a position that no longer exists is ignored', () => {
         const p = page(
             [item(id(1, 16), END_MARKER, END_MARKER, 'kept\n')],
             [{ startId: id(9, 99), style: ParagraphStyle.Title }]
@@ -228,8 +250,9 @@ describe('pageTextToMarkdown', () => {
         const p = page(
             [item(id(1, 16), END_MARKER, END_MARKER, 'Notes\nfirst\n')],
             [
-                { startId: id(1, 16), style: ParagraphStyle.Title },
-                { startId: id(1, 22), style: ParagraphStyle.Bullet }
+                { startId: END_MARKER, style: ParagraphStyle.Title },
+                // the newline after 'Notes', which begins the next paragraph
+                { startId: id(1, 21), style: ParagraphStyle.Bullet }
             ]
         )
         expect(pageTextToMarkdown(p)).toBe('## Notes\n- first')

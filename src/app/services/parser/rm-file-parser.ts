@@ -252,7 +252,11 @@ function openSubBlock(reader: BinaryReader, index: number): number | null {
         skipTagValue(reader, tag.type)
         return null
     }
-    return reader.position + reader.readUint32()
+    // The length must be read before the position is taken: `position +
+    // readUint32()` evaluates the left operand first and lands four bytes
+    // short, which derails every nested block after it.
+    const length = reader.readUint32()
+    return reader.position + length
 }
 
 /**
@@ -350,7 +354,8 @@ function readTextItem(reader: BinaryReader): TextItem | null {
     if (reader.position < itemEnd) {
         const tag = readTag(reader)
         if (tag.index === 6 && tag.type === TagType.Length4) {
-            const subEnd = reader.position + reader.readUint32()
+            const subLen = reader.readUint32()
+            const subEnd = reader.position + subLen
             const strLen = reader.readVarUint()
             reader.readUint8() // ascii flag, unused: decoded as UTF-8 regardless
             text = new TextDecoder().decode(

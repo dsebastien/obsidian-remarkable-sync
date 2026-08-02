@@ -1,6 +1,11 @@
 # Pen fidelity
 
-Status: **colour, opacity, width, texture and highlighter snapping done. Brush width calibration open.**
+Status: **colour, opacity and width fixed and pushed. Texture, snapping and blend mode written but
+UNVERIFIED and uncommitted.**
+
+The snapping approach described below is under challenge: it infers intent from path geometry when
+the source data may state it outright. Read `match-remarkable-export.md` before building on any of
+it.
 
 A side-by-side of the reMarkable web viewer against our output showed four defects. Three are now
 fixed, and the cause turned out to be simpler than the original investigation assumed.
@@ -68,8 +73,10 @@ otherwise so the raw path is drawn:
 - visits each line once, which rejects circles and back-and-forth scribbles,
 - stays on each line it is on, within 1.5x that line's height.
 
-On the sample, 1 of 5 wash strokes snaps. The other 4 are a diagonal, a two-point stroke spanning
-two lines, a wandering sweep and a 723-point shading blob, all of which keep their drawn shape.
+On the sample, 1 of 5 wash strokes is accepted. The other 4 are a diagonal, a two-point stroke
+spanning two lines, a wandering sweep and a 723-point shading path, all of which fall back to the
+raw path. Whether that split is the _right_ one is unverified: every threshold here was chosen to
+fit this one document.
 
 Every page is measured on its own, and every line within it:
 

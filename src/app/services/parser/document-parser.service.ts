@@ -1,3 +1,4 @@
+import { deviceScreenFor } from '../../domain/device-screen'
 import { log } from '../../../utils/log'
 import { parseRmFile } from './rm-file-parser'
 import type { Notebook, Page, SourceDocument } from '../../domain/notebook'
@@ -160,7 +161,14 @@ export function parseDocument(
             lastModified: metadata.lastModified,
             pageCount: pages.length,
             pages,
-            ...(sourceDocument ? { sourceDocument } : {})
+            ...(sourceDocument ? { sourceDocument } : {}),
+            // The screen sets the scale from .rm units to PDF points, so a
+            // document written on a Paper Pro is not placed as if it came from
+            // a reMarkable 2.
+            deviceScreen: deviceScreenFor(
+                content?.customZoomPageWidth,
+                content?.customZoomPageHeight
+            )
         }
     } catch (error) {
         log(`Failed to parse document ${documentId}`, 'error', error)

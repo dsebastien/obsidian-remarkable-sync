@@ -25,6 +25,7 @@ import {
 } from '../../domain/pen-model'
 import { rmPointToPdf, rmWidthToPdf } from './pdf-coordinates'
 import type { PageBox } from './pdf-coordinates'
+import type { DeviceScreen } from '../../domain/device-screen'
 
 /**
  * Whether a pen lays down translucent wash that the page must show through.
@@ -76,7 +77,8 @@ function drawStroke(
     pdfPage: PDFPage,
     stroke: Stroke,
     box: PageBox,
-    rotate: 0 | 90 | 180 | 270
+    rotate: 0 | 90 | 180 | 270,
+    screen: DeviceScreen | undefined
 ): void {
     if (ERASER_PEN_TYPES.has(stroke.penType)) {
         return
@@ -88,7 +90,7 @@ function drawStroke(
     }
 
     if (isWash(stroke.penType)) {
-        drawWashPath(pdfPage, stroke, box, rotate)
+        drawWashPath(pdfPage, stroke, box, rotate, screen)
         return
     }
 
@@ -100,9 +102,9 @@ function drawStroke(
         const style = segmentStyle(stroke, a, b)
 
         pdfPage.drawLine({
-            start: rmPointToPdf(a.x, a.y, box, rotate),
-            end: rmPointToPdf(b.x, b.y, box, rotate),
-            thickness: Math.max(rmWidthToPdf(style.width, box), MIN_STROKE_WIDTH),
+            start: rmPointToPdf(a.x, a.y, box, rotate, screen),
+            end: rmPointToPdf(b.x, b.y, box, rotate, screen),
+            thickness: Math.max(rmWidthToPdf(style.width, box, screen), MIN_STROKE_WIDTH),
             // Per segment, so textured pens keep their grain
             color: hexToRgb(style.colour),
             opacity,
@@ -132,12 +134,13 @@ function drawWashPath(
     pdfPage: PDFPage,
     stroke: Stroke,
     box: PageBox,
-    rotate: 0 | 90 | 180 | 270
+    rotate: 0 | 90 | 180 | 270,
+    screen: DeviceScreen | undefined
 ): void {
     const points = stroke.points
     const path = points
         .map((p, i) => {
-            const { x, y } = rmPointToPdf(p.x, p.y, box, rotate)
+            const { x, y } = rmPointToPdf(p.x, p.y, box, rotate, screen)
             return `${0 === i ? 'M' : 'L'} ${x.toFixed(3)} ${(-y).toFixed(3)}`
         })
         .join(' ')
@@ -151,7 +154,7 @@ function drawWashPath(
         x: 0,
         y: 0,
         borderColor: hexToRgb(strokeColour(stroke)),
-        borderWidth: Math.max(rmWidthToPdf(width, box), MIN_STROKE_WIDTH),
+        borderWidth: Math.max(rmWidthToPdf(width, box, screen), MIN_STROKE_WIDTH),
         borderOpacity: strokeOpacity(stroke),
         // The highlighter is a flat nib: librm_lines gives it a flat cap and a
         // bevel join, and only the shader gets round caps.
@@ -180,7 +183,8 @@ function addHighlightAnnotation(
     pdfPage: PDFPage,
     highlight: Highlight,
     box: PageBox,
-    rotate: 0 | 90 | 180 | 270
+    rotate: 0 | 90 | 180 | 270,
+    screen: DeviceScreen | undefined
 ): boolean {
     if (highlight.rects.length === 0) {
         return false
@@ -193,10 +197,10 @@ function addHighlightAnnotation(
     let maxY = -Infinity
 
     for (const r of highlight.rects) {
-        const topLeft = rmPointToPdf(r.x, r.y, box, rotate)
-        const topRight = rmPointToPdf(r.x + r.width, r.y, box, rotate)
-        const bottomLeft = rmPointToPdf(r.x, r.y + r.height, box, rotate)
-        const bottomRight = rmPointToPdf(r.x + r.width, r.y + r.height, box, rotate)
+        const topLeft = rmPointToPdf(r.x, r.y, box, rotate, screen)
+        const topRight = rmPointToPdf(r.x + r.width, r.y, box, rotate, screen)
+        const bottomLeft = rmPointToPdf(r.x, r.y + r.height, box, rotate, screen)
+        const bottomRight = rmPointToPdf(r.x + r.width, r.y + r.height, box, rotate, screen)
 
         quads.push(
             topLeft.x,
@@ -249,7 +253,8 @@ function addHighlightAnnotation(
  */
 export async function annotateSourcePdf(
     sourceData: ArrayBuffer,
-    pages: readonly Page[]
+    pages: readonly Page[],
+    screen?: DeviceScreen
 ): Promise<AnnotateResult | null> {
     if (sourceData.byteLength > MAX_SOURCE_PDF_BYTES) {
         log(
@@ -292,11 +297,11 @@ export async function annotateSourcePdf(
 
         // Text highlights first, so ink drawn afterwards sits above them
         for (const highlight of page.highlights ?? []) {
-            if (addHighlightAnnotation(doc, pdfPage, highlight, box, rotate)) highlights++
+            if (addHighlightAnnotation(doc, pdfPage, highlight, box, rotate, screen)) highlights++
         }
 
         for (const stroke of page.strokes) {
-            drawStroke(pdfPage, stroke, box, rotate)
+            drawStroke(pdfPage, stroke, box, rotate, screen)
         }
         annotatedPages++
     }

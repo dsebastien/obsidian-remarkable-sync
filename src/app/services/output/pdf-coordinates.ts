@@ -1,3 +1,6 @@
+import { DEFAULT_DEVICE_SCREEN, pointsPerRmUnit } from '../../domain/device-screen'
+import type { DeviceScreen } from '../../domain/device-screen'
+
 /**
  * The rectangle of a PDF page that the device displays, in PDF points.
  * Matches the shape pdf-lib's `getCropBox()` returns.
@@ -18,29 +21,12 @@ export interface PdfPoint {
 }
 
 /**
- * Screen resolution over screen size for the 1404x1872 devices: the reMarkable
- * 2, Paper Pure and the original. 157 mm across 1404 pixels is 227.14 dpi.
- *
- * The Paper Pro (1620x2160 over 180 mm) and the Paper Pro Move (954x1696 over
- * 91 mm) work out to 228.6 and 266.3, so a document annotated on one of those
- * will be placed slightly wrong until the device is identified. Nothing read so
- * far names it.
- */
-const DEVICE_DPI = 1404 / (157 / 25.4)
-
-/**
- * One .rm unit in PDF points.
- *
- * A page is placed at its **true physical size** at the device's resolution: a
- * pixel on the screen is a pixel of the document. So an 8.5 inch wide page is
- * 8.5 x 227.14 = 1931 .rm units across, and A4 is 1877.
- */
-const RM_UNIT_IN_POINTS = 72 / DEVICE_DPI
-
-/**
  * Maps .rm stroke coordinates onto a source PDF page.
  *
- * The scale is a **constant**, not a function of the page. An earlier version
+ * The scale depends on the **device**, not the page: a page is placed at its
+ * true physical size, so a screen pixel is a document pixel and an 8.5 inch
+ * page is 8.5 x dpi units across.
+ * An earlier version
  * fitted the page width to a fixed 1872 .rm units, which is wrong, and wrong in
  * a way that hides on A4: A4 is 8.268 in wide, so it really spans 1878 units and
  * the fit was off by 0.3%, well inside what eyeballing a landmark can catch. US
@@ -59,8 +45,8 @@ const RM_UNIT_IN_POINTS = 72 / DEVICE_DPI
  * page-width fit. The two axes agreeing to five decimals is what says the scale
  * is uniform and independent of the page.
  */
-export function pdfScaleForPage(_box: PageBox): number {
-    return RM_UNIT_IN_POINTS
+export function pdfScaleForPage(_box: PageBox, screen?: DeviceScreen): number {
+    return pointsPerRmUnit(screen ?? DEFAULT_DEVICE_SCREEN)
 }
 
 /**
@@ -77,9 +63,10 @@ export function rmPointToPdf(
     rmX: number,
     rmY: number,
     box: PageBox,
-    rotate: 0 | 90 | 180 | 270 = 0
+    rotate: 0 | 90 | 180 | 270 = 0,
+    screen?: DeviceScreen
 ): PdfPoint {
-    const scale = pdfScaleForPage(box)
+    const scale = pdfScaleForPage(box, screen)
 
     // Position within the page, measured from its top-left corner
     const acrossFromLeft = box.width / 2 + rmX * scale
@@ -110,6 +97,6 @@ export function rmPointToPdf(
 /**
  * Convert an .rm stroke width to PDF points on the given page.
  */
-export function rmWidthToPdf(rmWidth: number, box: PageBox): number {
-    return rmWidth * pdfScaleForPage(box)
+export function rmWidthToPdf(rmWidth: number, box: PageBox, screen?: DeviceScreen): number {
+    return rmWidth * pdfScaleForPage(box, screen)
 }

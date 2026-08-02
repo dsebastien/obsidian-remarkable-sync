@@ -1,5 +1,6 @@
 import type { Vault } from 'obsidian'
 import { log } from '../../../utils/log'
+import type { DeviceScreen } from '../../domain/device-screen'
 import type { Page, SourceDocument } from '../../domain/notebook'
 import type { PluginSettings } from '../../types/plugin-settings.intf'
 import { renderPage } from '../renderer/page-renderer.service'
@@ -47,6 +48,12 @@ export interface RenderAndWriteOptions {
     onPageProgress: (currentPage: number, totalPages: number, failedPages: number) => void
     /** The original file, for documents built from an imported PDF or EPUB */
     sourceDocument?: SourceDocument
+    /**
+     * The screen the document was written on, which sets the scale from `.rm`
+     * units to PDF points. Omitted for a notebook, which has no source page to
+     * line up with.
+     */
+    deviceScreen?: DeviceScreen
 }
 
 export interface RenderAndWriteResult {
@@ -87,8 +94,16 @@ export async function renderAndWritePages(
     options: RenderAndWriteOptions,
     deps: DocumentOutputDeps = DEFAULT_DOCUMENT_OUTPUT_DEPS
 ): Promise<RenderAndWriteResult> {
-    const { pages, notebookName, folderPath, settings, vault, onPageProgress, sourceDocument } =
-        options
+    const {
+        pages,
+        notebookName,
+        folderPath,
+        settings,
+        vault,
+        onPageProgress,
+        sourceDocument,
+        deviceScreen
+    } = options
 
     const looseFormat = settings.imageFormat
     const pdfFormat = resolvePdfImageFormat(looseFormat)
@@ -175,7 +190,11 @@ export async function renderAndWritePages(
             sourceWritten = true
 
             if ('pdf' === sourceDocument.kind) {
-                const annotated = await deps.annotateSourcePdf(sourceDocument.data, pages)
+                const annotated = await deps.annotateSourcePdf(
+                    sourceDocument.data,
+                    pages,
+                    deviceScreen
+                )
                 if (annotated && annotated.annotatedPages > 0) {
                     await deps.writeDocumentPdf(
                         vault,

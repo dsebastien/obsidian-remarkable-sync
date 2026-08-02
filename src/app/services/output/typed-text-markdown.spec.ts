@@ -75,13 +75,18 @@ describe('buildTypedTextNote', () => {
         expect(note).not.toContain('## Page 1')
     })
 
+    /**
+     * Styles are keyed to the newline in front of their paragraph, and the
+     * first paragraph to the end marker. 'Agenda\nfirst item\n' starts at 1:16,
+     * so its newline sits at 1:22.
+     */
     test('device paragraph styles survive into the note', () => {
         const note = buildTypedTextNote({
             documentName: 'Structured',
             pages: [
                 page(0, 'Agenda\nfirst item\n', [
-                    { startId: { author: 1, counter: 16 }, style: ParagraphStyle.Title },
-                    { startId: { author: 1, counter: 23 }, style: ParagraphStyle.Bullet }
+                    { startId: END_MARKER, style: ParagraphStyle.Title },
+                    { startId: { author: 1, counter: 22 }, style: ParagraphStyle.Bullet }
                 ])
             ]
         })

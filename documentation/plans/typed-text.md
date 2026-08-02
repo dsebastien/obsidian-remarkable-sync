@@ -1,6 +1,6 @@
 # Typed text extraction
 
-Closes upstream issue #7. Status: **in progress.**
+Closes upstream issue #7. Status: **implemented and verified against a device notebook.**
 
 Typed text, from the Type Folio keyboard or from handwriting converted on the device, is dropped
 entirely. This extracts it into the generated note as **text**, not pixels.
@@ -82,13 +82,27 @@ no characters.
 5. Emit into the generated note, mapping paragraph styles onto markdown.
 6. Update `Business Rules.md`, which still records "CRDT text data in .rm files is not processed".
 
-## Verification, and its limit
+## Verified against a real notebook
 
-Unit tests use synthetic fixtures built from the format above. **That does not prove the parser
-reads real files.** A synthetic fixture written from my own reading of the format encodes any
-misunderstanding into both the code and its test, which is the same circular trap that made an
-earlier "reference" comparison worthless. Treat the parser as unverified until a real typed notebook
-from a device round-trips through it.
+A device notebook with a title, body, bullets, a numbered list, checkboxes, a sub-heading and some
+handwriting. The synthetic fixtures alone would not have caught either defect below, because they
+encoded the same assumptions as the parser.
 
-Wanted for that: a notebook with a title, body text, a bullet list and a checkbox, so the style
-mapping is exercised too.
+**Subblock ends were four bytes short.** `reader.position + reader.readUint32()` evaluates its left
+operand first, so every nested block ended before its length had been consumed. The real file failed
+loudly on it, which is the good case: a seek far outside the file rather than plausible-looking
+text.
+
+**Paragraph styles were keyed one paragraph late.** A style is recorded against the id of the
+**newline that begins** its paragraph, not the paragraph's first character, and the first paragraph
+is keyed to the end marker `0:0`. In the fixture the bullets start at 1:62 and 1:78 while their
+styles sit at 1:60 and 1:76.
+
+Output checked line for line against the device's own thumbnail render of the same page: title, two
+body lines, two bullets, a three-item numbered list, two unchecked checkboxes and a sub-heading, all
+in the right order with the right styles. The typing errors in the source text are reproduced
+exactly, including the deleted runs, which is the strongest evidence the sequence resolves
+correctly.
+
+Still untested: text edited from two devices at once (a genuine merge), and the checked state of a
+checkbox, since none in the fixture were ticked.

@@ -1,4 +1,5 @@
 import type { DeviceScreen } from './device-screen'
+import type { PageText } from './text'
 
 /**
  * Pen types supported by the reMarkable tablet
@@ -137,6 +138,11 @@ export interface Page {
     readonly strokes: readonly Stroke[]
     /** Text highlights, present only on source-backed documents */
     readonly highlights?: readonly Highlight[]
+    /**
+     * Typed text, from the Type Folio keyboard or from handwriting the device
+     * converted. Absent on pages that carry only ink.
+     */
+    readonly text?: PageText
     /**
      * Index of the page in the source document this layer annotates.
      *

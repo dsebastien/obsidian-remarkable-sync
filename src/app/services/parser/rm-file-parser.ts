@@ -132,6 +132,7 @@ function parseGlyphValue(reader: BinaryReader, subEnd: number): Highlight | null
 
     let text = ''
     let color: StrokeColor = 0
+    let argb: StrokeArgb | undefined
     const rects: HighlightRect[] = []
 
     while (reader.position < subEnd) {
@@ -173,6 +174,20 @@ function parseGlyphValue(reader: BinaryReader, subEnd: number): Highlight | null
             continue
         }
 
+        // Tag 10 carries the highlight's own BGRA colour. Note that the
+        // condition is the mirror of a stroke's: a stroke has tag 8 when its
+        // colour id is 9, but a glyph range has tag 10 when its colour id is
+        // *below* 9. Both mean the same thing, that the palette is not the
+        // answer here.
+        if (tag.index === 10 && tag.type === TagType.Byte4) {
+            const blue = reader.readUint8()
+            const green = reader.readUint8()
+            const red = reader.readUint8()
+            const alpha = reader.readUint8()
+            argb = { red, green, blue, alpha }
+            continue
+        }
+
         skipTagValue(reader, tag.type)
     }
 
@@ -180,7 +195,7 @@ function parseGlyphValue(reader: BinaryReader, subEnd: number): Highlight | null
         return null
     }
 
-    return { text, color, rects }
+    return { text, color, rects, ...(argb ? { argb } : {}) }
 }
 
 /**

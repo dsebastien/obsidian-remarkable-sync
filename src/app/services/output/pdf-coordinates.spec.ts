@@ -6,20 +6,35 @@ const A4: PageBox = { x: 0, y: 0, width: 595.0, height: 841.9 }
 const LETTER: PageBox = { x: 0, y: 0, width: 612.0, height: 792.0 }
 
 describe('pdfScaleForPage', () => {
-    test('A4 and US Letter match the values measured on real exports', () => {
-        expect(pdfScaleForPage(A4)).toBeCloseTo(0.3178, 4)
-        expect(pdfScaleForPage(LETTER)).toBeCloseTo(0.3269, 4)
+    /**
+     * Measured from the device's own thumbnail render of the sample, using the
+     * two text-highlight rectangles whose .rm coordinates are known: 0.317147
+     * pt per unit across a band's width and 0.317162 from the gap between two
+     * bands, an implied 227.0 dpi on both axes.
+     */
+    test('the scale is the device resolution, about 227 dpi', () => {
+        expect(pdfScaleForPage(A4)).toBeCloseTo(0.31698, 5)
+        expect(72 / pdfScaleForPage(A4)).toBeCloseTo(227.14, 2)
     })
 
-    test('the page width always spans 1872 rm units', () => {
-        for (const box of [A4, LETTER, { x: 0, y: 0, width: 1000, height: 500 }]) {
-            expect(1872 * pdfScaleForPage(box)).toBeCloseTo(box.width, 6)
-        }
+    /**
+     * The defect this replaced: the scale used to be `width / 1872`, fitting
+     * every page to a fixed 1872 units. A page is really placed at its physical
+     * size, so its width in units depends on how many inches wide it is. A4 at
+     * 8.268 in is 1877 units, which is only 0.3% from 1872 and is why the error
+     * survived a landmark check; US Letter at 8.5 in is 1931, where the same
+     * fit is off by 3.1%.
+     */
+    test('a page spans its physical width in rm units, not a fixed 1872', () => {
+        expect(A4.width / pdfScaleForPage(A4)).toBeCloseTo(1877, 0)
+        expect(LETTER.width / pdfScaleForPage(LETTER)).toBeCloseTo(1931, 0)
     })
 
-    test('scale depends on width only, never on height', () => {
+    test('the scale is constant, independent of page size', () => {
         const tall = { x: 0, y: 0, width: 595, height: 2000 }
+        const wide = { x: 0, y: 0, width: 1000, height: 500 }
         expect(pdfScaleForPage(tall)).toBe(pdfScaleForPage(A4))
+        expect(pdfScaleForPage(wide)).toBe(pdfScaleForPage(LETTER))
     })
 })
 
@@ -66,10 +81,10 @@ describe('rmPointToPdf', () => {
         const top = rmPointToPdf(-229, 1916, A4)
         const bottom = rmPointToPdf(536, 2294, A4)
 
-        expect(841.9 - top.y).toBeCloseTo(609, 0) // y from top
-        expect(841.9 - bottom.y).toBeCloseTo(729, 0)
+        expect(841.9 - top.y).toBeCloseTo(607, 0) // y from top
+        expect(841.9 - bottom.y).toBeCloseTo(727, 0)
         expect(top.x).toBeCloseTo(225, 0)
-        expect(bottom.x).toBeCloseTo(468, 0)
+        expect(bottom.x).toBeCloseTo(467, 0)
 
         for (const p of [top, bottom]) {
             expect(p.x).toBeGreaterThanOrEqual(0)
@@ -79,9 +94,10 @@ describe('rmPointToPdf', () => {
         }
     })
 
-    test('ink may exceed 1872 in y, since the page is 2649 rm units tall for A4', () => {
-        const deepest = rmPointToPdf(0, 2649, A4)
-        expect(deepest.y).toBeCloseTo(0, 0) // the very bottom of the page
+    test('ink may exceed 1872 in y, since A4 is 2656 rm units tall', () => {
+        const deepest = rmPointToPdf(0, 841.9 / pdfScaleForPage(A4), A4)
+        expect(deepest.y).toBeCloseTo(0, 6) // the very bottom of the page
+        expect(841.9 / pdfScaleForPage(A4)).toBeCloseTo(2656, 0)
     })
 
     test('honours a crop box offset from the origin', () => {
@@ -121,9 +137,9 @@ describe('rmPointToPdf', () => {
 })
 
 describe('rmWidthToPdf', () => {
-    test('scales with the page', () => {
-        expect(rmWidthToPdf(10, A4)).toBeCloseTo(3.178, 3)
-        expect(rmWidthToPdf(10, LETTER)).toBeCloseTo(3.269, 3)
+    test('is the same on every page, since the scale is physical', () => {
+        expect(rmWidthToPdf(10, A4)).toBeCloseTo(3.17, 2)
+        expect(rmWidthToPdf(10, LETTER)).toBe(rmWidthToPdf(10, A4))
     })
 
     test('zero width stays zero', () => {

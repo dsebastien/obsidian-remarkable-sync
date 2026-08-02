@@ -1,6 +1,11 @@
 # Match reMarkable's own annotated PDF export
 
-Status: **NO reference obtained. Phase 1 still blocks everything.**
+Status: **a real reference was found and it exposed a 3% scale error, now fixed.**
+
+The reference is not their PDF export, which we still do not have. It is the **device's own
+thumbnail** in `<doc>.thumbnails/<page>.png`, 384x512, shipped inside the raw document. It is
+rendered by the device from the `.rm`, so it is genuine ground truth for placement and colour, and
+it cannot be confused with our output.
 
 > **Correction.** An earlier revision of this plan reported the reference as obtained and a long list
 > of things as confirmed against it. That was wrong. The file taken as the reference,
@@ -36,11 +41,11 @@ width-over-1872 error, and it confirms the formula instead.
 
 Stroke coordinates agree to the printed precision:
 
-| stroke | reMarkable | ours |
-| --- | --- | --- |
-| highlighter 1 | 65.385, 628.212 -> 190.923, 543.212 | identical |
-| highlighter 2 | 227.538, 549.750 -> 450.173, 518.365 | identical |
-| highlighter 3 first point | 106.178, 468.947 | identical |
+| stroke                    | reMarkable                           | ours      |
+| ------------------------- | ------------------------------------ | --------- |
+| highlighter 1             | 65.385, 628.212 -> 190.923, 543.212  | identical |
+| highlighter 2             | 227.538, 549.750 -> 450.173, 518.365 | identical |
+| highlighter 3 first point | 106.178, 468.947                     | identical |
 
 **Both `/Highlight` annotations are identical** in `Rect`, `QuadPoints`, `C`, `CA` and `Contents`.
 That also confirms the `GlyphRange` tag 10 colour: the reference uses `0.675 1 0.522`, which is the
@@ -67,11 +72,11 @@ build of ours and proves nothing about them, but the original row is real and sh
 The untouched `sample.pdf` is byte-identical (sha256) to the source PDF we extract from the `.rmdoc`,
 so the pipeline reads the true original. Comparing all three:
 
-| | size | objects | content parts | fonts | title / producer | original content stream |
-| --- | --- | --- | --- | --- | --- | --- |
-| original | 18.4 KB | 25 | 1 | 3 subset | sample / Quartz PDFContext | 10618 chars |
-| reMarkable | 271.3 KB | 30 | 4 | same 3 | preserved | identical |
-| ours | 272.6 KB | 30 | 4 | same 3 | preserved | identical |
+|            | size     | objects | content parts | fonts    | title / producer           | original content stream |
+| ---------- | -------- | ------- | ------------- | -------- | -------------------------- | ----------------------- |
+| original   | 18.4 KB  | 25      | 1             | 3 subset | sample / Quartz PDFContext | 10618 chars             |
+| reMarkable | 271.3 KB | 30      | 4             | same 3   | preserved                  | identical               |
+| ours       | 272.6 KB | 30      | 4             | same 3   | preserved                  | identical               |
 
 Both keep the original page content stream unchanged, reuse the original font subsets rather than
 re-embedding, and leave the title and producer alone. The page text stays selectable and the
@@ -95,10 +100,10 @@ and `direction` converted to tilt in radians. Both librm_lines and rmc are writt
 fields, so recovering the raw values before applying their formulas looks obviously right. It is
 wrong, and the export settles it:
 
-| pen | normalised inputs | raw inputs | reMarkable |
-| --- | --- | --- | --- |
-| ballpoint | 0.408..0.548 | 1.212..2.496 | 0.410..0.548 |
-| paintbrush | ..3.597 | 4.219..26.909 | ..3.632 |
+| pen        | normalised inputs | raw inputs    | reMarkable   |
+| ---------- | ----------------- | ------------- | ------------ |
+| ballpoint  | 0.408..0.548      | 1.212..2.496  | 0.410..0.548 |
+| paintbrush | ..3.597           | 4.219..26.909 | ..3.632      |
 
 in points, over 531 and 1370 exported segments. The formulas take the normalised values.
 
@@ -108,9 +113,51 @@ is now removed**: it was rmc's SVG grain trick, and it is not what the device's 
 colours a segment either the pen colour or plain white outright. `segmentColour` stays as a
 per-segment call so grain can return without touching either renderer.
 
+## The scale was wrong by 3%
+
+Found by solving the transform from the device thumbnail, using the two text-highlight rectangles
+whose `.rm` coordinates are known exactly:
+
+| axis | derived from | pt per .rm unit | implied dpi |
+| --- | --- | --- | --- |
+| x | the width of one band | 0.317147 | 227.02 |
+| y | the gap between two bands | 0.317162 | 227.01 |
+
+The two axes agreeing to five decimals says the scale is uniform and **independent of the page**.
+The old model, `cropBox.width / 1872`, gives 0.326923 on this US Letter page: **3.08% too large**.
+
+The real rule is that a page is placed at its **true physical size at the device's resolution**,
+1404 px across 157 mm, or 227.14 dpi. An 8.5 inch page is 1931 .rm units wide, not 1872.
+
+Why it survived so long: A4 is 8.268 in, so it spans 1877 units against the assumed 1872, an error of
+0.3% that no landmark check would catch. US Letter spans 1931, where the error is 3.1% and grows
+with distance from the origin, which is why ink drifted lower down the page and wider at the edges.
+
+Fixed, and confirmed against the device render. Highlight bands, in thumbnail rows:
+
+| | band 1 | band 2 | band 3 | band 4 |
+| --- | --- | --- | --- | --- |
+| device | 131-139 | 152-173 | 185-201 | 216-223 |
+| ours, before | 135-143 | 158-179 | 191-207 | 222-230 |
+| ours, after | 131-139 | 154-173 | 185-201 | 216-223 |
+
+Three of four match exactly; the second differs by 2 px on its top edge, an anti-aliased freehand
+stroke rather than a rectangle.
+
+**Limitation.** The constant is for the 1404x1872 devices. The Paper Pro (1620x2160 over 180 mm) and
+Paper Pro Move (954x1696 over 91 mm) work out to 228.6 and 266.3 dpi, and nothing read so far names
+the device, so documents from those will still be placed slightly wrong.
+
+## The device thumbnail also confirms colour
+
+The highlighter renders as pure `#acff85`, 2589 pixels of exactly that value, which is the recorded
+ARGB at full strength over white, ie a multiply blend at alpha 1. So the recorded alpha is the right
+source and librm_lines' fixed `0.25` blend is not what the device does. Grey brush ink appears at
+`#818181` and `#909090` against our palette's `#7D7D7D`.
+
 ## Still open
 
-- **Phase 1 has not happened.** A genuine reMarkable export is still needed, and it must be written
+- **A real PDF export is still not in hand.** A genuine reMarkable export is still needed, and it must be written
   somewhere the plugin does not sync to, or it will be overwritten by our own output. Every claim
   about matching them is unsupported until then.
 - The text highlight band sits about a pixel off in a viewer comparison. Our `/Highlight`

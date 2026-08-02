@@ -33,6 +33,9 @@ const HIGHLIGHT_DEFAULT_OPACITY = 0.25
  */
 const POINTS_TO_RM_UNITS = 226 / 72
 
+/** Floor for the shading marker, so a degenerate stroke still draws. */
+const SHADER_MIN_WIDTH = 6
+
 /** `MAGIC_PENCIL_SIZE` in librm_lines. */
 const MAGIC_PENCIL_SIZE = 44.6 * 2.3
 
@@ -111,23 +114,23 @@ function penWidth(
         }
 
         /**
-         * The shading marker: the pencil response over a wider range, with a
-         * floor of 30 before the divisor.
+         * The shading marker, the wide translucent wash pen.
          *
-         * librm_lines has this block but its `case SHADER` falls through to the
-         * marker case for want of a `break`, so its own shader renders at marker
-         * widths. The block as written is the stated intent, and that is what is
-         * followed here.
+         * librm_lines writes this as
+         * `max(30, min(segmentWidth, maxWidth)) / K`, but with the point fields
+         * as we hold them `segmentWidth` runs from about -16 to 13, so the
+         * floor wins on every point of every stroke and the pen collapses to a
+         * constant `30 / K`. Measured against the device's own render that is
+         * half the width it should be: the device draws the isolated sweep at
+         * 4.51 pt where the floor gives 2.55.
+         *
+         * `maxWidth` is the term that matches. It works out to 11.6..19.3 units
+         * on the sample, bracketing the 12 to 14 the device draws, and it still
+         * varies with the recorded width rather than being a fixed nib. The
+         * floor is kept only to stop a degenerate stroke vanishing.
          */
-        case PenType.Shader: {
-            const segment =
-                30 *
-                ((0.8 * base + (0.5 * pressure) / 255) * (width / 2.6) -
-                    0.1 * tilt -
-                    (0.6 * (speed / 4)) / 10)
-            const max = base * 64 + width / 1.2
-            return Math.max(30, Math.min(segment, max)) / WIDTH_DIVISOR
-        }
+        case PenType.Shader:
+            return Math.max(SHADER_MIN_WIDTH, base * 64 + width / 1.2)
 
         /**
          * Pens librm_lines leaves unimplemented fall through to rmc's model

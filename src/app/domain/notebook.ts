@@ -37,11 +37,11 @@ export enum StrokeColor {
     Red = 7,
     GreyOverlap = 8,
     /**
-     * Not a colour in itself: a marker meaning "this stroke carries its own
-     * ARGB value". Written by tools whose colour is freely chosen, such as the
-     * v2 highlighter and the shading marker.
+     * Not a colour in itself: a marker meaning "this item carries its own ARGB
+     * value". Written by tools whose colour is freely chosen, such as the v2
+     * highlighter and the shading marker. Named `ARGB` in librm_lines.
      */
-    Highlight = 9,
+    Argb = 9,
     Green2 = 10,
     Cyan = 11,
     Magenta = 12,
@@ -83,7 +83,7 @@ export interface Stroke {
     readonly points: readonly StrokePoint[]
     /**
      * The stroke's own colour, present when `color` is
-     * {@link StrokeColor.Highlight}.
+     * {@link StrokeColor.Argb}.
      *
      * Newer firmware writes a per-stroke BGRA value for tools whose colour is
      * freely chosen (the v2 highlighter and the shading marker) and sets
@@ -116,6 +116,14 @@ export interface Highlight {
     readonly text: string
     readonly color: StrokeColor
     readonly rects: readonly HighlightRect[]
+    /**
+     * The highlight's own colour, when the device recorded one.
+     *
+     * Present when `color` is below {@link StrokeColor.Argb}, which is the
+     * mirror of the rule for strokes: a stroke carries its own colour when
+     * `color` *is* 9. Either way the palette is not the answer.
+     */
+    readonly argb?: StrokeArgb
 }
 
 /**

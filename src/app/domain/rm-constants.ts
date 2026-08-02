@@ -76,19 +76,19 @@ export const BLOCK_HEADER_SIZE = 8
  */
 export const STROKE_COLOR_MAP: Record<number, string> = {
     0: '#000000', // Black
-    1: '#808080', // Grey
+    1: '#7D7D7D', // Grey
     2: '#FFFFFF', // White
-    3: '#FFFF00', // Yellow
+    3: '#FFFF63', // Yellow
     4: '#00FF00', // Green
-    5: '#FF69B4', // Pink
-    6: '#0000FF', // Blue
-    7: '#FF0000', // Red
-    8: '#C0C0C0', // GreyOverlap
-    9: '#FFED75', // Highlight (default; real colour lives in extraMetadata)
-    10: '#A1D87D', // Green 2
-    11: '#8BD0E5', // Cyan
-    12: '#B782CD', // Magenta
-    13: '#F7E851' // Yellow 2
+    5: '#FF1493', // Pink
+    6: '#0062CC', // Blue
+    7: '#D90707', // Red
+    8: '#7D7D7D', // Grey overlap, the same grey
+    9: '#FFED75', // Argb marker; only a fallback, the real colour is on the stroke
+    10: '#91DA71', // Green 2
+    11: '#74D2E8', // Cyan
+    12: '#C07FD2', // Magenta
+    13: '#FAE719' // Yellow 2
 }
 
 /**
@@ -157,10 +157,16 @@ export const HIGHLIGHTER_PEN_TYPES = new Set([PenType.Highlighter, PenType.Highl
  *
  * Not drawing tools, correctly absent: SelectionTool, ZoomTool, ClearPage.
  */
+/**
+ * Pens drawn at a constant nib, in .rm units, ignoring the recorded width.
+ *
+ * Only the highlighter. librm_lines sets `stroker->width = 30` for it and
+ * leaves every other pen to a per-point formula, including the shading marker,
+ * which we previously assumed was fixed too.
+ */
 export const FIXED_WIDTH_PENS: Record<number, number> = {
-    [PenType.Highlighter]: 15,
-    [PenType.HighlighterV2]: 15,
-    [PenType.Shader]: 12
+    [PenType.Highlighter]: 30,
+    [PenType.HighlighterV2]: 30
 }
 
 /**

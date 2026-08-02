@@ -2,13 +2,10 @@ import {
     BlendMode,
     LineCapStyle,
     LineJoinStyle,
-    PDFArray,
     PDFDocument,
     PDFName,
     PDFNumber,
-    PDFRawStream,
     PDFString,
-    decodePDFRawStream,
     popGraphicsState,
     pushGraphicsState,
     rgb,
@@ -18,15 +15,15 @@ import type { PDFPage } from 'pdf-lib'
 import { log } from '../../../utils/log'
 import { PenType } from '../../domain/notebook'
 import type { Highlight, Page, Stroke } from '../../domain/notebook'
+import { ERASER_PEN_TYPES, HIGHLIGHTER_PEN_TYPES } from '../../domain/rm-constants'
 import {
-    STROKE_COLOR_MAP,
-    ERASER_PEN_TYPES,
-    HIGHLIGHTER_PEN_TYPES
-} from '../../domain/rm-constants'
-import { segmentStyle, strokeColour, strokeOpacity } from '../../domain/pen-model'
+    highlightColour,
+    highlightOpacity,
+    segmentStyle,
+    strokeColour,
+    strokeOpacity
+} from '../../domain/pen-model'
 import { rmPointToPdf, rmWidthToPdf } from './pdf-coordinates'
-import { decodeContentStream, extractTextLines, snapPathToLines } from './pdf-text-lines'
-import type { TextLine } from './pdf-text-lines'
 import type { PageBox } from './pdf-coordinates'
 
 /**
@@ -40,9 +37,6 @@ import type { PageBox } from './pdf-coordinates'
 function isWash(penType: PenType): boolean {
     return HIGHLIGHTER_PEN_TYPES.has(penType) || PenType.Shader === penType
 }
-
-/** Opacity used for highlighter strokes, matching the raster renderer. */
-const HIGHLIGHTER_OPACITY = 0.3
 
 /** Thinnest stroke worth drawing, in PDF points. */
 const MIN_STROKE_WIDTH = 0.3
@@ -69,89 +63,6 @@ function hexToRgb(hex: string): ReturnType<typeof rgb> {
     const g = parseInt(hex.slice(3, 5), 16) / 255
     const b = parseInt(hex.slice(5, 7), 16) / 255
     return rgb(r, g, b)
-}
-
-/**
- * Read the text line bands of a page from its content stream.
- *
- * Returns an empty list on any failure, which makes the caller fall back to
- * drawing the raw stroke path. A page whose content cannot be read must still
- * render its ink.
- */
-function readPageTextLines(
-    doc: PDFDocument,
-    pdfPage: PDFPage,
-    rotate: 0 | 90 | 180 | 270
-): readonly TextLine[] {
-    // A content stream's text lines are bands of constant y in user space, which
-    // only lines up with what the reader sees when the page is not rotated. With
-    // /Rotate 90 or 270 the visible lines run the other way, so a "band" would be
-    // drawn across the text rather than along it. Fall back to the raw path.
-    if (0 !== rotate) return []
-
-    try {
-        const contents = pdfPage.node.Contents()
-        if (!contents) return []
-
-        // Contents is either one stream or an array of them, and a single
-        // logical stream is often split across several objects.
-        const refs = contents instanceof PDFArray ? contents.asArray() : [contents]
-        const parts: string[] = []
-
-        for (const ref of refs) {
-            const stream = doc.context.lookup(ref)
-            if (!(stream instanceof PDFRawStream)) continue
-            const decoded = decodePDFRawStream(stream).decode()
-            const text = decodeContentStream(decoded)
-            if (text) parts.push(text)
-        }
-
-        if (0 === parts.length) return []
-        return extractTextLines(parts.join('\n'))
-    } catch (error) {
-        log('Could not read text lines for snapping', 'debug', error)
-        return []
-    }
-}
-
-/**
- * Draw a wash stroke as clean bands on the text lines it highlights.
- *
- * Only strokes whose path actually behaves like a line swipe are drawn this
- * way; `snapPathToLines` rejects circles, brackets and fluid shading, which
- * must keep the shape they were drawn in. Returns false when the stroke is not
- * a line highlight, and the caller draws the raw path.
- */
-function drawSnappedHighlight(
-    pdfPage: PDFPage,
-    stroke: Stroke,
-    box: PageBox,
-    rotate: 0 | 90 | 180 | 270,
-    textLines: readonly TextLine[]
-): boolean {
-    const path = stroke.points.map((p) => rmPointToPdf(p.x, p.y, box, rotate))
-    const spans = snapPathToLines(path, textLines)
-    if (!spans || 0 === spans.length) {
-        return false
-    }
-
-    const colour = hexToRgb(strokeColour(stroke))
-    const opacity = strokeOpacity(stroke)
-
-    for (const { line, x0, x1 } of spans) {
-        pdfPage.drawRectangle({
-            x: x0,
-            y: line.bottom,
-            width: x1 - x0,
-            height: line.top - line.bottom,
-            color: colour,
-            opacity,
-            blendMode: BlendMode.Multiply,
-            borderWidth: 0
-        })
-    }
-
-    return true
 }
 
 /**
@@ -242,8 +153,13 @@ function drawWashPath(
         borderColor: hexToRgb(strokeColour(stroke)),
         borderWidth: Math.max(rmWidthToPdf(width, box), MIN_STROKE_WIDTH),
         borderOpacity: strokeOpacity(stroke),
-        borderLineCap: LineCapStyle.Round,
-        blendMode: BlendMode.Multiply
+        // The highlighter is a flat nib: librm_lines gives it a flat cap and a
+        // bevel join, and only the shader gets round caps.
+        borderLineCap: PenType.Shader === stroke.penType ? LineCapStyle.Round : LineCapStyle.Butt,
+        // Only the highlighter multiplies. The shader composites normally with
+        // its own recorded alpha, which is a different look, and treating both
+        // the same way was our own conflation.
+        ...(PenType.Shader === stroke.penType ? {} : { blendMode: BlendMode.Multiply })
     })
     pdfPage.pushOperators(popGraphicsState())
 }
@@ -301,8 +217,7 @@ function addHighlightAnnotation(
         }
     }
 
-    const hex = STROKE_COLOR_MAP[highlight.color] ?? '#FFED75'
-    const colour = hexToRgb(hex)
+    const colour = hexToRgb(highlightColour(highlight))
 
     const annot = doc.context.obj({
         Type: 'Annot',
@@ -310,7 +225,7 @@ function addHighlightAnnotation(
         Rect: [minX, minY, maxX, maxY].map((n) => PDFNumber.of(n)),
         QuadPoints: quads.map((n) => PDFNumber.of(n)),
         C: [colour.red, colour.green, colour.blue].map((n) => PDFNumber.of(n)),
-        CA: PDFNumber.of(HIGHLIGHTER_OPACITY),
+        CA: PDFNumber.of(highlightOpacity(highlight)),
         // The selected text itself, so readers can show and extract it
         Contents: PDFString.of(highlight.text),
         F: PDFNumber.of(4) // Print
@@ -380,21 +295,7 @@ export async function annotateSourcePdf(
             if (addHighlightAnnotation(doc, pdfPage, highlight, box, rotate)) highlights++
         }
 
-        // Text line positions, read once per page and only when a highlighter
-        // stroke actually needs them.
-        let textLines: readonly TextLine[] | null = null
-        const linesForPage = (): readonly TextLine[] => {
-            textLines ??= readPageTextLines(doc, pdfPage, rotate)
-            return textLines
-        }
-
         for (const stroke of page.strokes) {
-            if (
-                isWash(stroke.penType) &&
-                drawSnappedHighlight(pdfPage, stroke, box, rotate, linesForPage())
-            ) {
-                continue
-            }
             drawStroke(pdfPage, stroke, box, rotate)
         }
         annotatedPages++

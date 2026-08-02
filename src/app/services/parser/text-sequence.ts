@@ -118,10 +118,15 @@ export function textOf(items: readonly TextItem[]): string {
 /**
  * Split a page's text into paragraphs, each with the style the device gave it.
  *
- * A style is recorded against the id of the character its paragraph starts at,
- * so the styles are matched by walking the ordered characters and noting which
- * ids begin a paragraph. A paragraph with no recorded style is
- * {@link ParagraphStyle.PlainText}, which is what the device shows.
+ * A style is keyed to the id of the **newline that begins** the paragraph, not
+ * to the paragraph's first character, and the first paragraph is keyed to the
+ * end marker `0:0`. Verified against a device notebook: a bullet list whose
+ * items start at 1:62 and 1:78 records its styles at 1:60 and 1:76, which are
+ * the newlines that precede them. Keying on the first character instead put
+ * every style one paragraph late.
+ *
+ * A paragraph with no recorded style is {@link ParagraphStyle.PlainText}, which
+ * is what the device shows.
  */
 export function paragraphsOf(page: PageText): TextParagraph[] {
     const ordered = sortTextItems(page.items)
@@ -145,23 +150,28 @@ export function paragraphsOf(page: PageText): TextParagraph[] {
 
     const paragraphs: TextParagraph[] = []
     let current = ''
-    let style: ParagraphStyle | undefined
-
-    const flush = (): void => {
-        paragraphs.push({ text: current, style: style ?? ParagraphStyle.PlainText })
-        current = ''
-        style = undefined
-    }
+    // The first paragraph is keyed to the end marker.
+    let styleKey = crdtIdKey(END_MARKER)
 
     for (const { ch, id } of chars) {
-        if ('' === current && undefined === style) style = styleAt.get(crdtIdKey(id))
         if ('\n' === ch) {
-            flush()
+            paragraphs.push({
+                text: current,
+                style: styleAt.get(styleKey) ?? ParagraphStyle.PlainText
+            })
+            current = ''
+            // This newline keys the paragraph that follows it.
+            styleKey = crdtIdKey(id)
             continue
         }
         current += ch
     }
-    if ('' !== current) flush()
+    if ('' !== current) {
+        paragraphs.push({
+            text: current,
+            style: styleAt.get(styleKey) ?? ParagraphStyle.PlainText
+        })
+    }
 
     return paragraphs
 }

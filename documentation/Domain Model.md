@@ -86,5 +86,6 @@ Entries whose notebook is no longer present in a fresh cloud listing are orphane
 - `rmfakecloudUrl`: Base URL of the rmfakecloud server
 - `autoSyncEnabled`: Opt-in automatic background sync (default false)
 - `autoSyncIntervalMinutes`: Minutes between automatic syncs (clamped 5–240, default 30)
+- `panelSortOrder`: How the panel orders notebooks (`modified-desc` default, plus `modified-asc`, `name-asc`, `name-desc`)
 - `isAuthenticated`: Derived from token presence
 - `syncStore`: Persistent sync state for all notebooks

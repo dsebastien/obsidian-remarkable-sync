@@ -28,6 +28,21 @@ All settings are accessible via **Settings → Community plugins → Remarkable 
 
 The quality slider controls the compression level for JPEG and WebP. Lower values produce smaller files; higher values preserve more detail. The slider is hidden when PNG is selected since PNG is always lossless.
 
+## Sorting the panel
+
+The panel's **Sort** picker controls the order of notebooks within each folder:
+
+| Option            | Order                  |
+| ----------------- | ---------------------- |
+| Recently modified | newest first (default) |
+| Oldest modified   | oldest first           |
+| Name (A–Z)        | alphabetical           |
+| Name (Z–A)        | reverse alphabetical   |
+
+Names compare numerically, so "Notebook 2" comes before "Notebook 10" rather than after it. Your choice is remembered between sessions.
+
+Folder order is unaffected: the top-level group stays first, and the rest stay alphabetical.
+
 ## Automatic sync
 
 When **Automatic sync** is enabled, the plugin periodically syncs all notebooks that need updating (same rules as the panel's **Sync all** button). Runs are skipped while disconnected and when a sync is already in progress. Each run also cleans up sync state for notebooks that were deleted on your reMarkable — files already saved in your vault are never deleted.

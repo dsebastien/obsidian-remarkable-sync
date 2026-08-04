@@ -164,6 +164,9 @@ export class RemarkableSyncPlugin extends Plugin {
             if (loadedSettings.rmfakecloudUrl !== undefined) {
                 draft.rmfakecloudUrl = loadedSettings.rmfakecloudUrl
             }
+            if (loadedSettings.panelSortOrder !== undefined) {
+                draft.panelSortOrder = loadedSettings.panelSortOrder
+            }
             if (loadedSettings.syncStore !== undefined) {
                 draft.syncStore = loadedSettings.syncStore
             }

@@ -56,6 +56,13 @@ When a new business rule is mentioned:
 - Content pages that fail to render are never dropped silently: the pipeline counts them, the panel shows "Done — N pages failed to render" (warning color), and the completion Notice reports processed/total counts
 - Failed pages are excluded from `syncedPageCount`; the notebook itself is still marked synced (a deterministic render failure would otherwise re-sync forever, especially with automatic sync)
 
+## Panel
+
+- Notebooks are sorted within each folder by the `panelSortOrder` setting (default: recently modified first). Folders keep their own ordering: the top-level group first, then the rest alphabetically
+- An unrecognised `panelSortOrder` falls back to the default rather than breaking the list, so an old or hand-edited value is harmless
+- Name comparison is case-insensitive and numeric-aware, so "Notebook 2" precedes "Notebook 10"
+- Sorting by date breaks ties on name, so the order is total and the list cannot reshuffle between renders
+
 ## Output
 
 - reMarkable folder hierarchy is preserved under the target folder

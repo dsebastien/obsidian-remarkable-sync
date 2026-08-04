@@ -1,3 +1,4 @@
+import { DEFAULT_SORT_VALUE } from '../domain/notebook-sort'
 import type { SyncStore } from '../domain/sync-state'
 import { DEFAULT_SYNC_STORE } from '../domain/sync-state'
 
@@ -14,6 +15,12 @@ export interface PluginSettings {
     rmfakecloudUrl: string
     autoSyncEnabled: boolean
     autoSyncIntervalMinutes: number
+    /**
+     * How the panel orders notebooks within each folder. One of the values in
+     * `SORT_MODES`; an unrecognised value falls back to the default, so an old
+     * or hand-edited setting cannot break the list.
+     */
+    panelSortOrder: string
     syncStore: SyncStore
 }
 
@@ -26,5 +33,6 @@ export const DEFAULT_SETTINGS: PluginSettings = {
     rmfakecloudUrl: '',
     autoSyncEnabled: false,
     autoSyncIntervalMinutes: DEFAULT_AUTO_SYNC_INTERVAL_MINUTES,
+    panelSortOrder: DEFAULT_SORT_VALUE,
     syncStore: DEFAULT_SYNC_STORE
 }

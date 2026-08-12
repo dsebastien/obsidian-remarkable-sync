@@ -16,7 +16,10 @@ export class ImportConfirmModal extends Modal {
     override onOpen(): void {
         const { contentEl } = this
 
-        contentEl.createEl('h3', { text: 'Import .rmdoc file' })
+        contentEl.createEl('h3', {
+            cls: 'remarkable-import-title',
+            text: 'Import .rmdoc file'
+        })
 
         const info = contentEl.createDiv({ cls: 'remarkable-import-info' })
 

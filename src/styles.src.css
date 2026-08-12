@@ -1,8 +1,44 @@
-@import 'tailwindcss';
+/*
+ * Theme and utilities only - Preflight is deliberately excluded.
+ *
+ * `@import 'tailwindcss'` also pulls in Preflight, Tailwind's global reset. A
+ * plugin stylesheet is injected into the whole Obsidian document, so that reset
+ * applies to the entire app, not just this plugin's views: `* { margin: 0;
+ * padding: 0; border: 0 solid }`, `svg { display: block }`, `ol, ul { list-style:
+ * none }`, `button { background: transparent; color: inherit }`, and more.
+ *
+ * Preflight lands in `@layer base`, and unlayered rules beat layered ones
+ * regardless of specificity, so Obsidian's own CSS neutralises most of it on
+ * desktop. It still wins on every element Obsidian leaves at user-agent
+ * defaults, and the mobile app's chrome is a different DOM with more of that
+ * surface exposed.
+ */
+@import 'tailwindcss/theme' layer(theme);
+@import 'tailwindcss/utilities' layer(utilities);
 
 /* ========================================
    GLOBAL
    ======================================== */
+
+/*
+ * Scoped stand-in for the two things Preflight provided that this plugin's own
+ * layout depends on. Everything here is namespaced to plugin-owned elements, so
+ * nothing leaks into the rest of the app. Deliberately NOT a blanket descendant
+ * reset: these rules are unlayered, so a `* { margin: 0 }` here would outrank
+ * Obsidian's own `.markdown-rendered` spacing inside the "What's new" notes.
+ */
+[class^='remarkable-'],
+[class^='remarkable-'] *,
+[class^='remarkable-'] *::before,
+[class^='remarkable-'] *::after {
+    box-sizing: border-box;
+}
+
+/* Unclassed paragraphs in the panel's empty/disconnected states. */
+.remarkable-empty p,
+.remarkable-disconnected p {
+    @apply m-0;
+}
 
 .remarkable-panel button,
 .remarkable-auth-modal button {
@@ -446,6 +482,13 @@
    IMPORT CONFIRM MODAL
    ======================================== */
 
+/* Sized explicitly rather than left to the user agent: without Preflight an
+   unstyled h3 picks up the browser default heading size and margins. */
+.remarkable-import-title {
+    @apply mt-0 mb-3 text-base font-semibold;
+    color: var(--text-normal);
+}
+
 .remarkable-import-info {
     @apply flex flex-col gap-3 py-4;
 }
@@ -488,8 +531,11 @@
     @apply mx-auto max-w-[720px];
 }
 
+/* Sized explicitly for the same reason as the import modal title: with Preflight
+   gone, an unstyled h2 would fall back to the user agent's heading metrics. */
 .remarkable-synchronizer-whats-new-title {
-    @apply mt-0 mb-4;
+    @apply mt-0 mb-4 text-2xl font-semibold;
+    color: var(--text-normal);
 }
 
 /* Release notes card */

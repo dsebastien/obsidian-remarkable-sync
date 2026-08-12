@@ -43,7 +43,22 @@ unaffected — this only blocks local import.
 If reports confirm it: drop `accept` when `Platform.isIosApp`, and validate the extension after
 selection instead.
 
-### 3. Memory and responsiveness on phones
+### 3. Icons/buttons not rendering on Android (issue #19)
+
+First field report. Samsung tablet, "the icons and buttons aren't loading text". **Root cause not
+confirmed** — see `documentation/history/2026-08-12.md` for what was ruled out (icon names,
+missing stylesheet, load failure, flex collapse) and what was asked of the reporter.
+
+Tailwind Preflight was dropped from the shipped stylesheet while investigating. That is a real
+defect on its own — the reset leaked app-wide — but it is **not** a confirmed fix for #19. Do not
+close the issue on it.
+
+If the reporter's Android System WebView predates Chromium 99, `@layer` is unsupported and the
+whole Tailwind output is dropped, theme variables included, leaving every
+`calc(var(--spacing) * n)` invalid. The fallback would be to stop depending on Tailwind theme
+variables in shipped rules.
+
+### 4. Memory and responsiveness on phones
 
 Not measured on a real device. A 1404x1872 canvas is ~10 MB of RGBA; pages render sequentially,
 so peak use should be one page at a time, but a large notebook downloads in full before parsing.
@@ -70,6 +85,10 @@ Neither release was exercised in a real vault. These are cheap and worth doing o
   `Platform.isDesktopApp` guard.
 - Dependencies that ship a browser entry point must be imported through it (`fflate/browser`).
   Do not switch the build to `target: 'browser'` — Bun then silently stubs `require('node:fs')`.
+- The shipped stylesheet must never contain a global reset. A plugin stylesheet applies to the
+  whole Obsidian document, so Tailwind Preflight is excluded: import `tailwindcss/theme` and
+  `tailwindcss/utilities`, never bare `tailwindcss`. Anything the plugin needs from a reset is
+  scoped to `[class^='remarkable-']`.
 - Tokens live in `data.json`, are per-vault, and travel with anything that syncs `.obsidian`.
 
 ## Next catalog review

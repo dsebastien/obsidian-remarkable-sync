@@ -100,7 +100,7 @@ The authentication flow and sync protocol are identical to the official cloud. A
 
 Mobile support is **experimental** and needs testing on real devices. Please report what you find.
 
-- **Android** should work.
+- **Android** works, though it is still unconfirmed on real hardware. The panel's icon buttons rendered blank on tablets in 1.14.0; fixed in 1.15.0.
 - **iPhone / iPad** need iOS 16.4 or later. Page rendering uses `OffscreenCanvas`; on older versions the plugin tells you rather than silently producing empty notebooks.
 - Automatic background sync stays off by default. Turning it on will use mobile data and battery.
 - Importing a `.rmdoc` file relies on the system file picker, which may not offer `.rmdoc` files on iOS.

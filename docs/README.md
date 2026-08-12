@@ -32,11 +32,13 @@ Connect your reMarkable tablet to Obsidian. Sync notebook pages as images with f
 
 Mobile support is **experimental** as of 1.14.0 and needs testing on real devices. Please report what you find.
 
-| Platform                        | Status                            |
-| ------------------------------- | --------------------------------- |
-| Desktop (Windows, macOS, Linux) | Fully supported                   |
-| Android                         | Should work, untested on hardware |
-| iPhone / iPad                   | Needs **iOS 16.4 or later**       |
+| Platform                        | Status                                    |
+| ------------------------------- | ----------------------------------------- |
+| Desktop (Windows, macOS, Linux) | Fully supported                           |
+| Android                         | Works, still unconfirmed on real hardware |
+| iPhone / iPad                   | Needs **iOS 16.4 or later**               |
+
+In 1.14.0 the panel's icon buttons rendered blank on Android tablets and iPad. Fixed in 1.15.0 — verified against Obsidian's mobile emulation rather than a physical device, so hardware reports are still very welcome.
 
 Page rendering uses `OffscreenCanvas`, which arrived in iOS 16.4. On older versions the plugin tells you so directly rather than silently producing empty notebooks.
 

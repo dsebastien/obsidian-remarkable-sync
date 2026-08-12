@@ -2,6 +2,18 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.15.0](https://github.com/dsebastien/obsidian-remarkable-sync/compare/1.14.0...1.15.0) (2026-08-12)
+
+### Features
+
+* **panel:** sort notebooks within each folder ([#15](https://github.com/dsebastien/obsidian-remarkable-sync/issues/15)) ([1c8ef24](https://github.com/dsebastien/obsidian-remarkable-sync/commit/1c8ef24ba3efc36b3847f2502a0c3ba90709b53e))
+
+### Bug Fixes
+
+* **panel:** render icon buttons on mobile ([e797716](https://github.com/dsebastien/obsidian-remarkable-sync/commit/e79771630bb7eff17164c978e8e61acbd61c0cf7)), closes [#19](https://github.com/dsebastien/obsidian-remarkable-sync/issues/19)
+* **plugin:** stop shipping Tailwind Preflight in the stylesheet ([46819ae](https://github.com/dsebastien/obsidian-remarkable-sync/commit/46819ae93f8960d300dfba5d257d366fe59c9cc5)), closes [#19](https://github.com/dsebastien/obsidian-remarkable-sync/issues/19) [#19](https://github.com/dsebastien/obsidian-remarkable-sync/issues/19) [#19](https://github.com/dsebastien/obsidian-remarkable-sync/issues/19)
+* **renderer:** map the stroke colours newer firmware emits ([#14](https://github.com/dsebastien/obsidian-remarkable-sync/issues/14)) ([865998c](https://github.com/dsebastien/obsidian-remarkable-sync/commit/865998c5d827298bf54961bc188bb82ea395026e))
+
 ## [1.14.0](https://github.com/dsebastien/obsidian-remarkable-sync/compare/1.13.0...1.14.0) (2026-07-30)
 
 ### Features
@@ -201,6 +213,7 @@ All notable changes to this project will be documented in this file.
 - Inline progress indicators per notebook in panel
 - Settings for target folder, image format
 - Token storage outside vault for security
+
 
 
 

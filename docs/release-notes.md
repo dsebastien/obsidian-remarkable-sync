@@ -1,5 +1,17 @@
 # Release Notes
 
+## 1.15.0 (2026-08-12)
+
+### Features
+
+- **panel:** sort notebooks within each folder ([#15](https://github.com/dsebastien/obsidian-remarkable-sync/issues/15))
+
+### Bug Fixes
+
+- **panel:** render icon buttons on mobile
+- **plugin:** stop shipping Tailwind Preflight in the stylesheet [#19](https://github.com/dsebastien/obsidian-remarkable-sync/issues/19) [#19](https://github.com/dsebastien/obsidian-remarkable-sync/issues/19)
+- **renderer:** map the stroke colours newer firmware emits ([#14](https://github.com/dsebastien/obsidian-remarkable-sync/issues/14))
+
 ## 1.14.0 (2026-07-30)
 
 ### Features

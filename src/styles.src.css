@@ -431,6 +431,13 @@
     background-color: var(--interactive-hover);
 }
 
+/*
+ * Icon-only buttons must ALSO carry Obsidian's `clickable-icon` class. On mobile
+ * Obsidian applies `.is-tablet button:not(.clickable-icon) { padding: 4px 20px }`
+ * (and the `.is-phone` equivalent), which outranks this rule at 0,2,1 vs 0,1,0.
+ * Against the fixed `w-7` width and `border-box`, that padding drives the content
+ * box negative and the icon is squeezed to zero width — a blank button. See #19.
+ */
 .remarkable-btn-icon {
     @apply flex items-center justify-center w-7 h-7 p-0;
 }
@@ -482,13 +489,6 @@
    IMPORT CONFIRM MODAL
    ======================================== */
 
-/* Sized explicitly rather than left to the user agent: without Preflight an
-   unstyled h3 picks up the browser default heading size and margins. */
-.remarkable-import-title {
-    @apply mt-0 mb-3 text-base font-semibold;
-    color: var(--text-normal);
-}
-
 .remarkable-import-info {
     @apply flex flex-col gap-3 py-4;
 }
@@ -531,11 +531,12 @@
     @apply mx-auto max-w-[720px];
 }
 
-/* Sized explicitly for the same reason as the import modal title: with Preflight
-   gone, an unstyled h2 would fall back to the user agent's heading metrics. */
+/* Size and weight are left to Obsidian's own heading styles so the tab follows
+   the active theme. Measured with Preflight still in place: its
+   `h1-h6 { font-size: inherit }` was already losing to Obsidian's unlayered
+   rule, so dropping Preflight changes nothing here. */
 .remarkable-synchronizer-whats-new-title {
-    @apply mt-0 mb-4 text-2xl font-semibold;
-    color: var(--text-normal);
+    @apply mt-0 mb-4;
 }
 
 /* Release notes card */

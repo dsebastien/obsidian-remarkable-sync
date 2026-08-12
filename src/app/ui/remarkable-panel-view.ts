@@ -17,6 +17,19 @@ import { resolveCloudUrls } from '../services/cloud/cloud-urls'
 
 export const REMARKABLE_PANEL_VIEW_TYPE = 'remarkable-panel'
 
+/**
+ * Classes for every icon-only button in the panel.
+ *
+ * `clickable-icon` is required, not cosmetic. Obsidian's mobile stylesheet has
+ * `.is-tablet button:not(.clickable-icon) { padding: var(--size-4-1) var(--size-4-5) }`
+ * (and a `.is-phone` equivalent), which at 0,2,1 outranks `.remarkable-btn-icon`
+ * at 0,1,0. Against the fixed `w-7` width and `border-box`, that padding drives
+ * the content box negative, the icon is squeezed to zero width, and the button
+ * renders blank on Android and iPad. `clickable-icon` is the exemption Obsidian
+ * itself provides for icon-only buttons. See issue #19.
+ */
+export const ICON_BUTTON_CLASSES = 'remarkable-btn remarkable-btn-icon clickable-icon'
+
 type FilterMode = 'all' | 'selected' | 'unselected'
 
 // Key used to group top-level notebooks (no folderPath). Displayed as ROOT_FOLDER_LABEL.
@@ -101,7 +114,7 @@ export class RemarkablePanelView extends ItemView {
 
         // Import button (always available, no cloud connection needed)
         const importBtn = actions.createEl('button', {
-            cls: 'remarkable-btn remarkable-btn-icon',
+            cls: ICON_BUTTON_CLASSES,
             attr: { 'aria-label': 'Import .rmdoc file' }
         })
         setIcon(importBtn, 'import')
@@ -112,7 +125,7 @@ export class RemarkablePanelView extends ItemView {
         if (this.plugin.isConnected) {
             // Sync all button
             const syncAllBtn = actions.createEl('button', {
-                cls: 'remarkable-btn remarkable-btn-icon',
+                cls: ICON_BUTTON_CLASSES,
                 attr: { 'aria-label': 'Sync all notebooks that need updating' }
             })
             setIcon(syncAllBtn, 'refresh-cw-off')
@@ -141,7 +154,7 @@ export class RemarkablePanelView extends ItemView {
 
         // Refresh button (always visible so users can re-evaluate connection state)
         const refreshBtn = actions.createEl('button', {
-            cls: 'remarkable-btn remarkable-btn-icon',
+            cls: ICON_BUTTON_CLASSES,
             attr: { 'aria-label': 'Refresh notebook list' }
         })
         setIcon(refreshBtn, 'refresh-cw')
@@ -445,7 +458,7 @@ export class RemarkablePanelView extends ItemView {
 
         // Sync button
         const syncBtn = actions.createEl('button', {
-            cls: 'remarkable-btn remarkable-btn-icon',
+            cls: ICON_BUTTON_CLASSES,
             attr: { 'aria-label': 'Sync notebook' }
         })
         setIcon(syncBtn, 'refresh-cw')

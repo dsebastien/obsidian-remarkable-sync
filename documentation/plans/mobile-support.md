@@ -43,20 +43,17 @@ unaffected — this only blocks local import.
 If reports confirm it: drop `accept` when `Platform.isIosApp`, and validate the extension after
 selection instead.
 
-### 3. Icons/buttons not rendering on Android (issue #19)
+### 3. ~~Icons/buttons not rendering on Android (issue #19)~~ — fixed
 
-First field report. Samsung tablet, "the icons and buttons aren't loading text". **Root cause not
-confirmed** — see `documentation/history/2026-08-12.md` for what was ruled out (icon names,
-missing stylesheet, load failure, flex collapse) and what was asked of the reporter.
+First field report, and the first mobile bug found. Root cause:
+`.is-tablet button:not(.clickable-icon)` forces `padding: 4px 20px`, which against the icon
+buttons' fixed `w-7` width and `border-box` drove the content box negative and collapsed the icon
+to zero width. Fixed by adding Obsidian's `clickable-icon` class. Reproduced and verified with
+`obsidian dev:mobile on`; details in `documentation/history/2026-08-12.md`.
 
-Tailwind Preflight was dropped from the shipped stylesheet while investigating. That is a real
-defect on its own — the reset leaked app-wide — but it is **not** a confirmed fix for #19. Do not
-close the issue on it.
-
-If the reporter's Android System WebView predates Chromium 99, `@layer` is unsupported and the
-whole Tailwind output is dropped, theme variables included, leaving every
-`calc(var(--spacing) * n)` invalid. The fallback would be to stop depending on Tailwind theme
-variables in shipped rules.
+**Generalise this before it recurs:** any plugin element with a fixed size that Obsidian also
+styles by element selector can be overridden by the mobile stylesheet, which is more aggressive
+than the desktop one. `dev:mobile on` reproduces it locally — use it before shipping UI.
 
 ### 4. Memory and responsiveness on phones
 

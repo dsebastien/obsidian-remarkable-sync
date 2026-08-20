@@ -33,6 +33,17 @@ const sha = async (buffer: ArrayBuffer): Promise<string> => {
     return [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, '0')).join('')
 }
 
+/** A 1x1 transparent PNG, so page sizes can genuinely differ per page. */
+const TINY_PNG_BASE64 =
+    'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg=='
+
+function tinyPngPage(): PdfPageImage {
+    const bytes = Uint8Array.from(atob(TINY_PNG_BASE64), (c) => c.charCodeAt(0))
+    const buffer = new ArrayBuffer(bytes.byteLength)
+    new Uint8Array(buffer).set(bytes)
+    return { data: buffer, format: 'png' }
+}
+
 describe('pixelsToPoints', () => {
     test('converts the standard reMarkable page to points', () => {
         // 1404x1872 px at 226 DPI is 447.29 x 596.39 pt
@@ -74,12 +85,14 @@ describe('buildPdf', () => {
 
     test('keeps per-page sizes independent, so a grown page stays taller', async () => {
         // A page whose canvas grew downward for scrolled content must not be
-        // squashed onto the first page's box.
-        const jpeg = jpegPage()
-        const bytes = await buildPdf([jpeg, jpeg])
+        // squashed onto the first page's box. The two pages must genuinely
+        // differ in size, or reusing the first page's box would still pass.
+        const bytes = await buildPdf([jpegPage(), tinyPngPage()])
         const doc = await PDFDocument.load(bytes!)
 
-        expect(doc.getPage(0).getSize().height).toBeCloseTo(doc.getPage(1).getSize().height, 3)
+        expect(doc.getPage(0).getSize().height).toBeCloseTo(pixelsToPoints(FIXTURE_HEIGHT), 3)
+        expect(doc.getPage(1).getSize().height).toBeCloseTo(pixelsToPoints(1), 3)
+        expect(doc.getPage(0).getSize().height).not.toBeCloseTo(doc.getPage(1).getSize().height, 3)
     })
 
     test('embeds PNG as well as JPEG', async () => {

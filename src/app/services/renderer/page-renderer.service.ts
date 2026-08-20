@@ -30,7 +30,18 @@ export function renderPageToCanvas(page: Page): OffscreenCanvas | null {
 
     const bounds = computeStrokesBounds(page.strokes)
     if (!bounds) {
-        return null
+        // A content page with no drawable strokes: written entirely with the
+        // keyboard, or carrying only text highlights. Its ink layer is a
+        // blank standard page, not a render failure — returning null here
+        // made every wholly typed notebook sync as "N pages failed".
+        const canvas = new OffscreenCanvas(PAGE_WIDTH, PAGE_HEIGHT)
+        const ctx = canvas.getContext('2d')
+        if (!ctx) {
+            return null
+        }
+        ctx.fillStyle = '#FFFFFF'
+        ctx.fillRect(0, 0, PAGE_WIDTH, PAGE_HEIGHT)
+        return canvas
     }
 
     // X is centered around 0 in stroke space; keep the canvas symmetric so

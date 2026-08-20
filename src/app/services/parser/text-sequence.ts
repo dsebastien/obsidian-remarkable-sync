@@ -17,6 +17,18 @@ export interface TextParagraph {
 }
 
 /**
+ * One resolved position of the sequence.
+ *
+ * `ch` is the character at that position, or null for a tombstone slot or a
+ * format marker: those occupy positions so later anchors still resolve, but
+ * contribute nothing to the output.
+ */
+export interface TextUnit {
+    readonly id: CrdtId
+    readonly ch: string | null
+}
+
+/**
  * How many virtual positions an item occupies.
  *
  * This is the crux of the whole sort. An item does not sit at a single
@@ -24,77 +36,177 @@ export interface TextParagraph {
  * "after the third character of that run" points its `leftId` into the middle
  * of another item. A deleted run keeps its length precisely so those references
  * still resolve.
+ *
+ * Text length is counted in **code points**, not UTF-16 units: the device
+ * assigns one position per character, so a run containing an astral-plane
+ * character (an emoji, say) must not shift every position after it by one.
  */
 function itemLength(item: TextItem): number {
     if (undefined !== item.formatMarker) return 1
     if (item.deletedLength > 0) return item.deletedLength
-    return item.text?.length ?? 0
+    return undefined === item.text ? 0 : [...item.text].length
 }
 
-/** Whether `id` falls inside the run an item claims. */
-function containsId(item: TextItem, id: CrdtId): boolean {
-    const length = itemLength(item)
-    if (0 === length || item.itemId.author !== id.author) return false
-    return id.counter >= item.itemId.counter && id.counter < item.itemId.counter + length
+/** A position, with the anchors ordering needs. */
+interface AnchoredUnit extends TextUnit {
+    /** Position this unit must follow; null for "no constraint". */
+    readonly leftId: CrdtId | null
+    /** Position this unit must precede; only the last unit of an item has one. */
+    readonly rightId: CrdtId | null
 }
 
 /**
- * Put the items into reading order.
+ * Expand items into one unit per position they claim.
  *
- * Each item names the position it was inserted after (`leftId`) and before
- * (`rightId`), so the order is a dependency graph rather than a sort key: an
- * item must follow whichever item's run contains its `leftId`, and must follow
- * any item whose `rightId` points into its own run. Ties are settled by
- * ascending `itemId`, which is what makes two devices agree.
- *
- * Returns null on a cycle, which should not happen in a well-formed file and
- * means we have misread something rather than that the file is broken.
+ * An earlier version ordered whole items instead, with "item A before item B"
+ * edges. That cannot express an insertion into the middle of a run: the
+ * inserter's `leftId` and `rightId` both point inside the same item, which at
+ * item granularity reads as "A before B" and "B before A" at once — a false
+ * cycle — and the page's entire text was dropped. Editing previously typed
+ * text mid-sentence is exactly that shape, so it was not an exotic case.
+ * Per-position units make the split representable: the run's characters up to
+ * the anchor come first, then the insertion, then the rest.
  */
-export function sortTextItems(items: readonly TextItem[]): TextItem[] | null {
-    const present = items.filter((item) => itemLength(item) > 0)
-    if (0 === present.length) return []
+function expandItems(items: readonly TextItem[]): AnchoredUnit[] {
+    const units: AnchoredUnit[] = []
 
-    const byKey = new Map(present.map((item) => [crdtIdKey(item.itemId), item]))
-    const deps = new Map<string, Set<string>>()
+    for (const item of items) {
+        const length = itemLength(item)
+        if (0 === length) continue
 
-    for (const item of present) {
-        const key = crdtIdKey(item.itemId)
-        const set = deps.get(key) ?? new Set<string>()
-        deps.set(key, set)
+        const chars =
+            undefined !== item.formatMarker || item.deletedLength > 0
+                ? null
+                : [...(item.text ?? '')]
 
-        if (!crdtIdEquals(item.leftId, END_MARKER)) {
-            const left = present.find((other) => other !== item && containsId(other, item.leftId))
-            if (left) set.add(crdtIdKey(left.itemId))
-        }
-
-        for (const other of present) {
-            if (other === item) continue
-            if (crdtIdEquals(other.rightId, END_MARKER)) continue
-            if (containsId(item, other.rightId)) set.add(crdtIdKey(other.itemId))
+        for (let i = 0; i < length; i++) {
+            units.push({
+                id: { author: item.itemId.author, counter: item.itemId.counter + i },
+                ch: chars ? (chars[i] ?? null) : null,
+                leftId:
+                    0 === i
+                        ? crdtIdEquals(item.leftId, END_MARKER)
+                            ? null
+                            : item.leftId
+                        : { author: item.itemId.author, counter: item.itemId.counter + i - 1 },
+                rightId:
+                    i === length - 1 && !crdtIdEquals(item.rightId, END_MARKER)
+                        ? item.rightId
+                        : null
+            })
         }
     }
 
-    const ordered: TextItem[] = []
-    while (deps.size > 0) {
-        const ready: string[] = []
-        for (const [key, set] of deps) {
-            if (0 === set.size) ready.push(key)
-        }
+    return units
+}
 
-        if (0 === ready.length) {
-            log('Cyclic dependency while ordering typed text', 'warn')
-            return null
-        }
+/** Binary min-heap of unit indices, ordered by ascending CrdtId. */
+class UnitHeap {
+    private readonly heap: number[] = []
 
-        ready.sort((a, b) => compareCrdtId(byKey.get(a)!.itemId, byKey.get(b)!.itemId))
-        for (const key of ready) {
-            const item = byKey.get(key)
-            if (item) ordered.push(item)
-            deps.delete(key)
+    constructor(private readonly units: readonly AnchoredUnit[]) {}
+
+    get size(): number {
+        return this.heap.length
+    }
+
+    push(index: number): void {
+        const heap = this.heap
+        heap.push(index)
+        let i = heap.length - 1
+        while (i > 0) {
+            const parent = (i - 1) >> 1
+            if (this.less(heap[i]!, heap[parent]!)) {
+                ;[heap[i], heap[parent]] = [heap[parent]!, heap[i]!]
+                i = parent
+            } else break
         }
-        for (const set of deps.values()) {
-            for (const key of ready) set.delete(key)
+    }
+
+    pop(): number {
+        const heap = this.heap
+        const top = heap[0]!
+        const last = heap.pop()!
+        if (heap.length > 0) {
+            heap[0] = last
+            let i = 0
+            for (;;) {
+                const l = 2 * i + 1
+                const r = 2 * i + 2
+                let smallest = i
+                if (l < heap.length && this.less(heap[l]!, heap[smallest]!)) smallest = l
+                if (r < heap.length && this.less(heap[r]!, heap[smallest]!)) smallest = r
+                if (smallest === i) break
+                ;[heap[i], heap[smallest]] = [heap[smallest]!, heap[i]!]
+                i = smallest
+            }
         }
+        return top
+    }
+
+    private less(a: number, b: number): boolean {
+        return compareCrdtId(this.units[a]!.id, this.units[b]!.id) < 0
+    }
+}
+
+/**
+ * Put the sequence's positions into reading order.
+ *
+ * Each unit must follow the position its `leftId` names and precede the one its
+ * `rightId` names, and consecutive positions of one item follow each other.
+ * Ties — concurrent insertions at the same anchor — are settled by ascending
+ * id, which is what makes two devices agree.
+ *
+ * An anchor naming a position that does not exist adds no constraint: the unit
+ * still sorts by id rather than taking the whole page down with it.
+ *
+ * Returns null on a cycle, which a well-formed file cannot produce (every
+ * anchor points at an already-existing position) and means we have misread
+ * something rather than that the file is broken.
+ */
+export function orderTextUnits(items: readonly TextItem[]): TextUnit[] | null {
+    const units = expandItems(items)
+    if (0 === units.length) return []
+
+    const indexByKey = new Map<string, number>()
+    units.forEach((unit, i) => indexByKey.set(crdtIdKey(unit.id), i))
+
+    const dependants: number[][] = units.map(() => [])
+    const inDegree: number[] = units.map(() => 0)
+    const addEdge = (before: number, after: number): void => {
+        dependants[before]!.push(after)
+        inDegree[after]!++
+    }
+
+    units.forEach((unit, i) => {
+        if (unit.leftId) {
+            const left = indexByKey.get(crdtIdKey(unit.leftId))
+            if (undefined !== left && left !== i) addEdge(left, i)
+        }
+        if (unit.rightId) {
+            const right = indexByKey.get(crdtIdKey(unit.rightId))
+            if (undefined !== right && right !== i) addEdge(i, right)
+        }
+    })
+
+    const ready = new UnitHeap(units)
+    units.forEach((_, i) => {
+        if (0 === inDegree[i]) ready.push(i)
+    })
+
+    const ordered: TextUnit[] = []
+    while (ready.size > 0) {
+        const i = ready.pop()
+        const unit = units[i]!
+        ordered.push({ id: unit.id, ch: unit.ch })
+        for (const dependant of dependants[i]!) {
+            if (0 === --inDegree[dependant]!) ready.push(dependant)
+        }
+    }
+
+    if (ordered.length !== units.length) {
+        log('Cyclic dependency while ordering typed text', 'warn')
+        return null
     }
 
     return ordered
@@ -106,13 +218,9 @@ export function sortTextItems(items: readonly TextItem[]): TextItem[] | null {
  * Tombstones and format markers contribute no characters.
  */
 export function textOf(items: readonly TextItem[]): string {
-    const ordered = sortTextItems(items)
+    const ordered = orderTextUnits(items)
     if (!ordered) return ''
-    return ordered
-        .map((item) =>
-            item.deletedLength > 0 || undefined !== item.formatMarker ? '' : (item.text ?? '')
-        )
-        .join('')
+    return ordered.map((unit) => unit.ch ?? '').join('')
 }
 
 /**
@@ -129,31 +237,19 @@ export function textOf(items: readonly TextItem[]): string {
  * is what the device shows.
  */
 export function paragraphsOf(page: PageText): TextParagraph[] {
-    const ordered = sortTextItems(page.items)
+    const ordered = orderTextUnits(page.items)
     if (!ordered) return []
 
     const styleAt = new Map<string, ParagraphStyle>()
     for (const style of page.styles) styleAt.set(crdtIdKey(style.startId), style.style)
-
-    /** Character, paired with the id of the position it occupies. */
-    const chars: { ch: string; id: CrdtId }[] = []
-    for (const item of ordered) {
-        if (item.deletedLength > 0 || undefined !== item.formatMarker) continue
-        const text = item.text ?? ''
-        for (let i = 0; i < text.length; i++) {
-            chars.push({
-                ch: text[i]!,
-                id: { author: item.itemId.author, counter: item.itemId.counter + i }
-            })
-        }
-    }
 
     const paragraphs: TextParagraph[] = []
     let current = ''
     // The first paragraph is keyed to the end marker.
     let styleKey = crdtIdKey(END_MARKER)
 
-    for (const { ch, id } of chars) {
+    for (const { ch, id } of ordered) {
+        if (null === ch) continue
         if ('\n' === ch) {
             paragraphs.push({
                 text: current,

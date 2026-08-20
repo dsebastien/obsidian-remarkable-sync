@@ -1,5 +1,15 @@
-import { DEFAULT_SETTINGS } from '../types/plugin-settings.intf'
+import {
+    DEFAULT_SETTINGS,
+    MAX_AUTO_SYNC_INTERVAL_MINUTES,
+    MIN_AUTO_SYNC_INTERVAL_MINUTES
+} from '../types/plugin-settings.intf'
 import type { PluginSettings } from '../types/plugin-settings.intf'
+
+const IMAGE_FORMATS: ReadonlySet<string> = new Set(['png', 'jpeg', 'webp'])
+
+function clamp(value: number, min: number, max: number): number {
+    return Math.min(Math.max(value, min), max)
+}
 
 /**
  * Merge the settings stored in `data.json` over the defaults.
@@ -40,6 +50,40 @@ export function mergeLoadedSettings(loaded: unknown): PluginSettings {
         if (typeof value !== typeof defaultValue) continue
 
         target[key] = value
+    }
+
+    // `typeof` cannot see union members or object shapes, so the fields with
+    // a narrower contract than "same primitive type" are validated explicitly:
+    // a hand-edited file must degrade to defaults, not poison the plugin.
+    if (!IMAGE_FORMATS.has(merged.imageFormat)) {
+        merged.imageFormat = DEFAULT_SETTINGS.imageFormat
+    }
+    if (!Number.isFinite(merged.imageQuality)) {
+        merged.imageQuality = DEFAULT_SETTINGS.imageQuality
+    } else {
+        merged.imageQuality = clamp(merged.imageQuality, 0.1, 1)
+    }
+    if (!Number.isFinite(merged.autoSyncIntervalMinutes)) {
+        merged.autoSyncIntervalMinutes = DEFAULT_SETTINGS.autoSyncIntervalMinutes
+    } else {
+        merged.autoSyncIntervalMinutes = clamp(
+            merged.autoSyncIntervalMinutes,
+            MIN_AUTO_SYNC_INTERVAL_MINUTES,
+            MAX_AUTO_SYNC_INTERVAL_MINUTES
+        )
+    }
+    // Everything downstream iterates `syncStore.notebooks`; an array or a
+    // missing map would throw far from here.
+    const store = merged.syncStore as unknown
+    if (
+        !store ||
+        'object' !== typeof store ||
+        Array.isArray(store) ||
+        !(store as Record<string, unknown>)['notebooks'] ||
+        'object' !== typeof (store as Record<string, unknown>)['notebooks'] ||
+        Array.isArray((store as Record<string, unknown>)['notebooks'])
+    ) {
+        merged.syncStore = DEFAULT_SETTINGS.syncStore
     }
 
     return merged

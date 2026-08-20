@@ -7,6 +7,12 @@ import type { PluginSettings } from '../types/plugin-settings.intf'
  * A value that differs from the default, for any setting type.
  */
 function differentValue(key: keyof PluginSettings): unknown {
+    // Constrained settings need a value that is different but still valid,
+    // since invalid values are deliberately reset by validation.
+    if ('imageFormat' === key) return 'png'
+    if ('imageQuality' === key) return 0.5
+    if ('syncStore' === key) return { notebooks: { doc: { lastSyncedVersion: 2 } } }
+
     const current = DEFAULT_SETTINGS[key]
     if ('boolean' === typeof current) return !current
     if ('number' === typeof current) return current + 1
@@ -114,5 +120,36 @@ describe('mergeLoadedSettings', () => {
         const before = JSON.stringify(DEFAULT_SETTINGS)
         mergeLoadedSettings({ savePdf: true, targetFolder: 'x' })
         expect(JSON.stringify(DEFAULT_SETTINGS)).toBe(before)
+    })
+})
+
+describe('mergeLoadedSettings validation', () => {
+    test('an unknown image format degrades to the default', () => {
+        const merged = mergeLoadedSettings({ imageFormat: 'gif' })
+        expect(merged.imageFormat).toBe(DEFAULT_SETTINGS.imageFormat)
+    })
+
+    test('image quality is clamped into its slider range', () => {
+        expect(mergeLoadedSettings({ imageQuality: 7 }).imageQuality).toBe(1)
+        expect(mergeLoadedSettings({ imageQuality: -1 }).imageQuality).toBe(0.1)
+        expect(mergeLoadedSettings({ imageQuality: NaN }).imageQuality).toBe(
+            DEFAULT_SETTINGS.imageQuality
+        )
+    })
+
+    test('the sync interval is clamped into its allowed range', () => {
+        expect(mergeLoadedSettings({ autoSyncIntervalMinutes: 1 }).autoSyncIntervalMinutes).toBe(5)
+        expect(mergeLoadedSettings({ autoSyncIntervalMinutes: 9999 }).autoSyncIntervalMinutes).toBe(
+            240
+        )
+    })
+
+    test('a malformed sync store degrades to the default instead of throwing later', () => {
+        expect(mergeLoadedSettings({ syncStore: [] }).syncStore).toEqual(DEFAULT_SETTINGS.syncStore)
+        expect(mergeLoadedSettings({ syncStore: { notebooks: 'no' } }).syncStore).toEqual(
+            DEFAULT_SETTINGS.syncStore
+        )
+        const valid = { notebooks: { abc: { lastSyncedVersion: 1 } } }
+        expect(mergeLoadedSettings({ syncStore: valid }).syncStore).toEqual(valid as never)
     })
 })

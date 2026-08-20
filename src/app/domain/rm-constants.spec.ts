@@ -116,10 +116,12 @@ describe('STROKE_COLOR_MAP coverage', () => {
         expect(STROKE_COLOR_MAP[9]).not.toBe('#000000')
     })
 
-    test('the original nine colours are unchanged', () => {
+    test('the palette matches the device firmware values', () => {
+        // The firmware-accurate palette shipped in 1.15.0; asserting the old
+        // approximations (#FFFF00, #FF0000, #C0C0C0) was stale.
         expect(STROKE_COLOR_MAP[0]).toBe('#000000')
-        expect(STROKE_COLOR_MAP[3]).toBe('#FFFF00')
-        expect(STROKE_COLOR_MAP[7]).toBe('#FF0000')
-        expect(STROKE_COLOR_MAP[8]).toBe('#C0C0C0')
+        expect(STROKE_COLOR_MAP[3]).toBe('#FFFF63')
+        expect(STROKE_COLOR_MAP[7]).toBe('#D90707')
+        expect(STROKE_COLOR_MAP[8]).toBe('#7D7D7D')
     })
 })

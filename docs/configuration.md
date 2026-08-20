@@ -65,19 +65,15 @@ The annotated copy keeps the original's text layer, so it stays selectable and s
 
 Pages you inserted on the device have no counterpart in the original and are left out of the annotated copy. An encrypted PDF cannot be annotated, and in that case the original is still written to your vault.
 
-### Highlights
+Very large source documents (over 80 MB) are not annotated: the original, the parsed copy and the output would all be in memory at once, which is a real risk on phones. The original is still written to your vault.
+
+EPUBs are written through unchanged (as `.epub`) but not annotated, because the device lays them out itself and there are no fixed pages to draw on.
+
+Generated PDFs deliberately carry no creation or modification date. Re-syncing an unchanged notebook produces exactly the same bytes, and the plugin skips the write entirely, so nothing churns if you sync your vault with Obsidian Sync, Git or Dropbox.
+
+## Highlights
 
 If you highlight text on the device (selecting words rather than drawing over them with the highlighter pen), those become **real PDF highlight annotations** in the annotated copy. You can select them, see the text in a reader's comment pane, and extract them like any other annotation.
-
-### Typed text
-
-Text you type on a keyboard is not ink and is not part of the page image. Enable **Save typed text
-note** to have it written into a markdown note as real text, so Obsidian can search it and any
-`[[links]]` you typed become real links.
-
-Handwriting is **not** included. It is stored as strokes and stays as ink in the page image. The
-device's own "Convert to text" is a share action rather than an edit, so the converted text is not
-written back into the page and there is nothing in the file to read.
 
 Enable **Save highlights note** to also get a markdown note listing them:
 
@@ -91,9 +87,17 @@ The toggle controls the note only. Highlights are embedded in the annotated PDF 
 
 One quirk worth knowing: the device stores highlighted text with the original line breaks removed, so words from the end and start of consecutive lines can run together. Obvious cases are repaired, but joins like "Backupservers" are left alone, because "Backups ervers" is an equally valid reading and guessing wrong would corrupt the text.
 
-EPUBs are written through unchanged but not annotated, because the device lays them out itself and there are no fixed pages to draw on.
+## Typed text
 
-Generated PDFs deliberately carry no creation or modification date. Re-syncing an unchanged notebook produces exactly the same bytes, and the plugin skips the write entirely, so nothing churns if you sync your vault with Obsidian Sync, Git or Dropbox.
+Text you type on a keyboard is not ink and is not part of the page image. Enable **Save typed text note** to have it written into a markdown note as real text, so Obsidian can search it and any `[[links]]` you typed become real links:
+
+```
+Some notebook (text).md
+```
+
+This works for any document — regular notebooks included, not only imported PDFs. Headings, bullets, checkboxes and numbered lists keep their structure in the note.
+
+Handwriting is **not** included. It is stored as strokes and stays as ink in the page image. The device's own "Convert to text" is a share action rather than an edit, so the converted text is not written back into the page and there is nothing in the file to read.
 
 ## Sorting the panel
 

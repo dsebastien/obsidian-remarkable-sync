@@ -16,6 +16,10 @@ Connect your reMarkable tablet to Obsidian. Sync notebook pages as images with f
 - Sync individual, selected, or all notebooks at once with status tracking
 - Fuzzy search and filtering across notebooks
 - Render pages as JPEG, PNG, or WebP images with configurable quality
+- Export each notebook as a PDF
+- Sync annotated PDFs as the original document plus a copy with your ink drawn on it, text still selectable
+- Turn text highlights into real PDF annotations, with an optional markdown note quoting them
+- Extract keyboard-typed text into searchable markdown notes with working `[[wikilinks]]`
 - Import local `.rmdoc` files without a cloud connection
 - Desktop is fully supported
 - Mobile (iOS/Android) is **experimental** — page rendering uses `OffscreenCanvas`, which needs iOS 16.4 or later

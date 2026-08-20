@@ -34,12 +34,18 @@ export function renderStroke(
     const isHighlighter = HIGHLIGHTER_PEN_TYPES.has(stroke.penType)
     const translucent = opacity < 1
 
-    if (translucent) {
+    if (isHighlighter || translucent) {
         ctx.save()
         ctx.globalAlpha = opacity
-        // Multiply keeps highlighted text readable underneath. Other
-        // translucent pens (the shading marker) layer the same way.
-        ctx.globalCompositeOperation = 'multiply'
+        if (isHighlighter) {
+            // Multiply keeps what sits underneath readable. It must not
+            // depend on the recorded alpha: a v2 highlighter records ARGB
+            // alpha 255, and drawing that normally paints an opaque bar over
+            // the ink it was meant to highlight — the same rule the PDF
+            // annotator applies. The shading marker composites normally with
+            // its own alpha, which is what the device does.
+            ctx.globalCompositeOperation = 'multiply'
+        }
     }
 
     ctx.strokeStyle = colorHex
@@ -71,8 +77,7 @@ export function renderStroke(
         }
     }
 
-    if (translucent) {
+    if (isHighlighter || translucent) {
         ctx.restore()
     }
-    void isHighlighter
 }

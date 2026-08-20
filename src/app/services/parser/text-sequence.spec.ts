@@ -1,6 +1,6 @@
 import { test, expect, describe } from 'bun:test'
 import {
-    sortTextItems,
+    orderTextUnits,
     textOf,
     paragraphsOf,
     paragraphsToMarkdown,
@@ -28,14 +28,19 @@ const page = (items: TextItem[], styles: PageText['styles'] = []): PageText => (
     width: 936
 })
 
-describe('sortTextItems', () => {
+describe('orderTextUnits', () => {
     /**
      * The compacted form the device writes: one item holding a whole
      * paragraph, both ends pointing at the end marker.
      */
     test('a single compacted item is its own order', () => {
         const only = item(id(1, 16), END_MARKER, END_MARKER, 'Test\n')
-        expect(sortTextItems([only])).toEqual([only])
+        expect(textOf([only])).toBe('Test\n')
+        expect(
+            orderTextUnits([only])!
+                .map((u) => u.ch)
+                .join('')
+        ).toBe('Test\n')
     })
 
     /**
@@ -61,10 +66,48 @@ describe('sortTextItems', () => {
      * 1:10 and 1:11, so an insertion after its second character points its
      * leftId at 1:11, which is inside the run rather than at its start.
      */
-    test('an insertion into the middle of a run resolves against that run', () => {
+    test('an insertion after the end of a run resolves against that run', () => {
         const run = item(id(1, 10), END_MARKER, END_MARKER, 'XY')
         const after = item(id(1, 20), id(1, 11), END_MARKER, 'Z')
         expect(textOf([after, run])).toBe('XYZ')
+    })
+
+    /**
+     * The everyday edit: type a sentence, then click into the middle of it and
+     * add a word. The new item's leftId AND rightId both point inside the run,
+     * which requires splitting it. The previous whole-item ordering read this
+     * as a cycle and dropped the page's entire text.
+     */
+    test('an insertion into the middle of a run splits it', () => {
+        const run = item(id(1, 10), END_MARKER, END_MARKER, 'Hello world')
+        // After the 'o' of "Hello" (1:14), before the space (1:15)
+        const insert = item(id(1, 30), id(1, 14), id(1, 15), ' dear')
+        expect(textOf([run, insert])).toBe('Hello dear world')
+    })
+
+    test('an insertion anchored inside a tombstone still lands in place', () => {
+        const kept = item(id(1, 10), END_MARKER, END_MARKER, 'AB')
+        const gone: TextItem = {
+            itemId: id(1, 12),
+            leftId: id(1, 11),
+            rightId: END_MARKER,
+            deletedLength: 4,
+            text: ''
+        }
+        // Anchored at the middle of the deleted run
+        const insert = item(id(1, 40), id(1, 13), id(1, 14), 'C')
+        expect(textOf([gone, insert, kept])).toBe('ABC')
+    })
+
+    /**
+     * Positions are counted in code points, not UTF-16 units: an emoji is one
+     * position on the device, so an anchor after it must not land one short.
+     */
+    test('astral-plane characters occupy one position each', () => {
+        const run = item(id(1, 10), END_MARKER, END_MARKER, 'a\u{1F600}b')
+        // 'a' is 1:10, the emoji is 1:11, 'b' is 1:12
+        const insert = item(id(1, 30), id(1, 11), id(1, 12), 'X')
+        expect(textOf([run, insert])).toBe('a\u{1F600}Xb')
     })
 
     test('ties are broken by ascending item id, so the order is deterministic', () => {
@@ -76,8 +119,14 @@ describe('sortTextItems', () => {
         expect(textOf([a, b, c])).toBe('bac')
     })
 
+    test('an anchor naming a missing position adds no constraint', () => {
+        const a = item(id(1, 10), id(9, 99), END_MARKER, 'a')
+        const b = item(id(1, 20), id(1, 10), END_MARKER, 'b')
+        expect(textOf([b, a])).toBe('ab')
+    })
+
     test('an empty sequence yields no items and no text', () => {
-        expect(sortTextItems([])).toEqual([])
+        expect(orderTextUnits([])).toEqual([])
         expect(textOf([])).toBe('')
     })
 
@@ -96,7 +145,7 @@ describe('sortTextItems', () => {
             deletedLength: 0,
             text: 'b'
         }
-        expect(sortTextItems([a, b])).toBeNull()
+        expect(orderTextUnits([a, b])).toBeNull()
         expect(textOf([a, b])).toBe('')
     })
 })

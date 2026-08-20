@@ -97,6 +97,10 @@ function createHarness(config: {
             pdfsWritten.push(name)
             return Promise.resolve(`${name}.pdf`)
         },
+        writeDocumentFile: (_vault, _target, _folder, name, _data, extension): Promise<string> => {
+            pdfsWritten.push(name)
+            return Promise.resolve(`${name}.${extension}`)
+        },
         writeMarkdownNote: (_vault, _target, _folder, name, contents): Promise<string> => {
             notesWritten.push({ name, contents })
             return Promise.resolve(`${name}.md`)

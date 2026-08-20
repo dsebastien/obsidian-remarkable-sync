@@ -10,6 +10,7 @@ import {
     renderPage
 } from '../renderer/page-renderer.service'
 import {
+    writeDocumentFile,
     writeDocumentPdf,
     writeMarkdownNote,
     writePageImage
@@ -44,6 +45,7 @@ export interface PipelineDeps {
     parseDocument: typeof parseDocument
     renderPage: typeof renderPage
     writePageImage: typeof writePageImage
+    writeDocumentFile: typeof writeDocumentFile
     writeDocumentPdf: typeof writeDocumentPdf
     writeMarkdownNote: typeof writeMarkdownNote
     buildPdf: typeof buildPdf
@@ -56,6 +58,7 @@ export function createNotebookPipelineService(
         parseDocument,
         renderPage,
         writePageImage,
+        writeDocumentFile,
         writeDocumentPdf,
         writeMarkdownNote,
         buildPdf,

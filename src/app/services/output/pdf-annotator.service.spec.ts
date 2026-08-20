@@ -1,5 +1,5 @@
 import { test, expect, describe } from 'bun:test'
-import { PDFDocument } from 'pdf-lib'
+import { PDFDict, PDFDocument, PDFHexString, PDFName } from 'pdf-lib'
 import { annotateSourcePdf, MAX_SOURCE_PDF_BYTES } from './pdf-annotator.service'
 import type { Page, Stroke } from '../../domain/notebook'
 import { PenType, StrokeColor } from '../../domain/notebook'
@@ -36,6 +36,45 @@ const layer = (pageIndex: number, sourcePageIndex?: number, strokes = [stroke()]
 })
 
 describe('annotateSourcePdf', () => {
+    /**
+     * Regression: highlight text used to be embedded with `PDFString.of`,
+     * which does no escaping — an unbalanced ')' or a backslash corrupted the
+     * annotation dictionary, and non-ASCII text was written as raw UTF-8 that
+     * readers decode as PDFDocEncoding. The hex-string encoding survives both.
+     */
+    test('hostile and non-ASCII highlight text survives a save/load round-trip', async () => {
+        const text = 'a) \\ (b — café 😀'
+        const highlighted: Page = {
+            pageId: 'h0',
+            pageIndex: 0,
+            strokes: [],
+            sourcePageIndex: 0,
+            highlights: [
+                {
+                    text,
+                    color: StrokeColor.Black,
+                    rects: [{ x: -100, y: 100, width: 200, height: 30 }]
+                }
+            ]
+        }
+
+        const result = await annotateSourcePdf(await sourcePdf(), [highlighted])
+        expect(result).not.toBeNull()
+        expect(result!.highlights).toBe(1)
+
+        // The output must still be a readable PDF, and the text must survive
+        // exactly. Under the old encoding the parser only recovered a
+        // truncated, mangled string.
+        const doc = await PDFDocument.load(result!.data)
+        expect(doc.getPageCount()).toBe(3)
+        const annots = doc.getPage(0).node.Annots()
+        expect(annots?.size()).toBe(1)
+        const dict = doc.context.lookup(annots!.get(0), PDFDict)
+        const contents = dict.get(PDFName.of('Contents'))
+        expect(contents).toBeInstanceOf(PDFHexString)
+        expect((contents as PDFHexString).decodeText()).toBe(text)
+    })
+
     test('draws onto the mapped source page and keeps every page', async () => {
         const result = await annotateSourcePdf(await sourcePdf(), [layer(0, 0)])
 
@@ -119,15 +158,19 @@ describe('annotateSourcePdf', () => {
         expect(new Uint8Array(ballpoint!.data)).not.toEqual(new Uint8Array(highlighter!.data))
     })
 
-    test('a single-point stroke draws nothing rather than throwing', async () => {
+    test('a single-point stroke draws a dot, matching the raster renderer', async () => {
         const single: Stroke = {
             ...stroke(),
             points: [{ x: 0, y: 0, speed: 1, width: 4, direction: 0, pressure: 1 }]
         }
-        const result = await annotateSourcePdf(await sourcePdf(), [layer(0, 0, [single])])
+        const source = await sourcePdf()
+        const withDot = await annotateSourcePdf(source, [layer(0, 0, [single])])
+        const withNothing = await annotateSourcePdf(source, [layer(0, 0, [])])
 
-        expect(result).not.toBeNull()
-        expect(result!.annotatedPages).toBe(1)
+        expect(withDot).not.toBeNull()
+        expect(withDot!.annotatedPages).toBe(1)
+        // The tap must leave a mark: pen taps silently vanished before.
+        expect(new Uint8Array(withDot!.data)).not.toEqual(new Uint8Array(withNothing!.data))
     })
 
     test('returns null for an unreadable or encrypted source', async () => {

@@ -126,6 +126,19 @@ describe('rmPointToPdf', () => {
             expect(p270.x).toBeCloseTo(A4.width - 400 * pdfScaleForPage(A4), 6)
         })
 
+        /**
+         * The .rm x axis is centred on the page **as displayed**: under 90 or
+         * 270 degrees the displayed width is the box's height. Centring on
+         * `box.width` regardless shifted every stroke on a rotated non-square
+         * page by half the difference.
+         */
+        test('rmX = 0 lies on the displayed centre line at every rotation', () => {
+            expect(rmPointToPdf(0, 100, A4, 0).x).toBeCloseTo(A4.x + A4.width / 2, 6)
+            expect(rmPointToPdf(0, 100, A4, 180).x).toBeCloseTo(A4.x + A4.width / 2, 6)
+            expect(rmPointToPdf(0, 100, A4, 90).y).toBeCloseTo(A4.y + A4.height / 2, 6)
+            expect(rmPointToPdf(0, 100, A4, 270).y).toBeCloseTo(A4.y + A4.height / 2, 6)
+        })
+
         test('every rotation is deterministic and finite', () => {
             for (const r of [0, 90, 180, 270] as const) {
                 const p = rmPointToPdf(50, 50, A4, r)

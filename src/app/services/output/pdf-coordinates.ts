@@ -68,8 +68,13 @@ export function rmPointToPdf(
 ): PdfPoint {
     const scale = pdfScaleForPage(box, screen)
 
-    // Position within the page, measured from its top-left corner
-    const acrossFromLeft = box.width / 2 + rmX * scale
+    // The device centres the .rm x axis on the width of the page **as
+    // displayed**: under a 90 or 270 degree rotation that is the box's
+    // height, not its width.
+    const displayedWidth = 90 === rotate || 270 === rotate ? box.height : box.width
+
+    // Position within the displayed page, measured from its top-left corner
+    const acrossFromLeft = displayedWidth / 2 + rmX * scale
     const downFromTop = rmY * scale
 
     switch (rotate) {

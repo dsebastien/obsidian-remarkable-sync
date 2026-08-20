@@ -1,3 +1,4 @@
+import { Notice } from 'obsidian'
 import type { Vault } from 'obsidian'
 import { log } from '../../../utils/log'
 import type { DeviceScreen } from '../../domain/device-screen'
@@ -118,6 +119,11 @@ export async function renderAndWritePages(
     const pdfFormat = resolvePdfImageFormat(looseFormat)
     const wantImages = settings.saveImages
     const wantPdf = settings.savePdf
+    // A source-backed document never assembles page images into a PDF: the
+    // source is written through instead. Rendering and buffering an encoded
+    // image per page just to discard the lot held a whole book's pages in
+    // memory for nothing, which is a real risk on phones.
+    const assemblePdf = wantPdf && !sourceDocument
     const sameEncoding = looseFormat === pdfFormat
 
     const totalPages = pages.length
@@ -133,24 +139,26 @@ export async function renderAndWritePages(
             : null
 
         let pdfData: ArrayBuffer | null = null
-        if (wantPdf) {
+        if (assemblePdf) {
             pdfData =
                 wantImages && sameEncoding
                     ? imageData
                     : await deps.renderPage(page, pdfFormat, settings.imageQuality)
         }
 
-        // With both outputs disabled nothing is written, but the page is still
-        // rendered so render failures stay visible in the reported counts.
+        // With no raster output enabled nothing is written, but the page is
+        // still rendered so render failures stay visible in the reported
+        // counts. Skipped for source-backed documents, whose pages feed no
+        // raster output when images are off.
         const probeData =
-            !wantImages && !wantPdf
+            !wantImages && !assemblePdf && !sourceDocument
                 ? await deps.renderPage(page, looseFormat, settings.imageQuality)
                 : null
 
         const failed =
             (wantImages && !imageData) ||
-            (wantPdf && !pdfData) ||
-            (!wantImages && !wantPdf && !probeData)
+            (assemblePdf && !pdfData) ||
+            (!wantImages && !assemblePdf && !sourceDocument && !probeData)
 
         if (failed) {
             // renderPage catches its own errors and returns null; a content page
@@ -173,7 +181,7 @@ export async function renderAndWritePages(
             )
         }
 
-        if (wantPdf && pdfData) {
+        if (assemblePdf && pdfData) {
             pdfPages.push({ data: pdfData, format: pdfFormat })
         }
     }
@@ -224,11 +232,16 @@ export async function renderAndWritePages(
                         )
                     }
                 } else if (!annotated) {
+                    // The user asked for this output; a debug-only log line
+                    // would let the failure masquerade as success.
+                    new Notice(
+                        `${notebookName}: could not annotate the source PDF (it may be encrypted or too large); the original was still saved`
+                    )
                     log(`${notebookName}: could not annotate the source PDF`, 'warn')
                 }
             }
         }
-    } else if (wantPdf && pdfPages.length > 0) {
+    } else if (assemblePdf && pdfPages.length > 0) {
         const pdfData = await deps.buildPdf(pdfPages)
         if (pdfData) {
             await deps.writeDocumentPdf(
@@ -240,6 +253,7 @@ export async function renderAndWritePages(
             )
             pdfWritten = true
         } else {
+            new Notice(`${notebookName}: failed to build the PDF`)
             log(`Failed to build the PDF for ${notebookName}`, 'error')
         }
     }

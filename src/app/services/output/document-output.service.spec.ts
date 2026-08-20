@@ -358,6 +358,32 @@ describe('source-backed documents', () => {
         expect(result.annotatedWritten).toBe(false)
     })
 
+    /**
+     * Regression: the pipeline used to bail out with "No pages with content
+     * found" before the output stage, so an imported PDF the user never drew
+     * on was never written at all.
+     */
+    test('a source with no annotated pages still writes the source through', async () => {
+        const h = createHarness()
+        const result = await runSourceBacked(h, { savePdf: true, saveImages: false }, [])
+
+        expect(h.fileWrites).toEqual([{ name: 'Book', extension: 'pdf' }])
+        expect(result.sourceWritten).toBe(true)
+        expect(result.annotatedWritten).toBe(false)
+    })
+
+    test('a source-backed document never renders pages it will not write', async () => {
+        const h = createHarness()
+        // savePdf on, images off: the pages feed no raster output at all
+        await runSourceBacked(h, { savePdf: true, saveImages: false }, [
+            sourcePage(0, 0),
+            sourcePage(1, 1)
+        ])
+
+        expect(h.renderCalls).toHaveLength(0)
+        expect(h.pdfPages).toHaveLength(0)
+    })
+
     test('a notebook is unaffected and still assembles its images', async () => {
         const h = createHarness()
         const result = await runSourceBacked(

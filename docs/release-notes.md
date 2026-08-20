@@ -1,5 +1,37 @@
 # Release Notes
 
+## 1.16.0 (2026-08-20)
+
+### Features
+
+- **domain:** scale ink per device across all five models
+- **highlights:** parse text highlights and embed them in the PDF
+- **output:** add a deterministic PDF writer
+- **output:** burn annotations back onto source PDFs
+- **output:** write one PDF per notebook behind a save-as-PDF toggle
+- **parser:** extract typed text into a note
+- **parser:** read the colour a glyph range carries, closes [#acff85](https://github.com/dsebastien/obsidian-remarkable-sync/issues/acff85)
+- **renderer:** read per-stroke colour, opacity and fixed nib widths
+- **settings:** make the highlights note opt-in
+
+### Bug Fixes
+
+- **domain:** give the shading marker its real width
+- **domain:** take pen colours and widths from the reference renderer
+- **output:** safe highlight text encoding and correct rotated-page mapping
+- **output:** skip vault writes when the bytes are unchanged
+- **output:** write EPUB sources under their own extension
+- **output:** write unannotated sources, stop buffering unused pages, surface failures
+- **parser:** correct the typed text layout against a real notebook
+- **parser:** order typed text per position so mid-run insertions survive
+- **pdf:** give highlight annotations an explicit appearance stream, closes [#acff85](https://github.com/dsebastien/obsidian-remarkable-sync/issues/acff85)
+- **pdf:** place pages at their physical size, not a fixed 1872 units
+- **renderer:** highlighter compositing and typed-only pages
+- **renderer:** map the newer firmware stroke colours
+- **renderer:** port the real per-pen width response
+- **settings:** stop savePdf resetting to false on every restart
+- **settings:** validate constrained values on load
+
 ## 1.15.0 (2026-08-12)
 
 ### Features

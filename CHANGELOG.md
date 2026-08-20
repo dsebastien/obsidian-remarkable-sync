@@ -2,6 +2,38 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.16.0](https://github.com/dsebastien/obsidian-remarkable-sync/compare/1.15.0...1.16.0) (2026-08-20)
+
+### Features
+
+* **domain:** scale ink per device across all five models ([a55be17](https://github.com/dsebastien/obsidian-remarkable-sync/commit/a55be1784c9f7475eaea0e30f9f6a15d93595fd2))
+* **highlights:** parse text highlights and embed them in the PDF ([f3dba8e](https://github.com/dsebastien/obsidian-remarkable-sync/commit/f3dba8e36ffc1769b7d73e000c2fbef869c9f81e))
+* **output:** add a deterministic PDF writer ([91b00e9](https://github.com/dsebastien/obsidian-remarkable-sync/commit/91b00e9582b62c507ceeb4480f237ec601450ba3))
+* **output:** burn annotations back onto source PDFs ([47f1d78](https://github.com/dsebastien/obsidian-remarkable-sync/commit/47f1d78550194ff9cb0aa69eea97c97dea6fcc8e))
+* **output:** write one PDF per notebook behind a save-as-PDF toggle ([125f94d](https://github.com/dsebastien/obsidian-remarkable-sync/commit/125f94d1a5939d70771f6675368de324e6761070))
+* **parser:** extract typed text into a note ([d42e98f](https://github.com/dsebastien/obsidian-remarkable-sync/commit/d42e98f5da91fd64892b80232ff3e0e9b3fc9791))
+* **parser:** read the colour a glyph range carries ([89f5656](https://github.com/dsebastien/obsidian-remarkable-sync/commit/89f56562bca77c88ad5d0c1fde5d938619675b2c)), closes [#acff85](https://github.com/dsebastien/obsidian-remarkable-sync/issues/acff85)
+* **renderer:** read per-stroke colour, opacity and fixed nib widths ([68e45a9](https://github.com/dsebastien/obsidian-remarkable-sync/commit/68e45a9dc40cd7f3de0ce1ac6a6c46c222d25685))
+* **settings:** make the highlights note opt-in ([30a46d9](https://github.com/dsebastien/obsidian-remarkable-sync/commit/30a46d930e17de9b251a54c595fc4a666c4f022b))
+
+### Bug Fixes
+
+* **domain:** give the shading marker its real width ([943202b](https://github.com/dsebastien/obsidian-remarkable-sync/commit/943202bbe0848abee93b48b69768626f5df5afd0))
+* **domain:** take pen colours and widths from the reference renderer ([5984b5f](https://github.com/dsebastien/obsidian-remarkable-sync/commit/5984b5f32a890edc68177935b741917a2011ee4e))
+* **output:** safe highlight text encoding and correct rotated-page mapping ([e54bd9d](https://github.com/dsebastien/obsidian-remarkable-sync/commit/e54bd9d096cd84ec1d9fcc6ab2924f2fb9f022d4))
+* **output:** skip vault writes when the bytes are unchanged ([b00ac95](https://github.com/dsebastien/obsidian-remarkable-sync/commit/b00ac955d503ac147652b01205ca3557a1b350d5))
+* **output:** write EPUB sources under their own extension ([8c7aad0](https://github.com/dsebastien/obsidian-remarkable-sync/commit/8c7aad0164edc9affe05d8706e5f6178ded619c4))
+* **output:** write unannotated sources, stop buffering unused pages, surface failures ([42da885](https://github.com/dsebastien/obsidian-remarkable-sync/commit/42da8857b830b2fd104a83c3ab4f43d29e47d2a5))
+* **parser:** correct the typed text layout against a real notebook ([6cb2bd4](https://github.com/dsebastien/obsidian-remarkable-sync/commit/6cb2bd4c57b8bf43bf611abdc20fe7ef3e4a12fd))
+* **parser:** order typed text per position so mid-run insertions survive ([a71be91](https://github.com/dsebastien/obsidian-remarkable-sync/commit/a71be91029c09ba2b7cfe1740daca6a90dd168c9))
+* **pdf:** give highlight annotations an explicit appearance stream ([e6181af](https://github.com/dsebastien/obsidian-remarkable-sync/commit/e6181af7395378dfa3e1f3bb9100abe28404803f)), closes [#acff85](https://github.com/dsebastien/obsidian-remarkable-sync/issues/acff85)
+* **pdf:** place pages at their physical size, not a fixed 1872 units ([52098fe](https://github.com/dsebastien/obsidian-remarkable-sync/commit/52098fe67029b19643408dd27b6fde7bdbbdff35))
+* **renderer:** highlighter compositing and typed-only pages ([52d20eb](https://github.com/dsebastien/obsidian-remarkable-sync/commit/52d20eb54942234d0272eb6d8127ec67ff01ffe7))
+* **renderer:** map the newer firmware stroke colours ([b589cdf](https://github.com/dsebastien/obsidian-remarkable-sync/commit/b589cdf0b3f5f37e6cd6512bfaf768c80773b7f2))
+* **renderer:** port the real per-pen width response ([c87e0ae](https://github.com/dsebastien/obsidian-remarkable-sync/commit/c87e0aeae380deb507a0fce8ab19b242f8a1ad50))
+* **settings:** stop savePdf resetting to false on every restart ([ead0318](https://github.com/dsebastien/obsidian-remarkable-sync/commit/ead0318f23ecbee403d8712bd922d7019cc0c23e))
+* **settings:** validate constrained values on load ([9965e7a](https://github.com/dsebastien/obsidian-remarkable-sync/commit/9965e7a2aa7081d7bf6597b1c90f02392b0d4b9c))
+
 ## [1.15.0](https://github.com/dsebastien/obsidian-remarkable-sync/compare/1.14.0...1.15.0) (2026-08-12)
 
 ### Features
@@ -213,6 +245,7 @@ All notable changes to this project will be documented in this file.
 - Inline progress indicators per notebook in panel
 - Settings for target folder, image format
 - Token storage outside vault for security
+
 
 
 

@@ -32,6 +32,8 @@ When a new business rule is mentioned:
 - A page is skipped only when it has no ink, no text highlight and no typed text; testing for strokes alone silently dropped pages written entirely on a keyboard
 - The plugin supports .rm v6 binary format for stroke data
 - CRDT text data is parsed: keyboard-typed text is ordered from the sequence and written into a note as text, never drawn into the page image, so it stays searchable and linkable. Handwriting is stroke data and is never converted
+- Text ordering happens per **position**, not per item: each item is expanded into one unit per position it claims (counted in code points, not UTF-16 units) before the topological sort. An insertion into the middle of a run anchors both its `leftId` and `rightId` inside the same item, which whole-item ordering read as a cycle and dropped the page's entire text
+- An anchor naming a position that does not exist adds no ordering constraint; the unit still sorts by id. Only a genuine cycle (which a well-formed file cannot produce) abandons the page's text
 
 ## Sync
 
@@ -81,16 +83,17 @@ When a new business rule is mentioned:
 - An annotation layer maps to a source page via `cPages[i].redir.value`. Pages inserted on the device carry no `redir` and are given no source page, so their ink is never drawn onto page 0 by default
 - With `savePdf` enabled, a source-backed document writes the original through unmodified at `<name>.pdf` and an annotated copy at `<name> (annotated).pdf`. The original is never edited in place
 - Page images are never assembled into a PDF for a source-backed document: that would discard the original, which is the defect this rule exists to prevent
-- Annotation coordinates map to the page with `scale = cropBox.width / 1872`, x centred on the page and y measured down from the page top. The page width always spans 1872 rm units whatever its real size, so ink legitimately exceeds 1872 in y (an A4 page is 2649 rm units tall). Derived from real exports and confirmed on A4 and US Letter
+- Annotation coordinates map to the page at its true physical size: one rm unit is one screen pixel of the device the document was written on (`pointsPerRmUnit(screen)`), never a fit of the page width to 1872 units. x is centred on the width of the page **as displayed** — under a 90 or 270 degree `/Rotate` that is the crop box's height — and y is measured down from the displayed top. `/Rotate` is normalised into [0, 360) before use, since the specification allows negative multiples of 90
+- In both renderers, highlighter ink composites with multiply regardless of its recorded alpha: a v2 highlighter records ARGB alpha 255, and drawing that normally paints an opaque bar over what it was meant to highlight. The shading marker composites normally with its own recorded alpha
 - Annotating preserves the source document's own metadata (`updateMetadata: false`) and produces byte-identical output across runs
 - An encrypted or unreadable source PDF is reported and the original still written through; annotations are not burned in. `ignoreEncryption` is deliberately not used because it succeeds and then produces garbage
 - Source PDFs above 80 MB are refused rather than loaded, since the source bytes, the parsed object graph and the output are all live at once
 - Text highlights (made by selecting text on the device) are `GlyphRange` items inside `SceneGlyphItemBlock` (0x03) in the `.rm` file, **not** a separate `.highlights` file. They carry the selected text, its colour and its rectangles
-- Text highlights are embedded in the annotated PDF as real `/Highlight` annotations with `QuadPoints`, never as painted ink, so a reader can select, display and extract them. The selected text goes in `/Contents`
+- Text highlights are embedded in the annotated PDF as real `/Highlight` annotations with `QuadPoints`, never as painted ink, so a reader can select, display and extract them. The selected text goes in `/Contents` as a **hex string** (`PDFHexString.fromText`): pdf-lib's `PDFString.of` does no escaping, so an unbalanced parenthesis or backslash corrupted the object and non-ASCII text was mis-decoded
 - The markdown note listing a document's text highlights is opt-in via `saveHighlightsNote` (default false) and independent of `savePdf`. It only produces a file for documents that actually contain highlights
 - The toggle governs the markdown note only. Text highlights are always embedded in the annotated PDF, since that is part of reproducing the document faithfully rather than an extra output
 - The device strips the source PDF's line breaks, so highlighted text arrives with joins like "DeviceTrust" and "Backupservers". Only case-transition joins with at least three alphanumeric characters on each side are repaired, bounded to at most one repair per line break (rectangle count minus one). Ambiguous lowercase joins are left intact: without a dictionary "Backupservers" and "Backups ervers" are equally consistent, and corrupting real words is worse than leaving them joined
-- EPUB sources are written through but never annotated: the device renders them to its own layout, so there is no page-for-page original to draw on
+- EPUB sources are written through **under their own `.epub` extension** but never annotated: the device renders them to its own layout, so there is no page-for-page original to draw on. Writing the EPUB bytes under a `.pdf` name produced a file no reader could open
 
 ## rmfakecloud
 

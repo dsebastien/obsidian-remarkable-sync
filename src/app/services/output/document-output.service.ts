@@ -9,6 +9,7 @@ import type { PdfPageImage } from './pdf-writer.service'
 import { annotateSourcePdf } from './pdf-annotator.service'
 import {
     ANNOTATED_SUFFIX,
+    writeDocumentFile,
     writeDocumentPdf,
     writeMarkdownNote,
     writePageImage
@@ -23,6 +24,7 @@ import { buildTypedTextNote, hasTypedText } from './typed-text-markdown'
 export interface DocumentOutputDeps {
     renderPage: typeof renderPage
     writePageImage: typeof writePageImage
+    writeDocumentFile: typeof writeDocumentFile
     writeDocumentPdf: typeof writeDocumentPdf
     writeMarkdownNote: typeof writeMarkdownNote
     buildPdf: typeof buildPdf
@@ -32,6 +34,7 @@ export interface DocumentOutputDeps {
 export const DEFAULT_DOCUMENT_OUTPUT_DEPS: DocumentOutputDeps = {
     renderPage,
     writePageImage,
+    writeDocumentFile,
     writeDocumentPdf,
     writeMarkdownNote,
     buildPdf,
@@ -187,12 +190,15 @@ export async function renderAndWritePages(
         // fixed here, so the source is written through instead and the ink is
         // drawn back onto it.
         if (wantPdf) {
-            await deps.writeDocumentPdf(
+            // The source keeps its own extension: an EPUB written under a
+            // `.pdf` name is a file no reader can open.
+            await deps.writeDocumentFile(
                 vault,
                 settings.targetFolder,
                 folderPath,
                 notebookName,
-                sourceDocument.data
+                sourceDocument.data,
+                sourceDocument.kind
             )
             sourceWritten = true
 

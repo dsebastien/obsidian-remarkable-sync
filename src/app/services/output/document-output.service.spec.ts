@@ -18,6 +18,7 @@ interface Harness {
     renderCalls: { pageIndex: number; format: string }[]
     imageWrites: { pageIndex: number; format: string }[]
     pdfWrites: { name: string }[]
+    fileWrites: { name: string; extension: string }[]
     pdfPages: PdfPageImage[][]
     annotateCalls: { bytes: number; layers: number }[]
     notesWritten: { name: string; contents: string }[]
@@ -29,6 +30,7 @@ function createHarness(
     const renderCalls: Harness['renderCalls'] = []
     const imageWrites: Harness['imageWrites'] = []
     const pdfWrites: Harness['pdfWrites'] = []
+    const fileWrites: Harness['fileWrites'] = []
     const pdfPages: PdfPageImage[][] = []
     const annotateCalls: Harness['annotateCalls'] = []
     const notesWritten: Harness['notesWritten'] = []
@@ -51,6 +53,10 @@ function createHarness(
             pdfWrites.push({ name })
             return Promise.resolve(`${name}.pdf`)
         },
+        writeDocumentFile: (_vault, _target, _folder, name, _data, extension): Promise<string> => {
+            fileWrites.push({ name, extension })
+            return Promise.resolve(`${name}.${extension}`)
+        },
         writeMarkdownNote: (_vault, _target, _folder, name, contents): Promise<string> => {
             notesWritten.push({ name, contents })
             return Promise.resolve(`${name}.md`)
@@ -68,7 +74,16 @@ function createHarness(
         }
     }
 
-    return { deps, renderCalls, imageWrites, pdfWrites, pdfPages, annotateCalls, notesWritten }
+    return {
+        deps,
+        renderCalls,
+        imageWrites,
+        pdfWrites,
+        fileWrites,
+        pdfPages,
+        annotateCalls,
+        notesWritten
+    }
 }
 
 async function run(
@@ -270,7 +285,8 @@ describe('source-backed documents', () => {
             sourcePage(0, 0)
         ])
 
-        expect(h.pdfWrites.map((w) => w.name)).toEqual(['Book', 'Book (annotated)'])
+        expect(h.fileWrites).toEqual([{ name: 'Book', extension: 'pdf' }])
+        expect(h.pdfWrites.map((w) => w.name)).toEqual(['Book (annotated)'])
         expect(result.sourceWritten).toBe(true)
         expect(result.annotatedWritten).toBe(true)
     })
@@ -294,6 +310,7 @@ describe('source-backed documents', () => {
         ])
 
         expect(h.pdfWrites).toHaveLength(0)
+        expect(h.fileWrites).toHaveLength(0)
         expect(result.sourceWritten).toBe(false)
         expect(result.annotatedWritten).toBe(false)
     })
@@ -306,7 +323,8 @@ describe('source-backed documents', () => {
             sourcePage(1)
         ])
 
-        expect(h.pdfWrites.map((w) => w.name)).toEqual(['Book'])
+        expect(h.fileWrites).toEqual([{ name: 'Book', extension: 'pdf' }])
+        expect(h.pdfWrites).toHaveLength(0)
         expect(result.sourceWritten).toBe(true)
         expect(result.annotatedWritten).toBe(false)
     })
@@ -317,7 +335,8 @@ describe('source-backed documents', () => {
             sourcePage(0, 0)
         ])
 
-        expect(h.pdfWrites.map((w) => w.name)).toEqual(['Book'])
+        expect(h.fileWrites).toEqual([{ name: 'Book', extension: 'pdf' }])
+        expect(h.pdfWrites).toHaveLength(0)
         expect(result.sourceWritten).toBe(true)
         expect(result.annotatedWritten).toBe(false)
     })
@@ -331,7 +350,10 @@ describe('source-backed documents', () => {
             { kind: 'epub', data: new ArrayBuffer(64) }
         )
 
-        expect(h.pdfWrites.map((w) => w.name)).toEqual(['Book'])
+        // Regression: the EPUB bytes were previously written under a `.pdf`
+        // name, producing a file no reader could open.
+        expect(h.fileWrites).toEqual([{ name: 'Book', extension: 'epub' }])
+        expect(h.pdfWrites).toHaveLength(0)
         expect(h.annotateCalls).toHaveLength(0)
         expect(result.annotatedWritten).toBe(false)
     })

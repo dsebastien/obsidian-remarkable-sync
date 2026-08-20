@@ -190,6 +190,32 @@ export async function writeMarkdownNote(
 }
 
 /**
+ * Write a whole-document binary file (a PDF, or a source EPUB written through
+ * unchanged) to the vault.
+ *
+ * The extension follows the actual content. Writing a source EPUB's bytes
+ * under a `.pdf` name produced a file no reader could open, so the extension
+ * is a parameter rather than an assumption.
+ */
+export async function writeDocumentFile(
+    vault: Vault,
+    targetFolder: string,
+    folderPath: string,
+    notebookName: string,
+    data: ArrayBuffer,
+    extension: 'pdf' | 'epub'
+): Promise<string> {
+    const filePath = buildDocumentPath(targetFolder, folderPath, notebookName, extension)
+
+    const written = await writeBinaryIfChanged(vault, filePath, data)
+    if (written) {
+        log(`Wrote document: ${filePath}`, 'debug')
+    }
+
+    return filePath
+}
+
+/**
  * Write a whole-notebook PDF to the vault
  */
 export async function writeDocumentPdf(
@@ -199,12 +225,5 @@ export async function writeDocumentPdf(
     notebookName: string,
     pdfData: ArrayBuffer
 ): Promise<string> {
-    const filePath = buildDocumentPath(targetFolder, folderPath, notebookName, 'pdf')
-
-    const written = await writeBinaryIfChanged(vault, filePath, pdfData)
-    if (written) {
-        log(`Wrote PDF: ${filePath}`, 'debug')
-    }
-
-    return filePath
+    return writeDocumentFile(vault, targetFolder, folderPath, notebookName, pdfData, 'pdf')
 }

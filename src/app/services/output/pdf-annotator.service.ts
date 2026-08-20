@@ -3,8 +3,8 @@ import {
     LineCapStyle,
     LineJoinStyle,
     PDFDocument,
+    PDFHexString,
     PDFNumber,
-    PDFString,
     popGraphicsState,
     pushGraphicsState,
     rgb,
@@ -84,7 +84,24 @@ function drawStroke(
     }
 
     const points = stroke.points
-    if (points.length < 2) {
+    if (0 === points.length) {
+        return
+    }
+
+    if (1 === points.length) {
+        // A pen tap. The raster renderer draws it as a dot; dropping it from
+        // the PDF made the two outputs disagree.
+        const point = points[0]!
+        const style = segmentStyle(stroke, point, point)
+        const centre = rmPointToPdf(point.x, point.y, box, rotate, screen)
+        const radius = Math.max(rmWidthToPdf(style.width, box, screen), MIN_STROKE_WIDTH) / 2
+        pdfPage.drawCircle({
+            x: centre.x,
+            y: centre.y,
+            size: radius,
+            color: hexToRgb(style.colour),
+            opacity: strokeOpacity(stroke)
+        })
         return
     }
 
@@ -144,7 +161,14 @@ function drawWashPath(
         })
         .join(' ')
 
-    const width = segmentStyle(stroke, points[0]!, points[1]!).width
+    // The average over the stroke, not the first segment: the shading
+    // marker's width varies with the recorded per-point data, and a single
+    // path can only carry one width.
+    let widthSum = 0
+    for (let i = 0; i < points.length - 1; i++) {
+        widthSum += segmentStyle(stroke, points[i]!, points[i + 1]!).width
+    }
+    const width = widthSum / (points.length - 1)
 
     // Round joins as well as caps: at highlighter widths a mitred corner throws
     // a spike off every turn of the hand.
@@ -250,8 +274,14 @@ function addHighlightAnnotation(
         AP: doc.context.obj({
             N: highlightAppearance(doc, boxes, [minX, minY, maxX, maxY], colour, opacity)
         }),
-        // The selected text itself, so readers can show and extract it
-        Contents: PDFString.of(highlight.text),
+        // The selected text itself, so readers can show and extract it.
+        // A hex string, not a literal one: pdf-lib's PDFString.of does no
+        // escaping, so a highlight containing an unbalanced ')' or a
+        // backslash would corrupt the object, and non-ASCII text would be
+        // written as raw UTF-8 bytes that readers interpret as PDFDocEncoding.
+        // PDFHexString.fromText encodes as UTF-16BE with a BOM, which the PDF
+        // specification defines for any text string.
+        Contents: PDFHexString.fromText(highlight.text),
         F: PDFNumber.of(4) // Print
     })
 
@@ -363,7 +393,9 @@ export async function annotateSourcePdf(
 
         const pdfPage = doc.getPage(index)
         const box = pdfPage.getCropBox()
-        const rotate = (pdfPage.getRotation().angle % 360) as 0 | 90 | 180 | 270
+        // Normalised into [0, 360): the specification allows negative
+        // multiples of 90, and `-90 % 360` is `-90` in JavaScript.
+        const rotate = (((pdfPage.getRotation().angle % 360) + 360) % 360) as 0 | 90 | 180 | 270
 
         // Text highlights first, so ink drawn afterwards sits above them
         for (const highlight of page.highlights ?? []) {

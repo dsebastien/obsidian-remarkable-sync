@@ -26,6 +26,12 @@ import { createWriteQueue, mergePluginData } from './utils/plugin-data'
 export class RemarkableSyncPlugin extends Plugin {
     override settings: PluginSettings = { ...DEFAULT_SETTINGS }
     isConnected = false
+
+    /**
+     * Kept so the connect/disconnect commands can refresh the (possibly open)
+     * settings pane — its Status row renders from live connection state.
+     */
+    settingTab!: RemarkableSyncSettingTab
     authService!: RemarkableAuthService
     cloudService!: RemarkableCloudService
     pipelineService!: NotebookPipelineService
@@ -71,7 +77,8 @@ export class RemarkableSyncPlugin extends Plugin {
         })
 
         // Add a settings screen for the plugin
-        this.addSettingTab(new RemarkableSyncSettingTab(this.app, this))
+        this.settingTab = new RemarkableSyncSettingTab(this.app, this)
+        this.addSettingTab(this.settingTab)
 
         // Schedule automatic background sync when enabled in settings
         this.autoSyncService.applySettings()

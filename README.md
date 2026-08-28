@@ -19,7 +19,7 @@ An Obsidian plugin that connects to the reMarkable cloud to list, download, and 
 
 ## Requirements
 
-- Obsidian v1.4.0+
+- Obsidian v1.13.0+
 - Desktop is fully supported. **Mobile support is experimental** — see [Mobile](#mobile).
 - A reMarkable account with cloud sync enabled, or a [rmfakecloud](https://github.com/ddvk/rmfakecloud) server (optional for local .rmdoc import)
 

@@ -98,7 +98,10 @@ async function buildJs(): Promise<void> {
         target: 'node',
         define: await readChangelogDefine(),
         minify: isProd,
-        sourcemap: isProd ? false : 'inline',
+        // 'none' instead of `false`: the catalog reviewer builds with an older
+        // Bun that only accepts the string form — `false` fails its archive
+        // build before main.js exists, while 'none' works everywhere.
+        sourcemap: isProd ? 'none' : 'inline',
         throw: isProd
     })
     if (success) {

@@ -16,14 +16,16 @@ export function registerCommands(plugin: RemarkableSyncPlugin): void {
     plugin.addCommand({
         id: 'remarkable-connect-device',
         name: 'Connect to reMarkable cloud',
-        callback: () => connectDevice(plugin)
+        // Refresh the (possibly open) settings pane: its Status row and the
+        // conditional cloud-warning render from live connection state.
+        callback: () => connectDevice(plugin, () => plugin.settingTab.update())
     })
 
     plugin.addCommand({
         id: 'remarkable-disconnect-device',
         name: 'Disconnect from reMarkable cloud',
         callback: () => {
-            void disconnectDevice(plugin)
+            void disconnectDevice(plugin).then(() => plugin.settingTab.update())
         }
     })
 

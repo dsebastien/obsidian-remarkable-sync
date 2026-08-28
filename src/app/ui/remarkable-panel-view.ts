@@ -108,7 +108,7 @@ export class RemarkablePanelView extends ItemView {
     private renderHeader(container: HTMLElement): void {
         const header = container.createDiv({ cls: 'remarkable-header' })
 
-        header.createEl('h4', { text: 'reMarkable Notebooks' })
+        header.createEl('h4', { text: 'reMarkable notebooks' })
 
         const actions = header.createDiv({ cls: 'remarkable-header-actions' })
 

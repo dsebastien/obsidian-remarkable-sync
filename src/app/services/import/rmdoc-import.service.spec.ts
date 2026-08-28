@@ -13,10 +13,7 @@ const FIXTURE = join(import.meta.dir, '__fixtures__', 'sample.rmdoc')
 
 function readFixture(): ArrayBuffer {
     const contents = readFileSync(FIXTURE)
-    return contents.buffer.slice(
-        contents.byteOffset,
-        contents.byteOffset + contents.byteLength
-    ) as ArrayBuffer
+    return contents.buffer.slice(contents.byteOffset, contents.byteOffset + contents.byteLength)
 }
 
 function loadFixture(): Map<string, ArrayBuffer> {

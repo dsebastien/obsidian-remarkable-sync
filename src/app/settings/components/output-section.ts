@@ -25,7 +25,7 @@ export function renderOutputSection(containerEl: HTMLElement, plugin: Remarkable
 
     new Setting(containerEl)
         .setName('Save images')
-        .setDesc('Save rendered page images alongside markdown files')
+        .setDesc('Save rendered page images alongside Markdown files')
         .addToggle((toggle) => {
             toggle.setValue(plugin.settings.saveImages).onChange(async (value) => {
                 await plugin.updateSettings((draft) => {

@@ -43,6 +43,8 @@ void moduleMocker.module('obsidian', () => ({
     TFile: class TFile {},
     Plugin: class Plugin {},
     PluginSettingTab: class PluginSettingTab {},
+    // Used by the what's-new view to render the bundled changelog.
+    MarkdownRenderer: { render: async () => {} },
     Setting: class Setting {
         setName() {
             return this

@@ -144,9 +144,28 @@ export class RemarkableSyncPlugin extends Plugin {
         log('Settings loaded', 'debug', this.settings)
     }
 
+    /**
+     * Apply a mutation to the settings (via immer) and persist the result.
+     * The single write path — the declarative settings tab routes every
+     * control edit through here so persistence happens in exactly one place.
+     *
+     * Persist-then-commit: memory is swapped only after the merged data.json
+     * write succeeds, so a rejected write rolls the control back to the
+     * on-disk truth. The produce() runs INSIDE the queued task so each
+     * mutation derives from the previously COMMITTED state — producing out
+     * here would let overlapping calls build on the same base across the save
+     * await, the second commit silently dropping the first edit. The body
+     * mirrors persistData() rather than calling it: enqueueing from inside a
+     * queued task would deadlock the chain.
+     */
     async updateSettings(recipe: (draft: WritableDraft<PluginSettings>) => void): Promise<void> {
-        this.settings = produce(this.settings, recipe)
-        await this.saveSettings()
+        await this.enqueueWrite(async (): Promise<void> => {
+            const next = produce(this.settings, recipe)
+            const merged = mergePluginData(this.rawData, { ...next })
+            await this.saveData(merged)
+            this.rawData = merged
+            this.settings = next
+        })
     }
 
     async saveSettings(): Promise<void> {

@@ -73,6 +73,15 @@
    SUPPORT & UI SECTIONS
    ======================================== */
 
+/* The support block inside the declarative settings pane renders as a stack
+   of full-width rows inside a `.setting-item`, which Obsidian lays out as a
+   flex ROW — this class restores block flow. It MUST stay unlayered:
+   unlayered CSS beats layered CSS whatever the specificity, and Obsidian's
+   own `.setting-item { display: flex }` is unlayered. */
+.settings-stack {
+    display: block;
+}
+
 .support-header-margin {
     @apply mb-5;
 }

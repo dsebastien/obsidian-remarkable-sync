@@ -1,5 +1,50 @@
 # Release Notes
 
+## 2.0.0 (2026-08-29)
+
+### ⚠ BREAKING CHANGES
+
+- **plugin:** minAppVersion moves from 1.8.7 to 1.13.0 — the
+  declarative settings API (getSettingDefinitions) only exists there.
+
+getSettingDefinitions() replaces the display() tab and its eight section
+renderers wholesale. The per-section redisplay callbacks are dead under
+this API (display() never runs), so the connect/disconnect flows, the
+legacy-token removal and every visibility-affecting write now re-render
+through update() instead. The conditional rows (server URL, cloud-change
+warning, sync interval, image quality) declare visible: hooks over live
+state; the connection status row renders both its description and its
+Connect/Disconnect button from live state; the cloud-change warning is
+an info row with the mandatory no-op render hook (definitions with
+neither control nor render are skipped entirely).
+
+updateSettings is now persist-then-commit INSIDE the same write queue as
+the token writes: the produce() derives from the previously committed
+state, the merged data.json (settings plus sibling token entries) is
+saved first, and memory is swapped only after the write lands — a
+settings save can no longer clobber a concurrent token refresh, and the
+old commit-before-save ordering is gone. setControlValue rejects type
+mismatches, non-finite/out-of-range numbers, out-of-enum dropdown values
+and unknown keys; an invalid rmfakecloud URL is now refused with the
+framework's inline error where the old tab painted an error span but
+persisted the value anyway.
+
+9 new tests cover the write path — persist-then-commit ordering and
+write serialization are mutation-checked (deliberately regressed
+implementations fail them) and the token-preservation property is
+asserted against the merged write. 482 tests, tsc, lint
+--max-warnings 0 and build green; the prefer-setting-definitions
+advisory from the previous commit is now satisfied.
+
+### Features
+
+- **plugin:** declare the settings tab (Obsidian 1.13 declarative settings)
+
+### Bug Fixes
+
+- **build:** align with the catalog reviewer's archive, ruleset and audit
+- **build:** harden the release path after adversarial review
+
 ## 1.16.0 (2026-08-20)
 
 ### Features

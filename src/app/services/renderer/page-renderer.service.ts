@@ -1,9 +1,14 @@
-import type { Page } from '../../domain/notebook'
-import { PAGE_WIDTH, PAGE_HEIGHT } from '../../domain/rm-constants'
-import { pageHasContent } from '../parser/rm-file-parser'
+import type { Page, PageImage } from '../../domain/notebook'
+import { PAGE_WIDTH, PAGE_HEIGHT, ERASER_PEN_TYPES } from '../../domain/rm-constants'
+import { pageHasContent, pageHasNonImageContent } from '../parser/rm-file-parser'
 import { renderStroke } from './stroke-renderer'
-import { computeStrokesBounds } from './stroke-bounds'
-import { canvasToPng, canvasToJpeg, canvasToWebp } from '../../../utils/image-utils'
+import { computePageBounds, isPlausiblePlacement } from './stroke-bounds'
+import {
+    canvasToPng,
+    canvasToJpeg,
+    canvasToWebp,
+    imageAssetMediaType
+} from '../../../utils/image-utils'
 import { log } from '../../../utils/log'
 
 /**
@@ -22,13 +27,21 @@ const EDGE_PADDING = 8
  * viewport on the device — the canvas grows downward to fit the full stroke
  * bounding box, instead of cropping. Same protection on the other three edges
  * for content that strays beyond the standard rectangle (issue #3).
+ *
+ * Images placed by the capture tool count as content too, both for sizing the
+ * canvas and for deciding the page is worth rendering (issue #36).
+ *
+ * Last of three places that must agree on what a page holds, after
+ * `pageHasContent` and `computePageBounds`. This is the only one that learns
+ * whether an image's bytes actually decode, which is why the blank-page check
+ * lives here rather than in either of the others.
  */
-export function renderPageToCanvas(page: Page): OffscreenCanvas | null {
+export async function renderPageToCanvas(page: Page): Promise<OffscreenCanvas | null> {
     if (!pageHasContent(page)) {
         return null
     }
 
-    const bounds = computeStrokesBounds(page.strokes)
+    const bounds = computePageBounds(page)
     if (!bounds) {
         // A content page with no drawable strokes: written entirely with the
         // keyboard, or carrying only text highlights. Its ink layer is a
@@ -73,11 +86,87 @@ export function renderPageToCanvas(page: Page): OffscreenCanvas | null {
         ctx.translate(0, topExtra)
     }
 
+    // Captured images go down first so handwriting annotating them stays on
+    // top, which is how they are layered on the device.
+    const imagesDrawn = await drawPageImages(ctx, page.images ?? [], xOffset)
+
+    // Mirrors what `renderStroke` actually paints: it returns early for
+    // erasers and for strokes with no points.
+    let strokesDrawn = 0
     for (const stroke of page.strokes) {
+        if (ERASER_PEN_TYPES.has(stroke.penType) || stroke.points.length === 0) continue
         renderStroke(ctx, stroke, xOffset)
+        strokesDrawn++
+    }
+
+    // Nothing landed on the canvas and the page had nothing but captures to
+    // offer. `pageHasContent` and `computePageBounds` can only test that an
+    // image has bytes; whether those bytes decode is not knowable until here.
+    // Returning the canvas anyway wrote a blank white page into the vault and
+    // counted it as a successful sync, which is worse than the failure it was
+    // hiding. A page carrying typed text or highlights keeps its blank ink
+    // layer, which is correct for it.
+    if (imagesDrawn === 0 && strokesDrawn === 0 && !pageHasNonImageContent(page)) {
+        log(`Page ${page.pageIndex + 1} had content but nothing could be drawn`, 'warn')
+        return null
     }
 
     return canvas
+}
+
+/**
+ * Whether this platform can decode the capture tool's image assets.
+ *
+ * `createImageBitmap` is the only way to get an image onto an `OffscreenCanvas`
+ * without a DOM `Image`, which is unavailable inside the worker-style context
+ * the renderer uses. Where it is missing, pages still render, just without
+ * their captures, rather than failing outright.
+ */
+function canDecodeImages(): boolean {
+    return 'undefined' !== typeof createImageBitmap
+}
+
+/**
+ * Draw each captured image into its placement rectangle.
+ *
+ * A single image that fails to decode is skipped and logged; the rest of the
+ * page still renders. Returns how many images actually reached the canvas, so
+ * the caller can tell a drawn page from a blank one.
+ */
+async function drawPageImages(
+    ctx: OffscreenCanvasRenderingContext2D,
+    images: readonly PageImage[],
+    xOffset: number
+): Promise<number> {
+    if (images.length === 0) {
+        return 0
+    }
+
+    if (!canDecodeImages()) {
+        log(`Skipping ${images.length} captured image(s): this device cannot decode them`, 'warn')
+        return 0
+    }
+
+    let drawn = 0
+    for (const image of images) {
+        if (!image.data) continue
+        // Same test the canvas was sized with.
+        if (!isPlausiblePlacement(image)) continue
+        try {
+            const type = imageAssetMediaType(image.fileName) ?? 'image/png'
+            const bitmap = await createImageBitmap(new Blob([image.data], { type }))
+            try {
+                ctx.drawImage(bitmap, image.x + xOffset, image.y, image.width, image.height)
+                drawn++
+            } finally {
+                bitmap.close()
+            }
+        } catch (error) {
+            log(`Failed to draw captured image ${image.fileName}`, 'warn', error)
+        }
+    }
+
+    return drawn
 }
 
 /**
@@ -96,7 +185,7 @@ export const PAGE_RENDERING_UNSUPPORTED_MESSAGE =
     'This device cannot render notebook pages. Page rendering needs iOS 16.4 or later on iPhone and iPad.'
 
 /**
- * Render a page's strokes to an image
+ * Render a page's strokes and captured images to an image
  */
 export async function renderPage(
     page: Page,
@@ -104,7 +193,7 @@ export async function renderPage(
     quality = 0.85
 ): Promise<ArrayBuffer | null> {
     try {
-        const canvas = renderPageToCanvas(page)
+        const canvas = await renderPageToCanvas(page)
         if (!canvas) {
             return null
         }

@@ -82,6 +82,51 @@ export function extractPageOrder(content: RemarkableDocumentContent | null): str
 }
 
 /**
+ * Group a document's per-page asset files by the page they belong to.
+ *
+ * The capture tool (firmware 3.27+) stores each placed image beside its page:
+ * `<documentId>/<pageId>/<fileName>`. The page's .rm file names the file but
+ * not the folder, so the folder is what ties an asset to a page. Issue #36.
+ *
+ * Deliberately does NOT filter by file extension. The .rm file is the
+ * authorization: `resolveImages` looks each asset up by the exact name the
+ * page declared, so a file nothing declares is never read, and a format we
+ * have not seen before cannot be silently dropped on the floor. An extension
+ * allowlist here reintroduced the original bug, since an asset the table did
+ * not list resolved to no data, which made a capture-only page look blank and
+ * deleted it from the output.
+ *
+ * Non-asset entries are harmless: `.content` and `.metadata` sit at the
+ * archive root and fail the two-segment test, and `<documentId>/<pageId>.rm`
+ * is grouped under the document id, which is never a page id. Both end up in
+ * map keys nothing ever reads.
+ */
+export function extractPageAssets(
+    files: Map<string, ArrayBuffer>
+): Map<string, Map<string, ArrayBuffer>> {
+    const assetsByPageId = new Map<string, Map<string, ArrayBuffer>>()
+
+    for (const [path, data] of files) {
+        const segments = path.split('/')
+        // Need at least `<pageId>/<fileName>` to attribute the asset.
+        if (segments.length < 2) continue
+
+        const fileName = segments[segments.length - 1]
+        const pageId = segments[segments.length - 2]
+        if (!fileName || !pageId) continue
+
+        let pageAssets = assetsByPageId.get(pageId)
+        if (!pageAssets) {
+            pageAssets = new Map<string, ArrayBuffer>()
+            assetsByPageId.set(pageId, pageAssets)
+        }
+        pageAssets.set(fileName, data)
+    }
+
+    return assetsByPageId
+}
+
+/**
  * Parse downloaded reMarkable document files into a Notebook.
  * Accepts a Map of file paths to their contents (from sync protocol).
  */
@@ -123,6 +168,8 @@ export function parseDocument(
         }
 
         // Determine page order: cPages > pages > file discovery order
+        const assetsByPageId = extractPageAssets(files)
+
         const pageIds = extractPageOrder(content) ?? [...rmFilesByPageId.keys()]
 
         const sourceDocument = extractSourceDocument(files, content)
@@ -146,7 +193,7 @@ export function parseDocument(
             }
 
             try {
-                const page = parseRmFile(rmData, pageId, i)
+                const page = parseRmFile(rmData, pageId, i, assetsByPageId.get(pageId))
                 const sourcePageIndex = sourcePageMap.get(pageId)
                 pages.push(undefined === sourcePageIndex ? page : { ...page, sourcePageIndex })
             } catch (error) {

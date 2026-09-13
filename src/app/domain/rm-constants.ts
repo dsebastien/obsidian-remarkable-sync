@@ -31,7 +31,20 @@ export enum BlockType {
     SceneTombstoneItemBlock = 0x08,
     AuthorIdsBlock = 0x09,
     PageInfoBlock = 0x0a,
-    SceneInfoBlock = 0x0d
+    SceneInfoBlock = 0x0d,
+    /**
+     * Declares the page's image assets: for each, a 16-byte asset id plus the
+     * name of the file holding its pixels. New in firmware 3.27, written by
+     * the capture tool. Named to match rmscene (ricklupton/rmscene#52), as
+     * every other member of this enum is, so the two can be cross-referenced.
+     */
+    SceneImageInfoBlock = 0x0e,
+    /**
+     * Places a declared image asset on the page. Same CRDT item shape as
+     * `SceneLineItemBlock`, with an `Image` value instead of a `Line`.
+     * New in firmware 3.27. Issue #36.
+     */
+    SceneImageItemBlock = 0x0f
 }
 
 /**
@@ -52,8 +65,25 @@ export enum SceneItemType {
     /** A text highlight made by selecting text in a PDF */
     GlyphRange = 1,
     Group = 2,
-    Line = 3
+    Line = 3,
+    /** An image placed by the capture tool (firmware 3.27+) */
+    Image = 7
 }
+
+/** Bytes in an image asset id as stored in the .rm file */
+export const ASSET_ID_LENGTH = 16
+
+/**
+ * Tag index holding the value of a last-write-wins field. An LWW field is a
+ * subblock of {timestamp id at index 1, value at index 2}.
+ */
+export const LWW_VALUE_INDEX = 2
+
+/**
+ * Floats per vertex in an image placement's vertex buffer: x, y, u, v.
+ * The capture tool writes a quad (four vertices, two triangles).
+ */
+export const IMAGE_VERTEX_STRIDE = 4
 
 /** Block header size in bytes */
 export const BLOCK_HEADER_SIZE = 8

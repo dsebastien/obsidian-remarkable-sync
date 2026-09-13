@@ -19,6 +19,7 @@ Full notebook with parsed page data. Created after downloading and parsing a doc
 A single page of a notebook containing stroke data.
 
 - `pageId`, `pageIndex`, `strokes: Stroke[]`
+- `images?`: images placed with the capture tool. Absent on pages that have none, which is every page written before firmware 3.27
 - `sourcePageIndex?`: index of the source-document page this layer annotates. Absent for notebook pages and for pages inserted on the device
 - `highlights?`: text highlights on this page, present only on source-backed documents
 
@@ -34,6 +35,27 @@ Text highlighted by selecting it on the device, as opposed to ink drawn with the
 The original file a document was imported from, retained so annotations can be drawn back onto it.
 
 - `kind: 'pdf' | 'epub'`, `data: ArrayBuffer`
+
+### PageImage
+
+An image placed on a page by the capture tool (firmware 3.27+). The device stores the pixels
+beside the page (`<documentId>/<pageId>/<fileName>`) and records only the placement in the .rm
+file, so the folder is what ties an asset to a page.
+
+- `assetId` (16 bytes as lowercase hex, carried for diagnostics), `fileName`, `x`, `y`, `width`, `height`
+- `data: ArrayBuffer | null` — image bytes, null when the file was absent from the archive
+
+Known gaps:
+
+- **Rotated and cropped placements render wrong.** The placement is a quad of four `(x, y, u, v)`
+  vertices; the renderer reduces it to a bounding box and ignores the uv half, so a rotated or
+  cropped capture draws upright and uncropped. The parser warns when the quad is not canonical.
+  No sample with a rotated placement exists yet.
+- **The per-declaration flags are ignored.** Observed as `[17, 0]` in every sample; meaning unknown.
+- **The cloud sync path is unverified for assets.** All capture verification so far is through
+  .rmdoc import. `IndexEntry.subfiles` is parsed but read nowhere, so if the v3 sync index nests
+  the per-page asset folder rather than listing it flat, assets will not download and capture-only
+  pages will still be dropped.
 
 ### Stroke
 

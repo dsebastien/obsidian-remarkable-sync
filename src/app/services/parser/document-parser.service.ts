@@ -84,7 +84,7 @@ export function extractPageOrder(content: RemarkableDocumentContent | null): str
 /**
  * Group a document's per-page asset files by the page they belong to.
  *
- * The capture tool (firmware 3.27+) stores each placed image beside its page:
+ * The device (firmware 3.27+) stores each placed image beside its page:
  * `<documentId>/<pageId>/<fileName>`. The page's .rm file names the file but
  * not the folder, so the folder is what ties an asset to a page. Issue #36.
  *

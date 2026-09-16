@@ -114,4 +114,4 @@ For a document imported from a PDF, you get the original plus an annotated copy 
 
 A document imported from an EPUB is written through as `{Name}.epub`, unchanged and unannotated.
 
-Blank pages are skipped entirely. A page is blank only when it has no handwriting, no typed text, no highlight and no image placed with the capture tool (reMarkable OS 3.27+). Skipping means PDF page numbers do not necessarily match the page numbers on your device. Pages that fail to render are skipped too, and the plugin reports how many.
+Blank pages are skipped entirely. A page is blank only when it has no handwriting, no typed text, no highlight and no placed image (dragged in from the desktop app on reMarkable OS 3.27, or made with the 3.28 capture tool). Skipping means PDF page numbers do not necessarily match the page numbers on your device. Pages that fail to render are skipped too, and the plugin reports how many.

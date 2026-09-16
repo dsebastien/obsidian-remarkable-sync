@@ -19,7 +19,7 @@ Full notebook with parsed page data. Created after downloading and parsing a doc
 A single page of a notebook containing stroke data.
 
 - `pageId`, `pageIndex`, `strokes: Stroke[]`
-- `images?`: images placed with the capture tool. Absent on pages that have none, which is every page written before firmware 3.27
+- `images?`: placed images. Absent on pages that have none, which is every page written before firmware 3.27
 - `sourcePageIndex?`: index of the source-document page this layer annotates. Absent for notebook pages and for pages inserted on the device
 - `highlights?`: text highlights on this page, present only on source-backed documents
 
@@ -38,7 +38,7 @@ The original file a document was imported from, retained so annotations can be d
 
 ### PageImage
 
-An image placed on a page by the capture tool (firmware 3.27+). The device stores the pixels
+An image placed on a page, either dragged in from the desktop app (firmware 3.27, "Add images to notebooks", jpg or png) or made with the capture tool (firmware 3.28). Both write the same blocks. The device stores the pixels
 beside the page (`<documentId>/<pageId>/<fileName>`) and records only the placement in the .rm
 file, so the folder is what ties an asset to a page.
 

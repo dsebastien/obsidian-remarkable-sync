@@ -28,7 +28,7 @@ const EDGE_PADDING = 8
  * bounding box, instead of cropping. Same protection on the other three edges
  * for content that strays beyond the standard rectangle (issue #3).
  *
- * Images placed by the capture tool count as content too, both for sizing the
+ * Placed images count as content too, both for sizing the
  * canvas and for deciding the page is worth rendering (issue #36).
  *
  * Last of three places that must agree on what a page holds, after
@@ -115,7 +115,7 @@ export async function renderPageToCanvas(page: Page): Promise<OffscreenCanvas | 
 }
 
 /**
- * Whether this platform can decode the capture tool's image assets.
+ * Whether this platform can decode a page's image assets.
  *
  * `createImageBitmap` is the only way to get an image onto an `OffscreenCanvas`
  * without a DOM `Image`, which is unavailable inside the worker-style context

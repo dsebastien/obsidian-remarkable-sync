@@ -34,8 +34,9 @@ export enum BlockType {
     SceneInfoBlock = 0x0d,
     /**
      * Declares the page's image assets: for each, a 16-byte asset id plus the
-     * name of the file holding its pixels. New in firmware 3.27, written by
-     * the capture tool. Named to match rmscene (ricklupton/rmscene#52), as
+     * name of the file holding its pixels. New in firmware 3.27, when images
+     * could first be placed in a notebook. Named to match rmscene
+     * (ricklupton/rmscene#52), as
      * every other member of this enum is, so the two can be cross-referenced.
      */
     SceneImageInfoBlock = 0x0e,
@@ -66,7 +67,7 @@ export enum SceneItemType {
     GlyphRange = 1,
     Group = 2,
     Line = 3,
-    /** An image placed by the capture tool (firmware 3.27+) */
+    /** A placed image (firmware 3.27+) */
     Image = 7
 }
 
@@ -81,7 +82,7 @@ export const LWW_VALUE_INDEX = 2
 
 /**
  * Floats per vertex in an image placement's vertex buffer: x, y, u, v.
- * The capture tool writes a quad (four vertices, two triangles).
+ * The device writes a quad (four vertices, two triangles).
  */
 export const IMAGE_VERTEX_STRIDE = 4
 

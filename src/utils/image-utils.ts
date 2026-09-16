@@ -1,5 +1,8 @@
 /**
- * Media types for the image assets the capture tool places on a page.
+ * Media types for the image assets a device places on a page.
+ *
+ * jpg and png are both first-class: reMarkable's 3.27 notes describe dragging
+ * in "your jpg or png files".
  *
  * Used only as a decoding hint: `createImageBitmap` sniffs the container's
  * magic bytes and ignores a Blob type that disagrees with them, so an

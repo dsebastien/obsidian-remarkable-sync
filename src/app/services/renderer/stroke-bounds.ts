@@ -67,7 +67,7 @@ export function computeStrokesBounds(strokes: readonly Stroke[]): StrokesBounds 
 
 /**
  * Compute the bounding box of everything drawable on a page: visible strokes
- * plus any images placed by the capture tool.
+ * plus any placed images.
  *
  * Images share the stroke coordinate space, so a capture that sits lower or
  * wider than the writing has to widen the canvas the same way a scrolled

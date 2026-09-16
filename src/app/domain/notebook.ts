@@ -133,7 +133,9 @@ export interface Highlight {
  * A single page of a notebook, containing strokes
  */
 /**
- * An image placed on a page by the reMarkable capture tool (firmware 3.27+).
+ * An image placed on a page, either dragged in from the desktop app
+ * (firmware 3.27, "Add images to notebooks") or made with the capture tool
+ * (firmware 3.28). Both write the same blocks.
  *
  * The device stores the pixels in a folder named after the page
  * (`<documentId>/<pageId>/<fileName>`) and records only the placement in the
@@ -167,8 +169,8 @@ export interface Page {
     readonly pageIndex: number
     readonly strokes: readonly Stroke[]
     /**
-     * Images placed with the capture tool. Absent on pages that have none,
-     * which is every page written before firmware 3.27.
+     * Placed images. Absent on pages that have none, which is every page
+     * written before firmware 3.27.
      */
     readonly images?: readonly PageImage[]
     /** Text highlights, present only on source-backed documents */

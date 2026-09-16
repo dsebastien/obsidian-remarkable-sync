@@ -29,10 +29,10 @@ When a new business rule is mentioned:
 
 ## Document Processing
 
-- A page is skipped only when it has no ink, no text highlight, no typed text and no captured image; testing for strokes alone silently dropped pages written entirely on a keyboard, and later pages holding only a capture
-- The plugin supports .rm v6 binary format for stroke data, including the capture tool's image info (`0x0e`) and image placement (`0x0f`) blocks (firmware 3.27+)
-- Captured images are stored by the device beside their page (`<documentId>/<pageId>/<fileName>`). The placement names the file but not the folder, so the folder is what ties an asset to a page. Asset collection MUST NOT filter by file extension: the .rm file is the authorization, since assets resolve by the exact name the page declared, and an extension allowlist silently drops any format not on it
-- Captured images are drawn beneath strokes, so handwriting annotating an image stays on top, and they count toward the page's canvas bounds the same way strokes do
+- A page is skipped only when it has no ink, no text highlight, no typed text and no placed image; testing for strokes alone silently dropped pages written entirely on a keyboard, and later pages holding only a capture
+- The plugin supports .rm v6 binary format for stroke data, including the image info (`0x0e`) and image placement (`0x0f`) blocks used by placed images (firmware 3.27+, whether dragged in from the desktop app or made with the 3.28 capture tool)
+- Placed images are stored by the device beside their page (`<documentId>/<pageId>/<fileName>`). The placement names the file but not the folder, so the folder is what ties an asset to a page. Asset collection MUST NOT filter by file extension: the .rm file is the authorization, since assets resolve by the exact name the page declared, and an extension allowlist silently drops any format not on it
+- Placed images are drawn beneath strokes, so handwriting annotating an image stays on top, and they count toward the page's canvas bounds the same way strokes do
 - A .rm block that fails to parse costs that block only. The block length restores the stream, so parsing continues with the next block; a page's remaining content is never discarded because one block was unreadable
 - A page that renders nothing MUST NOT be written. Whether an image decodes is only knowable at the draw call, so a page whose only content failed to draw returns no image and counts as a failed page rather than a blank one saved as a success. A page carrying typed text or highlights keeps its blank ink layer, which is correct for it
 - An image placement rectangle beyond a generous multiple of the page size is treated as a misparse and ignored, so a bad placement degrades to a page without its capture rather than an allocation that freezes the UI or drops the page

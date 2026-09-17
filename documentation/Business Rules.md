@@ -49,6 +49,13 @@ When a new business rule is mentioned:
 - Users can sync individual notebooks, multiple selected notebooks, or all notebooks at once
 - On every successful cloud listing (panel refresh or automatic sync), sync-state entries whose notebook no longer exists in the cloud are pruned; generated vault files are never deleted automatically
 - Automatic background sync is opt-in (default off); the interval is clamped to 5–240 minutes (default 30); runs are skipped while disconnected or when a previous run is still in progress; timers are registered via `registerInterval` so they are cleaned up on unload
+- A cloud listing either completes or fails; it never returns a subset. An entry whose metadata could not be fetched aborts the listing with an error, because a partial listing is indistinguishable from a smaller account: callers prune sync state for every notebook not in the list and file notebooks under the folder path the listing gave them. Entries whose metadata is genuinely absent (no `.metadata` file in the entry's index) or not JSON are skipped with a warning, since no retry can change what the index holds (#28)
+- A notebook's folder path is never derived from an incomplete parent chain. A parent id the root index does not hold fails the listing, naming the notebook and the folder id; a truncated path would decide where the files are written. A chain that reaches the trash at any depth excludes the notebook, the same as a notebook whose direct parent is the trash
+- Sync requests (`/sync/v3/root`, `/sync/v3/files/{hash}`) retry on HTTP 429, any 5xx and network failure: `Retry-After` when the server sends one (seconds or HTTP-date, capped at 30 s), otherwise exponential backoff from 500 ms capped at 8 s, four attempts in total. Every other status is terminal and fails at once; a 401 on the root hash refreshes the user token once. Failures carry their status and whether they were transient, and are never collapsed to null
+- At most 6 sync requests are in flight at once, for a listing and for a document download alike. The first failed request stops new ones from being issued
+- Entry metadata is cached against the index hash the root index reports for it, so a listing re-fetches only entries whose hash moved; the cache holds only entries present in the last root index
+- A document download fails as a whole when any file its index names could not be fetched; a document is never handed to the pipeline with pages missing
+- On a failed panel refresh the previous list stays on screen, a Notice reports the reason, and no sync state is pruned
 
 ## Local Import
 

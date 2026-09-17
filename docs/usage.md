@@ -53,6 +53,8 @@ The panel shows all your reMarkable notebooks grouped by folder. A connection st
 - **Sync selected** — appears when notebooks are selected; syncs only the checked notebooks
 - **Refresh** (refresh icon) — re-fetches the notebook list from the cloud. Also cleans up sync state for notebooks deleted on your reMarkable (files already in your vault are never deleted).
 
+If the cloud cannot be listed completely (rate limit, outage, no network), the panel keeps the list it already had, shows a notice with the reason, and leaves sync state untouched. The plugin never acts on a partial listing: it would look like notebooks had been deleted, and folder paths could come out wrong. Requests that hit a rate limit are retried with the delay the server asks for.
+
 ### Searching and filtering
 
 - **Search** — a fuzzy search box filters notebooks by name and folder path

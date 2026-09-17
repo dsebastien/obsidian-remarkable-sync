@@ -1,4 +1,4 @@
-import { ItemView, setIcon } from 'obsidian'
+import { ItemView, Notice, setIcon } from 'obsidian'
 import type { WorkspaceLeaf } from 'obsidian'
 import type { RemarkableSyncPlugin } from '../plugin'
 import type { NotebookSummary } from '../domain/notebook'
@@ -543,7 +543,11 @@ export class RemarkablePanelView extends ItemView {
             // Vault files are intentionally left untouched.
             await this.plugin.syncStoreService.pruneMissing(this.notebooks.map((nb) => nb.id))
         } catch (error) {
+            // The previous list stays on screen and no sync state is pruned:
+            // a listing that failed says nothing about what the account holds.
             log('Failed to refresh notebooks', 'error', error)
+            const reason = error instanceof Error ? error.message : String(error)
+            new Notice(`Could not refresh the reMarkable notebook list. ${reason}`, 8000)
         }
 
         this.isLoading = false

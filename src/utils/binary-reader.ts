@@ -91,6 +91,19 @@ export class BinaryReader {
         return new TextDecoder('ascii').decode(bytes)
     }
 
+    /**
+     * Read a UTF-8 string.
+     *
+     * Separate from `readString`, which decodes as `'ascii'` — a WHATWG label
+     * for windows-1252, one character per byte. That is fine for the fixed
+     * ASCII .rm header it was written for, but it mangles any byte above 0x7f,
+     * so text the device wrote needs this instead.
+     */
+    readUtf8String(length: number): string {
+        const bytes = this.readBytes(length)
+        return new TextDecoder().decode(bytes)
+    }
+
     readBool(): boolean {
         return this.readUint8() !== 0
     }

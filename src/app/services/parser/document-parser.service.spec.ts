@@ -1,6 +1,7 @@
 import { test, expect, describe } from 'bun:test'
 import {
     parseDocument,
+    extractPageAssets,
     extractPageOrder,
     extractSourceDocument,
     extractSourcePageMap
@@ -285,5 +286,69 @@ describe('extractSourceDocument', () => {
         expect(
             extractSourceDocument(files({ 'doc.content': new ArrayBuffer(1) }), content('pdf'))
         ).toBeUndefined()
+    })
+})
+
+describe('extractPageAssets', () => {
+    const ASSET = new ArrayBuffer(4)
+
+    test('groups assets by the page folder that holds them', () => {
+        const files = new Map<string, ArrayBuffer>([
+            ['doc-id/page-a.rm', new ArrayBuffer(1)],
+            ['doc-id/page-a/first.png', ASSET],
+            ['doc-id/page-a/second.png', ASSET],
+            ['doc-id/page-b/other.png', ASSET]
+        ])
+
+        const assets = extractPageAssets(files)
+
+        expect([...assets.get('page-a')!.keys()].sort()).toEqual(['first.png', 'second.png'])
+        expect(assets.get('page-b')!.get('other.png')).toBe(ASSET)
+    })
+
+    test('collects an asset whatever its extension', () => {
+        // The .rm file decides which assets exist, not an extension table here.
+        // Gating on a list of known extensions meant an unlisted format
+        // resolved to no data, which made a capture-only page look blank and
+        // deleted it from the output — the original issue #36 symptom.
+        const files = new Map<string, ArrayBuffer>([
+            ['doc-id/page-a/a.png', ASSET],
+            ['doc-id/page-a/b.jpg', ASSET],
+            ['doc-id/page-a/c.webp', ASSET],
+            ['doc-id/page-a/d.heic', ASSET],
+            ['doc-id/page-a/e.tiff', ASSET],
+            ['doc-id/page-a/no-extension', ASSET]
+        ])
+
+        expect([...extractPageAssets(files).get('page-a')!.keys()].sort()).toEqual([
+            'a.png',
+            'b.jpg',
+            'c.webp',
+            'd.heic',
+            'e.tiff',
+            'no-extension'
+        ])
+    })
+
+    test('keeps document files out of any real page bucket', () => {
+        // .content and .metadata sit at the archive root, and a page's .rm file
+        // is grouped under the document id, which is never a page id. All land
+        // in keys nothing reads.
+        const files = new Map<string, ArrayBuffer>([
+            ['doc-id.content', new ArrayBuffer(1)],
+            ['doc-id.metadata', new ArrayBuffer(1)],
+            ['doc-id/page-a.rm', new ArrayBuffer(1)],
+            ['doc-id/page-a/capture.png', ASSET]
+        ])
+
+        const assets = extractPageAssets(files)
+
+        expect([...assets.get('page-a')!.keys()]).toEqual(['capture.png'])
+        expect(assets.has('doc-id.content')).toBe(false)
+        expect(assets.get('doc-id')!.has('page-a.rm')).toBe(true)
+    })
+
+    test('skips a file with no page folder to attribute it to', () => {
+        expect(extractPageAssets(new Map([['loose.png', ASSET]])).size).toBe(0)
     })
 })

@@ -132,10 +132,47 @@ export interface Highlight {
 /**
  * A single page of a notebook, containing strokes
  */
+/**
+ * An image placed on a page, either dragged in from the desktop app
+ * (firmware 3.27, "Add images to notebooks") or made with the capture tool
+ * (firmware 3.28). Both write the same blocks.
+ *
+ * The device stores the pixels in a folder named after the page
+ * (`<documentId>/<pageId>/<fileName>`) and records only the placement in the
+ * page's .rm file. Issue #36.
+ *
+ * Known gaps: the placement is a quad of four (x, y, u, v) vertices and the
+ * renderer reduces it to a bounding box, so a rotated or cropped capture draws
+ * upright and uncropped (the parser warns when the quad is not canonical). The
+ * per-declaration flags, observed as [17, 0] in every sample, are ignored.
+ */
+export interface PageImage {
+    /**
+     * Asset id from the .rm file, lowercase hex, no separators. Carried for
+     * diagnostics; the parser has already used it to resolve `fileName`, and
+     * nothing downstream reads it.
+     */
+    readonly assetId: string
+    /** Image file name inside the page's asset folder */
+    readonly fileName: string
+    /** Placement rectangle in stroke coordinate space (x centered on 0) */
+    readonly x: number
+    readonly y: number
+    readonly width: number
+    readonly height: number
+    /** Image bytes, resolved from the document archive. Null when the file is absent. */
+    readonly data: ArrayBuffer | null
+}
+
 export interface Page {
     readonly pageId: string
     readonly pageIndex: number
     readonly strokes: readonly Stroke[]
+    /**
+     * Placed images. Absent on pages that have none, which is every page
+     * written before firmware 3.27.
+     */
+    readonly images?: readonly PageImage[]
     /** Text highlights, present only on source-backed documents */
     readonly highlights?: readonly Highlight[]
     /**

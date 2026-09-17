@@ -91,7 +91,7 @@ Folder hierarchy is preserved:
 {targetFolder}/Work/Meeting Notes/Meeting Notes-P001.png
 ```
 
-Blank pages (no strokes) are skipped.
+Blank pages are skipped. A page holding only a placed image counts as content and is rendered. That covers images dragged into a notebook from the desktop app (reMarkable OS 3.27) and images made with the capture tool (3.28).
 
 ## rmfakecloud
 

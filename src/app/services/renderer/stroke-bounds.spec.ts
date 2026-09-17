@@ -1,7 +1,7 @@
 import { test, expect, describe } from 'bun:test'
-import { computeStrokesBounds } from './stroke-bounds'
+import { computeStrokesBounds, computePageBounds } from './stroke-bounds'
 import { PenType, StrokeColor } from '../../domain/notebook'
-import type { Stroke, StrokePoint } from '../../domain/notebook'
+import type { Page, PageImage, Stroke, StrokePoint } from '../../domain/notebook'
 
 function makePoint(x: number, y: number, width = 0): StrokePoint {
     return { x, y, speed: 0, width, direction: 0, pressure: 0 }
@@ -100,5 +100,90 @@ describe('computeStrokesBounds', () => {
         // Eraser bounds at -9999 must NOT extend the box.
         expect(bounds!.minX).toBeGreaterThan(-1)
         expect(bounds!.minY).toBeGreaterThan(-1)
+    })
+})
+
+function makeImage(
+    x: number,
+    y: number,
+    width: number,
+    height: number,
+    data: ArrayBuffer | null = new ArrayBuffer(4)
+): PageImage {
+    return { assetId: 'asset', fileName: 'capture.png', x, y, width, height, data }
+}
+
+function makePage(strokes: Stroke[], images: PageImage[]): Page {
+    return { pageId: 'page', pageIndex: 0, strokes, images }
+}
+
+describe('computePageBounds', () => {
+    test('returns null for a page with nothing on it', () => {
+        expect(computePageBounds(makePage([], []))).toBeNull()
+    })
+
+    test('covers an image on a page with no strokes', () => {
+        // Issue #36: a capture-only page used to have no bounds at all, so it
+        // never rendered.
+        const bounds = computePageBounds(makePage([], [makeImage(-100, 200, 400, 300)]))
+
+        expect(bounds).toEqual({ minX: -100, maxX: 300, minY: 200, maxY: 500 })
+    })
+
+    test('unions strokes and images', () => {
+        const strokes = [makeStroke(PenType.FinelinerV2, [makePoint(0, 0), makePoint(50, 50)])]
+        const bounds = computePageBounds(makePage(strokes, [makeImage(-200, 100, 100, 900)]))
+
+        expect(bounds!.minX).toBe(-200)
+        expect(bounds!.maxX).toBeGreaterThanOrEqual(50)
+        expect(bounds!.minY).toBeLessThanOrEqual(0)
+        expect(bounds!.maxY).toBe(1000)
+    })
+
+    test('ignores an image whose PNG never arrived', () => {
+        const page = makePage([], [makeImage(-100, 200, 400, 300, null)])
+
+        expect(computePageBounds(page)).toBeNull()
+    })
+
+    test('falls back to stroke bounds when images have no data', () => {
+        const strokes = [makeStroke(PenType.FinelinerV2, [makePoint(10, 20)])]
+        const page = makePage(strokes, [makeImage(-999, -999, 10, 10, null)])
+        const bounds = computePageBounds(page)
+
+        expect(bounds!.minX).toBeGreaterThan(-999)
+    })
+})
+
+describe('computePageBounds placement sanity', () => {
+    test('ignores an implausible placement instead of sizing the canvas to it', () => {
+        const strokes = [makeStroke(PenType.FinelinerV2, [makePoint(0, 0), makePoint(50, 50)])]
+        const absurd = makeImage(-1e6, -1e6, 2e6, 2e6)
+        const bounds = computePageBounds(makePage(strokes, [absurd]))
+
+        expect(bounds).toEqual(computeStrokesBounds(strokes))
+    })
+
+    test('keeps a capture that merely sits outside the standard page', () => {
+        // Scrolled pages legitimately carry content past the viewport, so the
+        // sanity bound must not double as a page-fit check.
+        const scrolled = makeImage(-700, 3000, 1400, 1800)
+        const bounds = computePageBounds(makePage([], [scrolled]))
+
+        expect(bounds).toEqual({ minX: -700, maxX: 700, minY: 3000, maxY: 4800 })
+    })
+
+    test('a page with no images has exactly the bounds it had before captures existed', () => {
+        // Locks in the no-regression property for the users who have no
+        // captures at all, which is almost all of them.
+        const cases = [
+            [makeStroke(PenType.FinelinerV2, [makePoint(0, 0), makePoint(100, 200)])],
+            [makeStroke(PenType.BallPoint, [makePoint(-50, -20)], 3)],
+            [makeStroke(PenType.Eraser, [makePoint(10, 10)])]
+        ]
+
+        for (const strokes of cases) {
+            expect(computePageBounds(makePage(strokes, []))).toEqual(computeStrokesBounds(strokes))
+        }
     })
 })

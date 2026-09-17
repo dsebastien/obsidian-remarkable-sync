@@ -1,5 +1,10 @@
 import { requestUrl } from 'obsidian'
-import { log } from '../../../utils/log'
+import {
+    DEFAULT_RETRY_OPTIONS,
+    requestWithRetry,
+    SyncRequestError,
+    type RetryOptions
+} from './http-retry'
 
 /**
  * Entry from a parsed index file (root index or document index)
@@ -13,57 +18,41 @@ export interface IndexEntry {
 }
 
 /**
- * Extract HTTP status from an error thrown by Obsidian's requestUrl.
- */
-function getHttpStatus(error: unknown): number | undefined {
-    return error && typeof error === 'object' && 'status' in error
-        ? (error as { status: number }).status
-        : undefined
-}
-
-/**
  * Fetch the root index hash from the sync service.
  * Response is JSON with a `hash` property.
- * Throws with a status property on HTTP errors (e.g. 401).
+ *
+ * Rate limits, server errors and network failures are retried (see
+ * `requestWithRetry`). Every failure surfaces as a `SyncRequestError`; a 401
+ * carries `status === 401` so the caller can refresh the user token once.
  */
 export async function fetchRootHash(
     userToken: string,
-    syncBaseUrl: string
-): Promise<string | null> {
-    try {
-        const response = await requestUrl({
-            url: `${syncBaseUrl}/sync/v3/root`,
-            method: 'GET',
-            headers: {
-                Authorization: `Bearer ${userToken}`
-            }
+    syncBaseUrl: string,
+    retry: RetryOptions = DEFAULT_RETRY_OPTIONS
+): Promise<string> {
+    const response = await requestWithRetry(
+        'root hash',
+        () =>
+            requestUrl({
+                url: `${syncBaseUrl}/sync/v3/root`,
+                method: 'GET',
+                headers: {
+                    Authorization: `Bearer ${userToken}`
+                },
+                throw: false
+            }),
+        retry
+    )
+
+    const data = response.json as { hash?: string } | null
+    const hash = data?.hash?.trim()
+    if (!hash) {
+        throw new SyncRequestError('root hash: empty response', {
+            retryable: false,
+            attempts: 1
         })
-
-        if (response.status !== 200) {
-            log(`Failed to fetch root hash: ${response.status}`, 'error')
-            return null
-        }
-
-        const data = response.json as { hash?: string }
-        const hash = data.hash?.trim()
-        if (!hash) {
-            log('Empty root hash response', 'error')
-            return null
-        }
-
-        return hash
-    } catch (error: unknown) {
-        const status = getHttpStatus(error)
-        if (status === 401) {
-            throw error
-        }
-        if (status) {
-            log(`Failed to fetch root hash: HTTP ${status}`, 'error')
-        } else {
-            log('Failed to fetch root hash', 'error', error)
-        }
-        return null
     }
+    return hash
 }
 
 // Sync v3 `/files/{hash}` requires an `rm-filename` header whose value matches
@@ -81,41 +70,35 @@ export function docIndexFilename(docId: string): string {
  * `rmFilename` is the blob's logical name (e.g. `root.docSchema`,
  * `<uuid>.docSchema`, `<uuid>.metadata`). The server validates it and
  * returns HTTP 400 if missing or wrong.
+ *
+ * Rate limits, server errors and network failures are retried (see
+ * `requestWithRetry`). Every failure throws a `SyncRequestError` rather than
+ * returning null: the index named this blob, so a blob that cannot be fetched
+ * is a failed request, never an absent file, and callers must not treat it
+ * as "nothing there".
  */
 export async function fetchBlob(
     userToken: string,
     hash: string,
     rmFilename: string,
-    syncBaseUrl: string
-): Promise<ArrayBuffer | null> {
-    try {
-        const response = await requestUrl({
-            url: `${syncBaseUrl}/sync/v3/files/${hash}`,
-            method: 'GET',
-            headers: {
-                'Authorization': `Bearer ${userToken}`,
-                'rm-filename': rmFilename
-            }
-        })
-
-        if (response.status !== 200) {
-            log(`Failed to fetch blob ${hash}: ${response.status}`, 'error')
-            return null
-        }
-
-        return response.arrayBuffer
-    } catch (error: unknown) {
-        const status =
-            error && typeof error === 'object' && 'status' in error
-                ? (error as { status: number }).status
-                : undefined
-        if (status) {
-            log(`Failed to fetch blob ${hash}: HTTP ${status}`, 'error')
-        } else {
-            log(`Failed to fetch blob ${hash}`, 'error', error)
-        }
-        return null
-    }
+    syncBaseUrl: string,
+    retry: RetryOptions = DEFAULT_RETRY_OPTIONS
+): Promise<ArrayBuffer> {
+    const response = await requestWithRetry(
+        `blob ${rmFilename}`,
+        () =>
+            requestUrl({
+                url: `${syncBaseUrl}/sync/v3/files/${hash}`,
+                method: 'GET',
+                headers: {
+                    'Authorization': `Bearer ${userToken}`,
+                    'rm-filename': rmFilename
+                },
+                throw: false
+            }),
+        retry
+    )
+    return response.arrayBuffer
 }
 
 /**

@@ -2,6 +2,21 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.1.0](https://github.com/dsebastien/obsidian-remarkable-sync/compare/2.0.0...2.1.0) (2026-09-17)
+
+### Features
+
+* **build:** fail the build on a lockfile the catalog review cannot parse ([5adaba3](https://github.com/dsebastien/obsidian-remarkable-sync/commit/5adaba37bf6d7aac511627641cb124b99ab46052))
+* **build:** make the rule floor check that it is still wired in ([7d2fcf3](https://github.com/dsebastien/obsidian-remarkable-sync/commit/7d2fcf3815d94de7833e9d041bee609a4bf32562))
+* **build:** refuse commits that loosen the rules instead of fixing the finding ([bbfeacf](https://github.com/dsebastien/obsidian-remarkable-sync/commit/bbfeacf47f854a996ae554c86cdbf16bf628e34f))
+* **parser:** render images placed by the capture tool ([8f12086](https://github.com/dsebastien/obsidian-remarkable-sync/commit/8f12086548b7bdda0bb22ca68bcb29a487370cc2)), closes [#36](https://github.com/dsebastien/obsidian-remarkable-sync/issues/36)
+
+### Bug Fixes
+
+* **build:** exclude bun-types alongside @types/bun from the release-age gate ([9268e05](https://github.com/dsebastien/obsidian-remarkable-sync/commit/9268e05a0bfbb76b68190495660048c8b551cea3))
+* **deps:** move the fast-uri override off the vulnerable line ([617e45b](https://github.com/dsebastien/obsidian-remarkable-sync/commit/617e45b7f6b6e0ca37006277541c4b3621cbaae5))
+* **deps:** move the js-yaml override off the vulnerable line ([3d4cd2d](https://github.com/dsebastien/obsidian-remarkable-sync/commit/3d4cd2d450344a3238a9b2be760613fb97bb5890))
+
 ## [2.0.0](https://github.com/dsebastien/obsidian-remarkable-sync/compare/1.16.0...2.0.0) (2026-08-29)
 
 ### ⚠ BREAKING CHANGES
@@ -290,6 +305,7 @@ advisory from the previous commit is now satisfied.
 - Inline progress indicators per notebook in panel
 - Settings for target folder, image format
 - Token storage outside vault for security
+
 
 
 

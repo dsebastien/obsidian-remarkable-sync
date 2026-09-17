@@ -1,5 +1,20 @@
 # Release Notes
 
+## 2.1.0 (2026-09-17)
+
+### Features
+
+- **build:** fail the build on a lockfile the catalog review cannot parse
+- **build:** make the rule floor check that it is still wired in
+- **build:** refuse commits that loosen the rules instead of fixing the finding
+- **parser:** render images placed by the capture tool
+
+### Bug Fixes
+
+- **build:** exclude bun-types alongside @types/bun from the release-age gate
+- **deps:** move the fast-uri override off the vulnerable line
+- **deps:** move the js-yaml override off the vulnerable line
+
 ## 2.0.0 (2026-08-29)
 
 ### ⚠ BREAKING CHANGES

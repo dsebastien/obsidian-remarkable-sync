@@ -1,4 +1,4 @@
-import { TFile } from 'obsidian'
+import { TFile, TFolder } from 'obsidian'
 import type { Vault } from 'obsidian'
 import { log } from '../../../utils/log'
 
@@ -85,9 +85,17 @@ async function ensureParentFolder(vault: Vault, filePath: string): Promise<void>
         return
     }
 
+    const existing = vault.getAbstractFileByPath(folderFullPath)
+
+    // Checked outside the try below on purpose: the bare catch there exists to
+    // swallow "folder already exists", and it would swallow this too, leaving
+    // the failure to surface from createBinary with nothing to explain it.
+    if (existing instanceof TFile) {
+        throw new Error(`Cannot write ${filePath}: a file already occupies the folder path`)
+    }
+
     try {
-        const folder = vault.getAbstractFileByPath(folderFullPath)
-        if (!folder) {
+        if (!existing) {
             await vault.createFolder(folderFullPath)
         }
     } catch {
@@ -114,6 +122,14 @@ export async function writeBinaryIfChanged(
     data: ArrayBuffer
 ): Promise<boolean> {
     const existingFile = vault.getAbstractFileByPath(filePath)
+
+    // Throwing rather than returning false: false means "unchanged, skipped"
+    // to every caller, so returning it here would silently drop the user's
+    // output. The throw surfaces through the pipeline's own catch as a Notice
+    // that names the path. Recorded as a known defect on 2026-08-01.
+    if (existingFile instanceof TFolder) {
+        throw new Error(`Cannot write ${filePath}: a folder already occupies that path`)
+    }
 
     if (existingFile instanceof TFile) {
         try {

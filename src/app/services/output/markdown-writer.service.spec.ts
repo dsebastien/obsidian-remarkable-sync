@@ -1,5 +1,5 @@
 import { test, expect, describe } from 'bun:test'
-import { TFile, type Vault } from 'obsidian'
+import { TFile, TFolder, type Vault } from 'obsidian'
 import {
     buildDocumentPath,
     buildPagePath,
@@ -11,6 +11,22 @@ import {
 
 const bytes = (...values: number[]): ArrayBuffer => new Uint8Array(values).buffer
 
+/**
+ * Assert a promise rejects with a message containing `contains`.
+ *
+ * Written out rather than using `expect(...).rejects`, whose bun typing is not
+ * marked thenable and trips `@typescript-eslint/await-thenable`. Mirrors the
+ * helper in `settings-write.spec.ts`.
+ */
+async function expectRejection(promise: Promise<unknown>, contains: string): Promise<void> {
+    let caught: unknown
+    await promise.catch((error: unknown) => {
+        caught = error
+    })
+    expect(caught).toBeInstanceOf(Error)
+    expect((caught as Error).message).toContain(contains)
+}
+
 interface FakeVaultCalls {
     created: string[]
     modified: string[]
@@ -19,17 +35,23 @@ interface FakeVaultCalls {
 
 /**
  * Minimal stand-in for the parts of `Vault` the writer touches. `files` seeds
- * the vault with existing content, keyed by path.
+ * the vault with existing content, keyed by path; `folders` seeds paths that
+ * are occupied by a folder rather than a file.
  */
-function createFakeVault(files: Record<string, ArrayBuffer> = {}): {
+function createFakeVault(
+    files: Record<string, ArrayBuffer> = {},
+    folders: readonly string[] = []
+): {
     vault: Vault
     calls: FakeVaultCalls
 } {
     const calls: FakeVaultCalls = { created: [], modified: [], foldersCreated: [] }
     const store = new Map<string, ArrayBuffer>(Object.entries(files))
+    const folderPaths = new Set<string>(folders)
 
     const vault = {
         getAbstractFileByPath: (path: string) => {
+            if (folderPaths.has(path)) return new TFolder()
             if (!store.has(path)) return null
             const file = new TFile()
             // The writer only uses the instanceof check and passes the value
@@ -220,5 +242,31 @@ describe('writeDocumentPdf', () => {
         await writeDocumentPdf(vault, 'rM', 'Work', 'Meeting', bytes(1, 2, 3))
 
         expect(calls.modified).toEqual(['rM/Work/Meeting.pdf'])
+    })
+})
+
+describe('writeBinaryIfChanged path conflicts', () => {
+    test('refuses to write where a folder already sits', async () => {
+        // Reaching createBinary here threw from inside the adapter with
+        // nothing to say why. Recorded as a known defect on 2026-08-01.
+        const { vault, calls } = createFakeVault({}, ['Notes/Meeting.pdf'])
+
+        await expectRejection(
+            writeBinaryIfChanged(vault, 'Notes/Meeting.pdf', bytes(1)),
+            'a folder already occupies that path'
+        )
+        expect(calls.created).toHaveLength(0)
+    })
+
+    test('refuses when a file occupies the parent folder path', async () => {
+        // The mirror case: createFolder would throw into the bare catch and
+        // the failure would re-emerge from createBinary instead.
+        const { vault, calls } = createFakeVault({ Notes: bytes(1) })
+
+        await expectRejection(
+            writeBinaryIfChanged(vault, 'Notes/Meeting.pdf', bytes(2)),
+            'a file already occupies the folder path'
+        )
+        expect(calls.created).toHaveLength(0)
     })
 })

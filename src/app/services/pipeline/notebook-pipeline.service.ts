@@ -2,6 +2,7 @@ import { Notice } from 'obsidian'
 import { log } from '../../../utils/log'
 import type { RemarkableSyncPlugin } from '../../plugin'
 import type { NotebookSummary } from '../../domain/notebook'
+import { parseCloudTimestamp } from '../../domain/sync-state'
 import { pageHasContent } from '../parser/rm-file-parser'
 import { parseDocument } from '../parser/document-parser.service'
 import {
@@ -151,7 +152,12 @@ export function createNotebookPipelineService(
             }
 
             // Update sync state; only successfully rendered pages are counted
-            const lastModifiedCloud = parseInt(notebook.lastModified, 10) || Date.now()
+            // Store what the CLOUD said, never a local clock. This value is
+            // the basis of the next sync decision, so a fallback of
+            // `Date.now()` would record a timestamp the cloud never issued and
+            // make the comparison meaningless. 0 means "unknown", which leaves
+            // the notebook eligible to sync again rather than silently stuck.
+            const lastModifiedCloud = parseCloudTimestamp(notebook.lastModified) ?? 0
             await plugin.syncStoreService.updateState(
                 notebook.id,
                 lastModifiedCloud,

@@ -230,6 +230,64 @@ export interface NotebookSummary {
     readonly folderPath: string
 }
 
+/**
+ * The outcome of a cloud listing, kept distinct from its contents.
+ *
+ * `listDocuments` used to answer with a bare array and return `[]` on every
+ * failure, so "the cloud is unreachable" and "you have no notebooks" were the
+ * same value. `pruneMissing` then read that empty array as "every notebook was
+ * deleted" and erased the entire sync store, and the next run re-downloaded
+ * the whole library. Shipped in 1.10.0, found in 2.1.0.
+ *
+ * So the outcome is now explicit, and `complete` is the flag that gates
+ * anything destructive.
+ */
+export interface DocumentListing {
+    /** What was successfully listed. Safe to display and to sync from. */
+    readonly notebooks: NotebookSummary[]
+
+    /**
+     * True only when EVERY entry in the cloud index was read successfully.
+     *
+     * Required before pruning sync state: only a complete listing lets an
+     * absent notebook be read as a deleted one. A partial listing is still
+     * perfectly good for display and for syncing what it did return.
+     */
+    readonly complete: boolean
+
+    /** A message to show the user, or null when the listing fully succeeded. */
+    readonly error: string | null
+}
+
+/**
+ * Describe a listing that ran to completion, given how many entries could not
+ * be read.
+ *
+ * Pure, and separated from the network plumbing on purpose: the rule that
+ * decides whether destructive pruning may run is the part worth testing, and
+ * it was previously buried inside a function that needs a live cloud to reach.
+ */
+export function describeListing(notebooks: NotebookSummary[], unreadable: number): DocumentListing {
+    if (unreadable > 0) {
+        return {
+            notebooks,
+            complete: false,
+            error: `${unreadable} item(s) could not be read from the reMarkable cloud`
+        }
+    }
+    return { notebooks, complete: true, error: null }
+}
+
+/**
+ * Describe a listing that failed outright.
+ *
+ * Note it is NOT complete, even though it holds no notebooks. That distinction
+ * is the entire point of this type.
+ */
+export function failedListing(message: string): DocumentListing {
+    return { notebooks: [], complete: false, error: message }
+}
+
 export function notebookDisplayPath(nb: NotebookSummary): string {
     return nb.folderPath ? `${nb.folderPath}/${nb.visibleName}` : nb.visibleName
 }

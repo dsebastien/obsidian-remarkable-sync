@@ -1,4 +1,4 @@
-import type { NotebookSummary } from '../../domain/notebook'
+import type { DocumentListing, NotebookSummary } from '../../domain/notebook'
 import type { NotebookSyncState } from '../../domain/sync-state'
 import { deriveSyncStatus } from '../../domain/sync-state'
 import {
@@ -39,7 +39,7 @@ export interface AutoSyncDeps {
     isConnected(): boolean
     isEnabled(): boolean
     intervalMinutes(): number
-    listDocuments(): Promise<NotebookSummary[]>
+    listDocuments(): Promise<DocumentListing>
     getSyncState(remarkableId: string): NotebookSyncState | undefined
     processNotebook(notebook: NotebookSummary): Promise<void>
     pruneMissing(presentIds: readonly string[]): Promise<number>
@@ -72,10 +72,25 @@ export function createAutoSyncService(deps: AutoSyncDeps): AutoSyncService {
         }
         running = true
         try {
-            const notebooks = await deps.listDocuments()
-            const prunedCount = await deps.pruneMissing(notebooks.map((nb) => nb.id))
+            const listing = await deps.listDocuments()
+            const notebooks = listing.notebooks
+
+            // Prune ONLY from a listing known to be complete. An absent
+            // notebook means "deleted on the device" only if we are certain we
+            // saw everything; otherwise a network failure erases sync state
+            // and the next run re-downloads a library that never changed.
+            const prunedCount = listing.complete
+                ? await deps.pruneMissing(notebooks.map((nb) => nb.id))
+                : 0
+
+            if (!listing.complete) {
+                log('Skipped pruning: the cloud listing was incomplete', 'debug', {
+                    error: listing.error
+                })
+            }
+
             const toSync = notebooks.filter((nb) => {
-                const status = deriveSyncStatus(deps.getSyncState(nb.id))
+                const status = deriveSyncStatus(deps.getSyncState(nb.id), nb.lastModified)
                 return status === 'needs-sync' || status === 'never-synced'
             })
             for (const notebook of toSync) {

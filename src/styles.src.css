@@ -224,6 +224,23 @@
     color: var(--text-muted);
 }
 
+/* Shown when a cloud listing failed or came back incomplete. */
+.remarkable-list-error {
+    @apply mb-2 rounded border p-2 text-sm;
+    background-color: var(--background-secondary);
+    border-color: var(--background-modifier-border);
+    color: var(--text-error);
+}
+
+.remarkable-list-error p {
+    @apply m-0;
+}
+
+.remarkable-list-error-detail {
+    @apply mt-1 text-xs;
+    color: var(--text-muted);
+}
+
 /* ========================================
    TOOLBAR (SEARCH + FILTER)
    ======================================== */

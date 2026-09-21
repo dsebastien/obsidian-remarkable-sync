@@ -116,7 +116,13 @@ Folder order is unaffected: the top-level group stays first, and the rest stay a
 
 ## Automatic sync
 
-When **Automatic sync** is enabled, the plugin periodically syncs all notebooks that need updating (same rules as the panel's **Sync all** button). Runs are skipped while disconnected and when a sync is already in progress. Each run also cleans up sync state for notebooks that were deleted on your reMarkable — files already saved in your vault are never deleted.
+When **Automatic sync** is enabled, the plugin periodically syncs all notebooks that need updating (same rules as the panel's **Sync all** button). Runs are skipped while disconnected and when a sync is already in progress.
+
+**What "needs updating" means.** A notebook needs updating when your reMarkable has changed it since the last time the plugin synced it, or when the plugin has never synced it. The comparison is made entirely with reMarkable's own timestamps, so the clock on the device running Obsidian does not affect it.
+
+Note that reMarkable updates a notebook's timestamp when you merely _open_ it, not only when you write in it. That can cause a notebook to be fetched again even though nothing in it changed. Your vault files are left alone when this happens, because the plugin compares the generated output against what is already on disk and skips writing when they are identical.
+
+Each run also cleans up sync state for notebooks that were deleted on your reMarkable, but only when it was able to read the complete list from the cloud. If the connection fails or part of the list cannot be read, nothing is cleaned up, because an unreachable cloud looks the same as an empty one. Files already saved in your vault are never deleted either way.
 
 ## Authentication
 

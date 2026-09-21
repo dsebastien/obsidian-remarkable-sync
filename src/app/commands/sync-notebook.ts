@@ -46,8 +46,14 @@ export async function syncNotebook(plugin: RemarkableSyncPlugin): Promise<void> 
     new Notice('Fetching notebook list...')
 
     try {
-        const notebooks = await plugin.cloudService.listDocuments()
+        const listing = await plugin.cloudService.listDocuments()
 
+        if (listing.error) {
+            new Notice(`Could not list notebooks: ${listing.error}`)
+            return
+        }
+
+        const notebooks = listing.notebooks
         if (notebooks.length === 0) {
             new Notice('No notebooks found')
             return

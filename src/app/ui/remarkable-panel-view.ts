@@ -43,6 +43,15 @@ export class RemarkablePanelView extends ItemView {
     private selectedIds: Set<string> = new Set()
     private collapsedFolders: Set<string> = new Set()
     private isLoading = false
+
+    /**
+     * Why the last refresh did not fully succeed, or null when it did.
+     *
+     * Kept separate from `notebooks` so a partial listing can still be shown.
+     * A silent failure is what let the sync-state pruning bug go unnoticed
+     * from 1.10.0 to 2.1.0.
+     */
+    private listError: string | null = null
     private isBulkSyncing = false
     private searchQuery = ''
     private filterMode: FilterMode = 'all'
@@ -91,6 +100,18 @@ export class RemarkablePanelView extends ItemView {
         if (this.isLoading) {
             root.createDiv({ cls: 'remarkable-loading', text: 'Loading notebooks...' })
             return
+        }
+
+        if (this.listError) {
+            const banner = root.createDiv({ cls: 'remarkable-list-error' })
+            banner.createEl('p', { text: this.listError })
+            banner.createEl('p', {
+                cls: 'remarkable-list-error-detail',
+                text:
+                    this.notebooks.length > 0
+                        ? 'Showing the last known list. Nothing was changed.'
+                        : 'Nothing was changed. Select refresh to try again.'
+            })
         }
 
         if (this.notebooks.length === 0) {
@@ -420,7 +441,9 @@ export class RemarkablePanelView extends ItemView {
 
     private getSyncStatus(notebook: NotebookSummary): SyncStatus {
         const state = this.plugin.syncStoreService.getState(notebook.id)
-        return deriveSyncStatus(state)
+        // The notebook's CURRENT cloud timestamp decides this, not the local
+        // clock. Passing it is what makes a device edit show as needing sync.
+        return deriveSyncStatus(state, notebook.lastModified)
     }
 
     private renderNotebookRow(container: HTMLElement, notebook: NotebookSummary): void {
@@ -538,12 +561,28 @@ export class RemarkablePanelView extends ItemView {
         this.render()
 
         try {
-            this.notebooks = await this.plugin.cloudService.listDocuments()
-            // Drop sync state for notebooks deleted on the device/cloud.
-            // Vault files are intentionally left untouched.
-            await this.plugin.syncStoreService.pruneMissing(this.notebooks.map((nb) => nb.id))
+            const listing = await this.plugin.cloudService.listDocuments()
+            this.listError = listing.error
+
+            // Keep the previous list rather than blanking the panel when the
+            // cloud could not be reached at all.
+            if (listing.complete || listing.notebooks.length > 0) {
+                this.notebooks = listing.notebooks
+            }
+
+            // Drop sync state for notebooks deleted on the device/cloud, but
+            // ONLY from a listing known to be complete: an unreachable cloud
+            // returns nothing, and treating that as "everything was deleted"
+            // erased the whole sync store and forced a full re-download.
+            // Vault files are intentionally left untouched either way.
+            if (listing.complete) {
+                await this.plugin.syncStoreService.pruneMissing(
+                    listing.notebooks.map((nb) => nb.id)
+                )
+            }
         } catch (error) {
             log('Failed to refresh notebooks', 'error', error)
+            this.listError = error instanceof Error ? error.message : 'Unknown error'
         }
 
         this.isLoading = false

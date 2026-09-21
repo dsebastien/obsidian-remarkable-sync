@@ -1,7 +1,7 @@
 import { test, expect, describe } from 'bun:test'
 import { clampAutoSyncIntervalMinutes, createAutoSyncService } from './auto-sync.service'
 import type { AutoSyncDeps } from './auto-sync.service'
-import type { NotebookSummary } from '../../domain/notebook'
+import type { DocumentListing, NotebookSummary } from '../../domain/notebook'
 import type { NotebookSyncState } from '../../domain/sync-state'
 import {
     DEFAULT_AUTO_SYNC_INTERVAL_MINUTES,
@@ -9,15 +9,25 @@ import {
     MIN_AUTO_SYNC_INTERVAL_MINUTES
 } from '../../types/plugin-settings.intf'
 
-function notebook(id: string): NotebookSummary {
+function notebook(id: string, lastModified = '0'): NotebookSummary {
     return {
         id,
         visibleName: id,
         parent: '',
-        lastModified: '0',
+        lastModified,
         pageCount: 1,
         folderPath: ''
     }
+}
+
+/** A listing where everything was read, which is what allows pruning. */
+function complete(notebooks: NotebookSummary[]): DocumentListing {
+    return { notebooks, complete: true, error: null }
+}
+
+/** A listing that failed or dropped entries. Pruning must not run on one. */
+function incomplete(notebooks: NotebookSummary[], error: string): DocumentListing {
+    return { notebooks, complete: false, error }
 }
 
 function syncState(id: string, lastSyncedAt: number, lastModifiedCloud: number): NotebookSyncState {
@@ -30,7 +40,7 @@ interface HarnessConfig {
     intervalMinutes?: number
     notebooks?: NotebookSummary[]
     syncStates?: Record<string, NotebookSyncState>
-    listDocuments?: () => Promise<NotebookSummary[]>
+    listDocuments?: () => Promise<DocumentListing>
 }
 
 interface Harness {
@@ -54,7 +64,8 @@ function createHarness(config: HarnessConfig = {}): Harness {
         isConnected: () => config.connected ?? true,
         isEnabled: () => config.enabled ?? true,
         intervalMinutes: () => config.intervalMinutes ?? DEFAULT_AUTO_SYNC_INTERVAL_MINUTES,
-        listDocuments: config.listDocuments ?? (() => Promise.resolve(config.notebooks ?? [])),
+        listDocuments:
+            config.listDocuments ?? (() => Promise.resolve(complete(config.notebooks ?? []))),
         getSyncState: (id) => config.syncStates?.[id],
         processNotebook: (nb) => {
             processed.push(nb.id)
@@ -182,12 +193,12 @@ describe('runNow', () => {
     })
 
     test('skips overlapping runs', async () => {
-        let resolveListing: (notebooks: NotebookSummary[]) => void = () => {
+        let resolveListing: (listing: DocumentListing) => void = () => {
             // replaced synchronously by the promise executor below
         }
         const harness = createHarness({
             listDocuments: () =>
-                new Promise<NotebookSummary[]>((resolve) => {
+                new Promise<DocumentListing>((resolve) => {
                     resolveListing = resolve
                 })
         })
@@ -199,18 +210,25 @@ describe('runNow', () => {
         const secondResult = await service.runNow()
         expect(secondResult.skipped).toBe('already-running')
 
-        resolveListing([])
+        resolveListing(complete([]))
         const firstResult = await firstRun
         expect(firstResult.skipped).toBeNull()
         expect(service.isRunning()).toBe(false)
     })
 
     test('syncs only notebooks that need updating', async () => {
+        // "Needs updating" means the CLOUD timestamp moved past the one we
+        // recorded at the last sync. The local lastSyncedAt is deliberately
+        // identical across both states here, to show it does not participate.
         const harness = createHarness({
-            notebooks: [notebook('synced'), notebook('needs-sync'), notebook('never-synced')],
+            notebooks: [
+                notebook('synced', '1000'),
+                notebook('needs-sync', '2000'),
+                notebook('never-synced', '1000')
+            ],
             syncStates: {
-                'synced': syncState('synced', 2000, 1000),
-                'needs-sync': syncState('needs-sync', 500, 1000)
+                'synced': syncState('synced', 5000, 1000),
+                'needs-sync': syncState('needs-sync', 5000, 1000)
             }
         })
         const service = createAutoSyncService(harness.deps)
@@ -222,7 +240,7 @@ describe('runNow', () => {
         expect(harness.processed).toEqual(['needs-sync', 'never-synced'])
     })
 
-    test('prunes sync state against the fresh cloud listing', async () => {
+    test('prunes sync state against a complete cloud listing', async () => {
         const harness = createHarness({ notebooks: [notebook('a'), notebook('b')] })
         const service = createAutoSyncService(harness.deps)
 
@@ -242,6 +260,64 @@ describe('runNow', () => {
         expect(result.skipped).toBeNull()
         expect(result.syncedCount).toBe(0)
         expect(service.isRunning()).toBe(false)
+    })
+
+    test('never prunes from an unreachable cloud', async () => {
+        // The bug this fixes. listDocuments returned [] on any failure, the
+        // prune read that as "every notebook was deleted" and erased the whole
+        // sync store, and the next run re-downloaded a library that had not
+        // changed in months. Shipped in 1.10.0, fixed here.
+        const harness = createHarness({
+            listDocuments: () =>
+                Promise.resolve(incomplete([], 'Could not reach the reMarkable cloud'))
+        })
+        const service = createAutoSyncService(harness.deps)
+
+        await service.runNow()
+
+        expect(harness.pruneCalls).toEqual([])
+    })
+
+    test('never prunes from a partial listing', async () => {
+        // One document's metadata failing is not evidence that every other
+        // notebook was deleted.
+        const harness = createHarness({
+            listDocuments: () =>
+                Promise.resolve(incomplete([notebook('a')], '1 item(s) could not be read'))
+        })
+        const service = createAutoSyncService(harness.deps)
+
+        await service.runNow()
+
+        expect(harness.pruneCalls).toEqual([])
+    })
+
+    test('still syncs what a partial listing did return', async () => {
+        // Degraded, not broken: the notebooks we did read are still usable.
+        const harness = createHarness({
+            listDocuments: () => Promise.resolve(incomplete([notebook('a')], 'partial'))
+        })
+        const service = createAutoSyncService(harness.deps)
+
+        const result = await service.runNow()
+
+        expect(result.syncedCount).toBe(1)
+        expect(harness.processed).toEqual(['a'])
+    })
+
+    test('does not resync a notebook whose cloud timestamp has not moved', async () => {
+        // The symptom the user reported: months-old notebooks being pulled
+        // down again on every cycle.
+        const harness = createHarness({
+            notebooks: [notebook('old', '1000')],
+            syncStates: { old: syncState('old', 5000, 1000) }
+        })
+        const service = createAutoSyncService(harness.deps)
+
+        await service.runNow()
+        await service.runNow()
+
+        expect(harness.processed).toEqual([])
     })
 
     test('timer callback triggers a sync pass', async () => {

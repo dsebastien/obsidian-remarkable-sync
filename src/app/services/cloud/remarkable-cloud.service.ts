@@ -1,5 +1,6 @@
 import { log } from '../../../utils/log'
-import type { NotebookSummary } from '../../domain/notebook'
+import type { DocumentListing, NotebookSummary } from '../../domain/notebook'
+import { describeListing, failedListing } from '../../domain/notebook'
 import type { RemarkableDocumentMetadata } from '../../domain/remarkable-types'
 import type { RemarkableSyncPlugin } from '../../plugin'
 import {
@@ -12,7 +13,7 @@ import {
 import { resolveCloudUrls } from './cloud-urls'
 
 export interface RemarkableCloudService {
-    listDocuments(): Promise<NotebookSummary[]>
+    listDocuments(): Promise<DocumentListing>
     downloadDocument(documentId: string): Promise<Map<string, ArrayBuffer> | null>
 }
 
@@ -87,18 +88,28 @@ export function createRemarkableCloudService(plugin: RemarkableSyncPlugin): Rema
         }
     }
 
-    async function listDocuments(): Promise<NotebookSummary[]> {
+    /** Report a total failure, and say so in the log. */
+    function listingFailed(message: string): DocumentListing {
+        log(`Could not list documents: ${message}`, 'warn')
+        return failedListing(message)
+    }
+
+    async function listDocuments(): Promise<DocumentListing> {
         try {
             const { syncBaseUrl } = resolveCloudUrls(plugin.settings)
 
             // Step 1: Get root hash (with token refresh on 401)
             const result = await getRootHashWithRetry()
-            if (!result) return []
+            if (!result) {
+                return listingFailed('Could not reach the reMarkable cloud')
+            }
             const { rootHash, userToken } = result
 
             // Step 2: Download and parse root index
             const rootBlob = await fetchBlob(userToken, rootHash, ROOT_INDEX_FILENAME, syncBaseUrl)
-            if (!rootBlob) return []
+            if (!rootBlob) {
+                return listingFailed('Could not download the reMarkable index')
+            }
 
             const rootContent = new TextDecoder().decode(rootBlob)
             const rootEntries = parseIndex(rootContent)
@@ -121,6 +132,12 @@ export function createRemarkableCloudService(plugin: RemarkableSyncPlugin): Rema
                     return { entry, metadata }
                 })
             )
+
+            // An entry we could not read is NOT an entry that was deleted, and
+            // the difference decides whether pruning is allowed to run.
+            const unreadable = metadataResults.filter(
+                (result) => 'fulfilled' !== result.status || !result.value.metadata
+            ).length
 
             // Build folder name/parent maps
             const folderNames = new Map<string, string>()
@@ -175,10 +192,16 @@ export function createRemarkableCloudService(plugin: RemarkableSyncPlugin): Rema
             }
 
             log(`Listed ${notebooks.length} documents`, 'debug')
-            return notebooks
+
+            const listing = describeListing(notebooks, unreadable)
+            if (listing.error) {
+                log(listing.error, 'warn')
+            }
+            return listing
         } catch (error) {
             log('Failed to list documents', 'error', error)
-            return []
+            const message = error instanceof Error ? error.message : 'Unknown error'
+            return listingFailed(message)
         }
     }
 

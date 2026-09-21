@@ -21,16 +21,58 @@ export interface SyncStore {
 export type SyncStatus = 'synced' | 'needs-sync' | 'never-synced'
 
 /**
- * Derive the sync status from a notebook's sync state
+ * Parse a reMarkable `lastModified` value into epoch milliseconds.
+ *
+ * Strict on purpose. `parseInt` alone accepts anything that merely STARTS with
+ * a digit, so an ISO-8601 `lastModified` would parse as the year (`2026`),
+ * which compares as 1970 and makes every notebook look permanently up to date.
+ * A value we cannot trust must be reported as such rather than guessed at.
+ *
+ * @returns epoch milliseconds, or null when the value is not a plain integer
  */
-export function deriveSyncStatus(state: NotebookSyncState | undefined): SyncStatus {
+export function parseCloudTimestamp(value: string | undefined): number | null {
+    if (!value || !/^\d+$/.test(value.trim())) {
+        return null
+    }
+    const parsed = Number(value.trim())
+    return Number.isSafeInteger(parsed) ? parsed : null
+}
+
+/**
+ * Derive the sync status from a notebook's stored state and the timestamp the
+ * cloud is reporting for it RIGHT NOW.
+ *
+ * Both sides of the comparison are cloud timestamps: what the cloud says today
+ * against what the cloud said when we last synced. That is the whole point.
+ * The previous rule compared `lastSyncedAt`, a local `Date.now()`, against a
+ * server timestamp, which is a comparison between two unrelated clocks. It was
+ * wrong in both directions. Because the stored `lastModifiedCloud` is always
+ * older than the `Date.now()` written beside it, a synced notebook compared as
+ * up to date forever and a genuine device edit was never noticed; and any
+ * clock skew on the local machine flipped the result for reasons that have
+ * nothing to do with the notebook.
+ *
+ * `lastSyncedAt` is now display only ("last synced 3 days ago") and is
+ * deliberately not consulted here.
+ *
+ * An unparseable cloud timestamp leaves an already-synced notebook alone. We
+ * cannot tell whether it changed, and re-downloading on every pass forever is
+ * the worse of the two failures.
+ */
+export function deriveSyncStatus(
+    state: NotebookSyncState | undefined,
+    cloudLastModified: string | undefined
+): SyncStatus {
     if (!state || state.lastSyncedAt === 0) {
         return 'never-synced'
     }
-    if (state.lastSyncedAt >= state.lastModifiedCloud) {
+
+    const cloudNow = parseCloudTimestamp(cloudLastModified)
+    if (null === cloudNow) {
         return 'synced'
     }
-    return 'needs-sync'
+
+    return cloudNow > state.lastModifiedCloud ? 'needs-sync' : 'synced'
 }
 
 /**

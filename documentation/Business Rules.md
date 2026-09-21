@@ -43,11 +43,13 @@ When a new business rule is mentioned:
 ## Sync
 
 - Sync state persists across sessions (stored in plugin data alongside settings)
-- A notebook is "synced" when its local `lastSyncedAt` >= cloud `lastModifiedCloud`
+- A notebook needs syncing when the cloud's CURRENT `lastModified` is greater than the `lastModifiedCloud` recorded at its last sync. Both sides are cloud timestamps: the local clock never takes part, so clock skew cannot affect the decision. `lastSyncedAt` is display only
+- A cloud `lastModified` that is not a plain integer is treated as unknown, and an already-synced notebook is left alone rather than re-downloaded on every pass
 - "Sync all" only processes notebooks with `needs-sync` or `never-synced` status
 - Sync state is cleared when user disconnects from reMarkable cloud
 - Users can sync individual notebooks, multiple selected notebooks, or all notebooks at once
-- On every successful cloud listing (panel refresh or automatic sync), sync-state entries whose notebook no longer exists in the cloud are pruned; generated vault files are never deleted automatically
+- Sync-state entries are pruned ONLY from a cloud listing known to be COMPLETE (`DocumentListing.complete`). A failed or partial listing never prunes: an unreachable cloud returns no notebooks, and reading that as "every notebook was deleted" erases the sync store and forces a full re-download. Generated vault files are never deleted automatically
+- A cloud listing reports failure separately from emptiness. "No notebooks" and "could not reach the cloud" are distinct outcomes and must never collapse into the same empty value
 - Automatic background sync is opt-in (default off); the interval is clamped to 5–240 minutes (default 30); runs are skipped while disconnected or when a previous run is still in progress; timers are registered via `registerInterval` so they are cleaned up on unload
 
 ## Local Import

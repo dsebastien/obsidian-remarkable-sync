@@ -115,3 +115,17 @@ For a document imported from a PDF, you get the original plus an annotated copy 
 A document imported from an EPUB is written through as `{Name}.epub`, unchanged and unannotated.
 
 Blank pages are skipped entirely. A page is blank only when it has no handwriting, no typed text, no highlight and no placed image (dragged in from the desktop app on reMarkable OS 3.27, or made with the 3.28 capture tool). Skipping means PDF page numbers do not necessarily match the page numbers on your device. Pages that fail to render are skipped too, and the plugin reports how many.
+
+### Generated files are overwritten
+
+Every path listed above belongs to the plugin. When a notebook syncs, the plugin compares what it just generated against what is already in your vault, and writes only when the two differ.
+
+That comparison is on file contents, not on timestamps. Anything that touches a file without changing it, another sync tool, a backup job, opening it, or a plain `touch`, is harmless. The plugin does not read file modification times at all and will not react to one changing.
+
+Changing the **contents** is different. If you annotate a generated PDF inside Obsidian, or edit a generated note, the next sync of that notebook sees different bytes and replaces the file with a fresh copy. Your edits are lost, without a prompt.
+
+So treat these files as output rather than as documents you own:
+
+- To annotate a document, do it on the reMarkable. Your handwriting comes back in `{Name} (annotated).pdf` on the next sync.
+- To keep an edited version, **rename it** first. A renamed file no longer sits at a path the plugin writes to, so it is left alone permanently, and renaming from inside Obsidian rewrites any links pointing at it. Expect the plugin to recreate the original file at its old path on the next sync, so you end up with both.
+- To write your own notes about a notebook, put them in a separate note and link to the generated one.

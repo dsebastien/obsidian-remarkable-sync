@@ -81,6 +81,8 @@ When a new business rule is mentioned:
 - PDF page size is derived from the rendered image at 226 DPI, so a page whose canvas grew for scrolled content becomes a taller PDF page rather than a cropped one
 - A PDF has no WebP filter: when `imageFormat` is `webp`, pages are embedded as JPEG at the configured quality while loose image files stay WebP. This is the only case where a page is rendered twice
 - Generated PDFs carry no creation date, modification date, producer or file ID (`updateMetadata: false`), so re-processing an unchanged notebook produces byte-identical output
+- Generated output paths are owned by the plugin. When the bytes differ, the file is REPLACED, including when the difference came from the user editing it: there is no user-modification check, so a hand-annotated generated PDF is lost on the next sync of that notebook. Documented in `docs/usage.md` under "Generated files are overwritten"; renaming a file moves it off a plugin-owned path and protects it permanently
+- The write guard compares file CONTENTS, never modification times, so an external touch (another sync tool, a backup job) cannot cause a rewrite and cannot feed back into any sync decision
 - Vault writes are skipped entirely when the new bytes match the existing file, for images as well as PDFs. Without this, deterministic output still bumped the mtime on every re-sync and read as a change to Obsidian Sync, Git or Dropbox — a device bumps `lastModified` for benign reasons such as opening a notebook, and automatic sync repeats that on a timer
 - Blank pages and pages that failed to render are absent from an assembled PDF, so its page numbers do not necessarily match reMarkable page numbers
 

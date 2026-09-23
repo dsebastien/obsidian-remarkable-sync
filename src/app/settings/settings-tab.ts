@@ -19,6 +19,7 @@ import {
 } from '../services/auth/token-store'
 import { BUY_ME_A_COFFEE_BADGE_DATA_URL } from '../assets/buy-me-a-coffee'
 import { BUY_ME_A_COFFEE_URL, renderSupportSection } from '../ui/support-links'
+import { normaliseTargetFolderInput, validateVaultFolderPath } from '../../utils/sanitise-path'
 
 /**
  * The settings keys owned by plain declarative controls, i.e. everything the
@@ -228,7 +229,16 @@ export class RemarkableSyncSettingTab extends PluginSettingTab {
                         control: {
                             type: 'text',
                             key: 'targetFolder',
-                            placeholder: 'e.g., reMarkable'
+                            placeholder: 'e.g., reMarkable',
+                            // Refused rather than quietly rewritten: silently
+                            // changing what someone just typed into a field is
+                            // worse than telling them why it cannot be used.
+                            // The framework also runs this on mount, so a
+                            // stored value that would be refused today shows
+                            // the message without being changed.
+                            validate: (value: string): string | void =>
+                                validateVaultFolderPath(normaliseTargetFolderInput(value)) ??
+                                undefined
                         }
                     },
                     {
@@ -428,9 +438,13 @@ export class RemarkableSyncSettingTab extends PluginSettingTab {
                 if (typeof value !== 'string') {
                     throw new Error(`Setting "${key}" expects a string.`)
                 }
-                const trimmed = value.trim()
+                const normalised = normaliseTargetFolderInput(value)
+                const invalid = validateVaultFolderPath(normalised)
+                if (invalid) {
+                    throw new Error(invalid)
+                }
                 await this.plugin.updateSettings((draft) => {
-                    draft.targetFolder = trimmed
+                    draft.targetFolder = normalised
                 })
                 break
             }

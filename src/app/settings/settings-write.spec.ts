@@ -194,3 +194,37 @@ describe('setControlValue', () => {
         expect(saveData).not.toHaveBeenCalled()
     })
 })
+
+describe('setControlValue targetFolder', () => {
+    test('refuses a traversal and leaves the stored value alone', async () => {
+        const h = createHarness()
+        await expectRejection(h.tab.setControlValue('targetFolder', '../../etc'), '..')
+        expect(h.plugin.settings.targetFolder).toBe(DEFAULT_SETTINGS.targetFolder)
+    })
+
+    test('refuses an absolute path', async () => {
+        const h = createHarness()
+        await expectRejection(h.tab.setControlValue('targetFolder', '/etc'), 'absolute')
+        expect(h.plugin.settings.targetFolder).toBe(DEFAULT_SETTINGS.targetFolder)
+    })
+
+    test('refuses a character that breaks a write or a wikilink', async () => {
+        const h = createHarness()
+        await expectRejection(h.tab.setControlValue('targetFolder', 'rM:notes'), 'Folder path')
+        await expectRejection(h.tab.setControlValue('targetFolder', 'C# notes'), 'Folder path')
+        expect(h.plugin.settings.targetFolder).toBe(DEFAULT_SETTINGS.targetFolder)
+    })
+
+    test('accepts a usable path, trimming whitespace and trailing slashes', async () => {
+        const h = createHarness()
+        await h.tab.setControlValue('targetFolder', '  reMarkable/Notes/  ')
+        expect(h.plugin.settings.targetFolder).toBe('reMarkable/Notes')
+    })
+
+    test('accepts the vault root', async () => {
+        const h = createHarness()
+        await h.tab.setControlValue('targetFolder', 'reMarkable')
+        await h.tab.setControlValue('targetFolder', '')
+        expect(h.plugin.settings.targetFolder).toBe('')
+    })
+})

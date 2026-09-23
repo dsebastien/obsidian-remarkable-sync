@@ -153,3 +153,33 @@ describe('mergeLoadedSettings validation', () => {
         expect(mergeLoadedSettings({ syncStore: valid }).syncStore).toEqual(valid as never)
     })
 })
+
+describe('mergeLoadedSettings target folder', () => {
+    test('contains a traversal from a hand-edited data.json', () => {
+        // `typeof` says "string", which does not stop `../../etc` from
+        // escaping the vault. Contained rather than rejected: loading must not
+        // break startup.
+        expect(mergeLoadedSettings({ targetFolder: '../../etc' }).targetFolder).toBe('etc')
+        expect(mergeLoadedSettings({ targetFolder: '/abs/rM' }).targetFolder).toBe('abs/rM')
+    })
+
+    test('keeps output out of a hidden folder', () => {
+        expect(mergeLoadedSettings({ targetFolder: '.hidden/rM' }).targetFolder).toBe('-hidden/rM')
+    })
+
+    test('leaves characters that are legal on some platforms alone', () => {
+        // A vault already writing to "rM:notes" on Linux keeps writing there.
+        // Replacing the character would move existing output, which is
+        // deferred to the next major (issue #40).
+        expect(mergeLoadedSettings({ targetFolder: 'rM:notes' }).targetFolder).toBe('rM:notes')
+        expect(mergeLoadedSettings({ targetFolder: 'C# notes' }).targetFolder).toBe('C# notes')
+    })
+
+    test('leaves a usable path alone', () => {
+        // The vault root is the documented default and must survive.
+        expect(mergeLoadedSettings({ targetFolder: '' }).targetFolder).toBe('')
+        expect(mergeLoadedSettings({ targetFolder: 'reMarkable/Notes' }).targetFolder).toBe(
+            'reMarkable/Notes'
+        )
+    })
+})

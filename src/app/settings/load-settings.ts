@@ -4,11 +4,40 @@ import {
     MIN_AUTO_SYNC_INTERVAL_MINUTES
 } from '../types/plugin-settings.intf'
 import type { PluginSettings } from '../types/plugin-settings.intf'
+import { log } from '../../utils/log'
+import { containVaultFolderPath, validateVaultFolderPath } from '../../utils/sanitise-path'
 
 const IMAGE_FORMATS: ReadonlySet<string> = new Set(['png', 'jpeg', 'webp'])
 
 function clamp(value: number, min: number, max: number): number {
     return Math.min(Math.max(value, min), max)
+}
+
+/**
+ * Make a stored target folder safe to write under, without breaking startup.
+ *
+ * `typeof` says "string", which does not stop `../../etc` from escaping the
+ * vault. The value is contained rather than rejected, because this path is
+ * non-interactive: a hand-edited `data.json` must degrade to something usable.
+ *
+ * Only containment is applied (traversal, absolute paths, hidden folders,
+ * control characters). A character such as `#` or `:` is legal on some
+ * platforms, so a vault already writing there keeps doing so; it is only
+ * warned about. Rewriting it would move existing output, which is deferred to
+ * the next major.
+ */
+function loadTargetFolder(stored: string): string {
+    const contained = containVaultFolderPath(stored)
+    if (contained !== stored) {
+        log(`Target folder "${stored}" is not a usable vault path; using "${contained}"`, 'warn')
+    }
+
+    const problem = validateVaultFolderPath(contained)
+    if (problem) {
+        log(`Target folder "${contained}": ${problem} It is kept as is for now.`, 'warn')
+    }
+
+    return contained
 }
 
 /**
@@ -72,6 +101,8 @@ export function mergeLoadedSettings(loaded: unknown): PluginSettings {
             MAX_AUTO_SYNC_INTERVAL_MINUTES
         )
     }
+    merged.targetFolder = loadTargetFolder(merged.targetFolder)
+
     // Everything downstream iterates `syncStore.notebooks`; an array or a
     // missing map would throw far from here.
     const store = merged.syncStore as unknown

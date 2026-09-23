@@ -269,4 +269,39 @@ describe('writeBinaryIfChanged path conflicts', () => {
         )
         expect(calls.created).toHaveLength(0)
     })
+
+    test('refuses when a file occupies a more distant ancestor', async () => {
+        // The direct parent lookup returns null here, which looks like a
+        // folder that only needs creating; createFolder would then fail into
+        // the tolerant catch and the real cause would be lost.
+        const { vault, calls } = createFakeVault({ Notes: bytes(1) })
+
+        await expectRejection(
+            writeBinaryIfChanged(vault, 'Notes/Work/Meeting.pdf', bytes(2)),
+            'a file already occupies the folder path Notes'
+        )
+        expect(calls.foldersCreated).toHaveLength(0)
+        expect(calls.created).toHaveLength(0)
+    })
+
+    test('does not recreate a parent folder that already exists', async () => {
+        const { vault, calls } = createFakeVault({}, ['Notes'])
+
+        await writeBinaryIfChanged(vault, 'Notes/Meeting.pdf', bytes(1))
+
+        expect(calls.foldersCreated).toHaveLength(0)
+        expect(calls.created).toEqual(['Notes/Meeting.pdf'])
+    })
+
+    test('a failed createFolder is tolerated when nothing is in the way', async () => {
+        // "Folder already exists" from a folder the index has not seen yet
+        // must not abort the write.
+        const { vault, calls } = createFakeVault()
+        ;(vault as unknown as { createFolder: () => Promise<void> }).createFolder = () =>
+            Promise.reject(new Error('Folder already exists.'))
+
+        await writeBinaryIfChanged(vault, 'Notes/Meeting.pdf', bytes(1))
+
+        expect(calls.created).toEqual(['Notes/Meeting.pdf'])
+    })
 })

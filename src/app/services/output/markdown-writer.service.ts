@@ -75,6 +75,14 @@ export function buffersEqual(a: ArrayBuffer, b: ArrayBuffer): boolean {
 
 /**
  * Create the parent folder of a vault path if it does not exist yet.
+ *
+ * Refuses, with the offending path in the message, when a FILE occupies the
+ * parent folder or any of its ancestors. `createFolder` would otherwise throw
+ * into the catch below, which exists to tolerate "folder already exists", and
+ * the failure would re-emerge from `createBinary` with nothing to explain it.
+ * Every ancestor is checked, not only the direct parent: for `a/b/c.pdf` with a
+ * file at `a`, the lookup of `a/b` returns null and looks like a folder that
+ * simply needs creating.
  */
 async function ensureParentFolder(vault: Vault, filePath: string): Promise<void> {
     const folderParts = filePath.split('/')
@@ -85,21 +93,27 @@ async function ensureParentFolder(vault: Vault, filePath: string): Promise<void>
         return
     }
 
-    const existing = vault.getAbstractFileByPath(folderFullPath)
+    for (let i = 1; i <= folderParts.length; i++) {
+        const ancestor = folderParts.slice(0, i).join('/')
+        if (vault.getAbstractFileByPath(ancestor) instanceof TFile) {
+            throw new Error(
+                `Cannot write ${filePath}: a file already occupies the folder path ${ancestor}`
+            )
+        }
+    }
 
-    // Checked outside the try below on purpose: the bare catch there exists to
-    // swallow "folder already exists", and it would swallow this too, leaving
-    // the failure to surface from createBinary with nothing to explain it.
-    if (existing instanceof TFile) {
-        throw new Error(`Cannot write ${filePath}: a file already occupies the folder path`)
+    if (vault.getAbstractFileByPath(folderFullPath)) {
+        return
     }
 
     try {
-        if (!existing) {
-            await vault.createFolder(folderFullPath)
-        }
-    } catch {
-        // Folder might already exist
+        await vault.createFolder(folderFullPath)
+    } catch (error) {
+        // Tolerated: the folder can exist on disk before the vault index knows
+        // about it (a concurrent sync, or a case-only difference on a
+        // case-insensitive filesystem). A file in the way was refused above;
+        // anything else resurfaces from createBinary with its own message.
+        log(`Could not create folder ${folderFullPath}, continuing`, 'debug', error)
     }
 }
 

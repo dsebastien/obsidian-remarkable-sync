@@ -1,3 +1,4 @@
+import { mapSettledWithConcurrency } from '../../../utils/concurrency'
 import { log } from '../../../utils/log'
 import type { DocumentListing, NotebookSummary } from '../../domain/notebook'
 import { describeListing, failedListing } from '../../domain/notebook'
@@ -12,6 +13,47 @@ import {
 } from './sync-protocol'
 import { resolveCloudUrls } from './cloud-urls'
 
+/**
+ * Requests in flight at once during a listing or a download. Each listed entry
+ * costs two sequential requests, so this bounds the burst regardless of how
+ * many documents the account holds.
+ */
+export const CLOUD_REQUEST_CONCURRENCY = 6
+
+/**
+ * Resolve a document's folder path from its parent chain.
+ *
+ * Returns null when a folder in the chain exists in the cloud index but its
+ * metadata could not be read. The path decides where the notebook is written,
+ * so a shortened path would put it in the wrong vault folder and a later
+ * successful sync would write a second copy elsewhere (issue #28). Only a
+ * parent that is genuinely absent (not in the index, or deleted) ends the
+ * chain early, which is the pre-existing behaviour for orphaned documents.
+ */
+export function resolveFolderPath(
+    parentId: string,
+    folderNames: ReadonlyMap<string, string>,
+    folderParents: ReadonlyMap<string, string>,
+    unreadableIds: ReadonlySet<string>
+): string | null {
+    const parts: string[] = []
+    let current = parentId
+    const visited = new Set<string>()
+    while (current && current !== 'trash' && !visited.has(current)) {
+        visited.add(current)
+        if (unreadableIds.has(current)) {
+            return null
+        }
+        const name = folderNames.get(current)
+        if (name === undefined) {
+            break
+        }
+        parts.unshift(name)
+        current = folderParents.get(current) ?? ''
+    }
+    return parts.join('/')
+}
+
 export interface RemarkableCloudService {
     listDocuments(): Promise<DocumentListing>
     downloadDocument(documentId: string): Promise<Map<string, ArrayBuffer> | null>
@@ -20,6 +62,11 @@ export interface RemarkableCloudService {
 export function createRemarkableCloudService(plugin: RemarkableSyncPlugin): RemarkableCloudService {
     // Cache: document/folder ID -> index hash (populated during listDocuments)
     let entryHashMap = new Map<string, string>()
+
+    // Cache: entry index hash -> parsed metadata. The index hash changes
+    // whenever anything in the entry changes, so an unchanged entry is never
+    // fetched twice and a steady-state listing costs one request (the root).
+    let metadataCache = new Map<string, RemarkableDocumentMetadata>()
 
     /**
      * Fetch metadata for a single entry (document or folder) by downloading
@@ -120,24 +167,32 @@ export function createRemarkableCloudService(plugin: RemarkableSyncPlugin): Rema
                 entryHashMap.set(entry.id, entry.hash)
             }
 
-            // Step 3: Fetch metadata for all entries in parallel
-            const metadataResults = await Promise.allSettled(
-                rootEntries.map(async (entry) => {
-                    const metadata = await fetchEntryMetadata(
-                        userToken,
-                        entry.hash,
-                        entry.id,
-                        syncBaseUrl
-                    )
+            // Step 3: Fetch metadata, reusing anything whose hash is unchanged
+            const nextCache = new Map<string, RemarkableDocumentMetadata>()
+            const metadataResults = await mapSettledWithConcurrency(
+                rootEntries,
+                CLOUD_REQUEST_CONCURRENCY,
+                async (entry) => {
+                    const cached = metadataCache.get(entry.hash)
+                    const metadata =
+                        cached ??
+                        (await fetchEntryMetadata(userToken, entry.hash, entry.id, syncBaseUrl))
+                    if (metadata) {
+                        nextCache.set(entry.hash, metadata)
+                    }
                     return { entry, metadata }
-                })
+                }
             )
+            metadataCache = nextCache
 
             // An entry we could not read is NOT an entry that was deleted, and
             // the difference decides whether pruning is allowed to run.
-            const unreadable = metadataResults.filter(
-                (result) => 'fulfilled' !== result.status || !result.value.metadata
-            ).length
+            const unreadableIds = new Set<string>()
+            metadataResults.forEach((result, index) => {
+                if ('fulfilled' !== result.status || !result.value.metadata) {
+                    unreadableIds.add(rootEntries[index]!.id)
+                }
+            })
 
             // Build folder name/parent maps
             const folderNames = new Map<string, string>()
@@ -153,26 +208,9 @@ export function createRemarkableCloudService(plugin: RemarkableSyncPlugin): Rema
                 }
             }
 
-            // Resolve folder path from parent chain
-            const buildFolderPath = (parentId: string): string => {
-                const parts: string[] = []
-                let current = parentId
-                const visited = new Set<string>()
-                while (current && current !== '' && current !== 'trash' && !visited.has(current)) {
-                    visited.add(current)
-                    const name = folderNames.get(current)
-                    if (name) {
-                        parts.unshift(name)
-                        current = folderParents.get(current) ?? ''
-                    } else {
-                        break
-                    }
-                }
-                return parts.join('/')
-            }
-
             // Collect documents
             const notebooks: NotebookSummary[] = []
+            let withheld = 0
 
             for (const result of metadataResults) {
                 if (result.status !== 'fulfilled' || !result.value.metadata) continue
@@ -181,19 +219,33 @@ export function createRemarkableCloudService(plugin: RemarkableSyncPlugin): Rema
                 if (metadata.type !== 'DocumentType') continue
                 if (metadata.parent === 'trash') continue
 
+                const folderPath = resolveFolderPath(
+                    metadata.parent,
+                    folderNames,
+                    folderParents,
+                    unreadableIds
+                )
+                if (null === folderPath) {
+                    // Withheld rather than written to a truncated path; counts
+                    // as unreadable so the listing is reported incomplete.
+                    log(`Skipped ${metadata.visibleName}: a parent folder could not be read`, 'warn')
+                    withheld++
+                    continue
+                }
+
                 notebooks.push({
                     id: entry.id,
                     visibleName: metadata.visibleName,
                     parent: metadata.parent,
                     lastModified: metadata.lastModified,
                     pageCount: 0,
-                    folderPath: buildFolderPath(metadata.parent)
+                    folderPath
                 })
             }
 
             log(`Listed ${notebooks.length} documents`, 'debug')
 
-            const listing = describeListing(notebooks, unreadable)
+            const listing = describeListing(notebooks, unreadableIds.size + withheld)
             if (listing.error) {
                 log(listing.error, 'warn')
             }
@@ -256,12 +308,14 @@ export function createRemarkableCloudService(plugin: RemarkableSyncPlugin): Rema
             const indexContent = new TextDecoder().decode(indexBlob)
             const fileEntries = parseIndex(indexContent)
 
-            // Download all files in parallel
-            const fileResults = await Promise.allSettled(
-                fileEntries.map(async (entry) => {
+            // Download all files, a bounded number at a time
+            const fileResults = await mapSettledWithConcurrency(
+                fileEntries,
+                CLOUD_REQUEST_CONCURRENCY,
+                async (entry) => {
                     const data = await fetchBlob(userToken, entry.hash, entry.id, syncBaseUrl)
                     return { path: entry.id, data }
-                })
+                }
             )
 
             const files = new Map<string, ArrayBuffer>()
@@ -271,8 +325,14 @@ export function createRemarkableCloudService(plugin: RemarkableSyncPlugin): Rema
                 }
             }
 
-            if (files.size === 0) {
-                log(`No files downloaded for document ${documentId}`, 'error')
+            // A missing blob after retries means missing pages. Processing the
+            // rest would mark the notebook synced with pages silently absent,
+            // and nothing would ever retry them.
+            if (files.size === 0 || files.size < fileEntries.length) {
+                log(
+                    `Downloaded ${files.size} of ${fileEntries.length} files for document ${documentId}`,
+                    'error'
+                )
                 return null
             }
 

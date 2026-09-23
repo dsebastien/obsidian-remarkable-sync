@@ -50,6 +50,11 @@ When a new business rule is mentioned:
 - Users can sync individual notebooks, multiple selected notebooks, or all notebooks at once
 - Sync-state entries are pruned ONLY from a cloud listing known to be COMPLETE (`DocumentListing.complete`). A failed or partial listing never prunes: an unreachable cloud returns no notebooks, and reading that as "every notebook was deleted" erases the sync store and forces a full re-download. Generated vault files are never deleted automatically
 - A cloud listing reports failure separately from emptiness. "No notebooks" and "could not reach the cloud" are distinct outcomes and must never collapse into the same empty value
+- Cloud requests run through a bounded pool (`CLOUD_REQUEST_CONCURRENCY`, 6) for listings and downloads. Mapping every entry into one `Promise.allSettled` fired two requests per document and folder at once
+- Transient failures (429, 5xx, network errors) are retried up to `MAX_REQUEST_ATTEMPTS` (4) times, honouring `Retry-After` (seconds or HTTP date) and otherwise with exponential backoff from 1 s; every wait is capped at 30 s. Other 4xx are terminal and never retried
+- Entry metadata is cached in memory by the entry's index hash, which changes whenever the entry changes; an unchanged entry is never re-fetched within a session
+- A write path is never derived from an incomplete parent chain. If a folder in a notebook's chain is in the index but its metadata could not be read, the notebook is withheld from the listing (which is then incomplete) rather than written to a shortened path in the wrong vault folder. A parent genuinely absent from the index (or deleted) still ends the chain early
+- A document download with any blob missing after retries fails as a whole. Processing the rest would mark the notebook synced with pages silently absent, and nothing would retry them
 - Automatic background sync is opt-in (default off); the interval is clamped to 5–240 minutes (default 30); runs are skipped while disconnected or when a previous run is still in progress; timers are registered via `registerInterval` so they are cleaned up on unload
 
 ## Local Import

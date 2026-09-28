@@ -9,6 +9,8 @@ import {
     fetchBlob,
     fetchRootHash,
     parseIndex,
+    parseIndexDetailed,
+    RequestBudget,
     ROOT_INDEX_FILENAME
 } from './sync-protocol'
 import { resolveCloudUrls } from './cloud-urls'
@@ -59,7 +61,21 @@ export interface RemarkableCloudService {
     downloadDocument(documentId: string): Promise<Map<string, ArrayBuffer> | null>
 }
 
-export function createRemarkableCloudService(plugin: RemarkableSyncPlugin): RemarkableCloudService {
+/** The network calls the service makes; replaced in tests by an in-memory cloud. */
+export interface CloudTransport {
+    readonly fetchRootHash: typeof fetchRootHash
+    readonly fetchBlob: typeof fetchBlob
+}
+
+export type CloudServiceHost = Pick<
+    RemarkableSyncPlugin,
+    'settings' | 'authService' | 'unloadSignal'
+>
+
+export function createRemarkableCloudService(
+    plugin: CloudServiceHost,
+    transport: CloudTransport = { fetchRootHash, fetchBlob }
+): RemarkableCloudService {
     // Cache: document/folder ID -> index hash (populated during listDocuments)
     let entryHashMap = new Map<string, string>()
 
@@ -76,13 +92,15 @@ export function createRemarkableCloudService(plugin: RemarkableSyncPlugin): Rema
         userToken: string,
         indexHash: string,
         entryId: string,
-        syncBaseUrl: string
+        syncBaseUrl: string,
+        budget: RequestBudget
     ): Promise<RemarkableDocumentMetadata | null> {
-        const indexBlob = await fetchBlob(
+        const indexBlob = await transport.fetchBlob(
             userToken,
             indexHash,
             docIndexFilename(entryId),
-            syncBaseUrl
+            syncBaseUrl,
+            budget
         )
         if (!indexBlob) return null
 
@@ -92,11 +110,12 @@ export function createRemarkableCloudService(plugin: RemarkableSyncPlugin): Rema
         const metadataEntry = fileEntries.find((e) => e.id.endsWith('.metadata'))
         if (!metadataEntry) return null
 
-        const metadataBlob = await fetchBlob(
+        const metadataBlob = await transport.fetchBlob(
             userToken,
             metadataEntry.hash,
             metadataEntry.id,
-            syncBaseUrl
+            syncBaseUrl,
+            budget
         )
         if (!metadataBlob) return null
 
@@ -109,7 +128,9 @@ export function createRemarkableCloudService(plugin: RemarkableSyncPlugin): Rema
         }
     }
 
-    async function getRootHashWithRetry(): Promise<{ rootHash: string; userToken: string } | null> {
+    async function getRootHashWithRetry(
+        budget: RequestBudget
+    ): Promise<{ rootHash: string; userToken: string } | null> {
         const { syncBaseUrl } = resolveCloudUrls(plugin.settings)
         let userToken = await plugin.authService.getUserToken()
         if (!userToken) {
@@ -118,7 +139,7 @@ export function createRemarkableCloudService(plugin: RemarkableSyncPlugin): Rema
         }
 
         try {
-            const rootHash = await fetchRootHash(userToken, syncBaseUrl)
+            const rootHash = await transport.fetchRootHash(userToken, syncBaseUrl, budget)
             if (!rootHash) return null
             return { rootHash, userToken }
         } catch {
@@ -129,7 +150,7 @@ export function createRemarkableCloudService(plugin: RemarkableSyncPlugin): Rema
                 log('Token refresh failed', 'error')
                 return null
             }
-            const rootHash = await fetchRootHash(userToken, syncBaseUrl)
+            const rootHash = await transport.fetchRootHash(userToken, syncBaseUrl, budget)
             if (!rootHash) return null
             return { rootHash, userToken }
         }
@@ -141,25 +162,47 @@ export function createRemarkableCloudService(plugin: RemarkableSyncPlugin): Rema
         return failedListing(message)
     }
 
+    /** One failure budget per listing or download (see `RequestBudget`). */
+    function newBudget(): RequestBudget {
+        return new RequestBudget({ signal: plugin.unloadSignal })
+    }
+
     async function listDocuments(): Promise<DocumentListing> {
         try {
             const { syncBaseUrl } = resolveCloudUrls(plugin.settings)
+            const budget = newBudget()
 
             // Step 1: Get root hash (with token refresh on 401)
-            const result = await getRootHashWithRetry()
+            const result = await getRootHashWithRetry(budget)
             if (!result) {
-                return listingFailed('Could not reach the reMarkable cloud')
+                return listingFailed(
+                    budget.exhaustedReason ?? 'Could not reach the reMarkable cloud'
+                )
             }
             const { rootHash, userToken } = result
 
             // Step 2: Download and parse root index
-            const rootBlob = await fetchBlob(userToken, rootHash, ROOT_INDEX_FILENAME, syncBaseUrl)
+            const rootBlob = await transport.fetchBlob(
+                userToken,
+                rootHash,
+                ROOT_INDEX_FILENAME,
+                syncBaseUrl,
+                budget
+            )
             if (!rootBlob) {
-                return listingFailed('Could not download the reMarkable index')
+                return listingFailed(
+                    budget.exhaustedReason ?? 'Could not download the reMarkable index'
+                )
             }
 
             const rootContent = new TextDecoder().decode(rootBlob)
-            const rootEntries = parseIndex(rootContent)
+            // A line the parser rejects is an entry it cannot name: the listing
+            // cannot be complete, or pruning would read it as deleted.
+            const { entries: rootEntries, rejected: rejectedRootLines } =
+                parseIndexDetailed(rootContent)
+            if (rejectedRootLines > 0) {
+                log(`${rejectedRootLines} unreadable line(s) in the reMarkable index`, 'warn')
+            }
 
             // Cache entry hashes for later download
             entryHashMap = new Map()
@@ -176,7 +219,13 @@ export function createRemarkableCloudService(plugin: RemarkableSyncPlugin): Rema
                     const cached = metadataCache.get(entry.hash)
                     const metadata =
                         cached ??
-                        (await fetchEntryMetadata(userToken, entry.hash, entry.id, syncBaseUrl))
+                        (await fetchEntryMetadata(
+                            userToken,
+                            entry.hash,
+                            entry.id,
+                            syncBaseUrl,
+                            budget
+                        ))
                     if (metadata) {
                         nextCache.set(entry.hash, metadata)
                     }
@@ -228,7 +277,10 @@ export function createRemarkableCloudService(plugin: RemarkableSyncPlugin): Rema
                 if (null === folderPath) {
                     // Withheld rather than written to a truncated path; counts
                     // as unreadable so the listing is reported incomplete.
-                    log(`Skipped ${metadata.visibleName}: a parent folder could not be read`, 'warn')
+                    log(
+                        `Skipped ${metadata.visibleName}: a parent folder could not be read`,
+                        'warn'
+                    )
                     withheld++
                     continue
                 }
@@ -245,7 +297,17 @@ export function createRemarkableCloudService(plugin: RemarkableSyncPlugin): Rema
 
             log(`Listed ${notebooks.length} documents`, 'debug')
 
-            const listing = describeListing(notebooks, unreadableIds.size + withheld)
+            const described = describeListing(
+                notebooks,
+                unreadableIds.size + withheld + rejectedRootLines
+            )
+            // When the budget stopped the listing, its reason says more than a
+            // count of unreadable items.
+            const stopped = budget.exhaustedReason
+            const listing =
+                stopped !== null && !described.complete
+                    ? { ...described, error: stopped }
+                    : described
             if (listing.error) {
                 log(listing.error, 'warn')
             }
@@ -260,20 +322,22 @@ export function createRemarkableCloudService(plugin: RemarkableSyncPlugin): Rema
     async function downloadDocument(documentId: string): Promise<Map<string, ArrayBuffer> | null> {
         try {
             const { syncBaseUrl } = resolveCloudUrls(plugin.settings)
+            const budget = newBudget()
 
             // Look up document's index hash (fetch root if not cached)
             let indexHash = entryHashMap.get(documentId)
             let userToken: string | null = null
             if (!indexHash) {
-                const result = await getRootHashWithRetry()
+                const result = await getRootHashWithRetry(budget)
                 if (!result) return null
                 userToken = result.userToken
 
-                const rootBlob = await fetchBlob(
+                const rootBlob = await transport.fetchBlob(
                     userToken,
                     result.rootHash,
                     ROOT_INDEX_FILENAME,
-                    syncBaseUrl
+                    syncBaseUrl,
+                    budget
                 )
                 if (!rootBlob) return null
 
@@ -297,11 +361,12 @@ export function createRemarkableCloudService(plugin: RemarkableSyncPlugin): Rema
             }
 
             // Download document index
-            const indexBlob = await fetchBlob(
+            const indexBlob = await transport.fetchBlob(
                 userToken,
                 indexHash,
                 docIndexFilename(documentId),
-                syncBaseUrl
+                syncBaseUrl,
+                budget
             )
             if (!indexBlob) return null
 
@@ -313,7 +378,13 @@ export function createRemarkableCloudService(plugin: RemarkableSyncPlugin): Rema
                 fileEntries,
                 CLOUD_REQUEST_CONCURRENCY,
                 async (entry) => {
-                    const data = await fetchBlob(userToken, entry.hash, entry.id, syncBaseUrl)
+                    const data = await transport.fetchBlob(
+                        userToken,
+                        entry.hash,
+                        entry.id,
+                        syncBaseUrl,
+                        budget
+                    )
                     return { path: entry.id, data }
                 }
             )

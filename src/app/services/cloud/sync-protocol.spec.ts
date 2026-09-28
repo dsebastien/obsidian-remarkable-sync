@@ -6,6 +6,9 @@ import {
     isRetryableStatus,
     MAX_REQUEST_ATTEMPTS,
     parseIndex,
+    parseIndexDetailed,
+    RequestBudget,
+    RequestBudgetExhaustedError,
     requestWithRetry,
     retryDelayMs,
     ROOT_INDEX_FILENAME
@@ -100,9 +103,14 @@ describe('sync-protocol', () => {
         test('retries a 429 with its Retry-After, then succeeds', async () => {
             script.push({ status: 429, headers: { 'Retry-After': '2' } }, { status: 200 })
             const waits: number[] = []
-            const response = await requestWithRetry({ url: 'https://x/a' }, async (ms) => {
-                waits.push(ms)
-            })
+            const response = await requestWithRetry(
+                { url: 'https://x/a' },
+                {
+                    sleep: async (ms: number) => {
+                        waits.push(ms)
+                    }
+                }
+            )
             expect(response.status).toBe(200)
             expect(recordedRequests.length).toBe(2)
             expect(waits).toEqual([2000])
@@ -110,7 +118,7 @@ describe('sync-protocol', () => {
 
         test('retries network errors and gives up after MAX_REQUEST_ATTEMPTS', async () => {
             for (let i = 0; i < MAX_REQUEST_ATTEMPTS; i++) script.push(new Error('offline'))
-            const error = await requestWithRetry({ url: 'https://x/a' }, noSleep).catch(
+            const error = await requestWithRetry({ url: 'https://x/a' }, { sleep: noSleep }).catch(
                 (e: unknown) => e
             )
             expect(error).toBeInstanceOf(Error)
@@ -120,7 +128,7 @@ describe('sync-protocol', () => {
 
         test('does not retry a terminal status', async () => {
             script.push({ status: 404 })
-            const response = await requestWithRetry({ url: 'https://x/a' }, noSleep)
+            const response = await requestWithRetry({ url: 'https://x/a' }, { sleep: noSleep })
             expect(response.status).toBe(404)
             expect(recordedRequests.length).toBe(1)
         })
@@ -132,10 +140,126 @@ describe('sync-protocol', () => {
             expect(recordedRequests.length).toBe(2)
         })
 
+        test('a persistent 429 gives up after MAX_REQUEST_ATTEMPTS and returns it', async () => {
+            for (let i = 0; i < MAX_REQUEST_ATTEMPTS + 4; i++) script.push({ status: 429 })
+            const budget = new RequestBudget({ maxConsecutiveFailures: 100 })
+            const response = await requestWithRetry(
+                { url: 'https://x/a' },
+                { sleep: noSleep, budget }
+            )
+            expect(response.status).toBe(429)
+            expect(recordedRequests.length).toBe(MAX_REQUEST_ATTEMPTS)
+        })
+
         test('fetchRootHash still throws on 401 so the caller can refresh the token', async () => {
             script.push({ status: 401 })
             const error = await fetchRootHash('t', 'https://sync.example').catch((e: unknown) => e)
             expect(error).toMatchObject({ status: 401 })
+        })
+    })
+
+    describe('failure budget', () => {
+        beforeEach(() => {
+            recordedRequests.length = 0
+            script.length = 0
+        })
+
+        test('consecutive failures across requests stop the whole operation', async () => {
+            for (let i = 0; i < 10; i++) script.push({ status: 503 })
+            const budget = new RequestBudget({ maxConsecutiveFailures: 3 })
+            const first = await requestWithRetry(
+                { url: 'https://x/a' },
+                { sleep: noSleep, budget }
+            ).catch((e: unknown) => e)
+            expect(first).toBeInstanceOf(RequestBudgetExhaustedError)
+            expect(recordedRequests.length).toBe(3)
+
+            // The next request of the same operation is not even attempted.
+            const second = await requestWithRetry(
+                { url: 'https://x/b' },
+                { sleep: noSleep, budget }
+            ).catch((e: unknown) => e)
+            expect(second).toBeInstanceOf(RequestBudgetExhaustedError)
+            expect(recordedRequests.length).toBe(3)
+        })
+
+        test('network errors count against the budget too', async () => {
+            for (let i = 0; i < 10; i++) script.push(new Error('offline'))
+            const budget = new RequestBudget({ maxConsecutiveFailures: 2 })
+            const error = await requestWithRetry(
+                { url: 'https://x/a' },
+                { sleep: noSleep, budget }
+            ).catch((e: unknown) => e)
+            expect(error).toBeInstanceOf(RequestBudgetExhaustedError)
+            expect(recordedRequests.length).toBe(2)
+        })
+
+        test('a success resets the consecutive failure count', async () => {
+            script.push({ status: 503 }, { status: 503 }, { status: 200 })
+            script.push({ status: 503 }, { status: 503 }, { status: 200 })
+            const budget = new RequestBudget({ maxConsecutiveFailures: 3 })
+            await requestWithRetry({ url: 'https://x/a' }, { sleep: noSleep, budget })
+            const response = await requestWithRetry(
+                { url: 'https://x/b' },
+                { sleep: noSleep, budget }
+            )
+            expect(response.status).toBe(200)
+            expect(budget.exhaustedReason).toBeNull()
+        })
+
+        test('a Retry-After beyond the backoff cap stops the operation at once', async () => {
+            script.push({ status: 429, headers: { 'Retry-After': '120' } })
+            const budget = new RequestBudget()
+            const response = await requestWithRetry(
+                { url: 'https://x/a' },
+                { sleep: noSleep, budget }
+            )
+            expect(response.status).toBe(429)
+            expect(recordedRequests.length).toBe(1)
+            expect(budget.exhaustedReason).toContain('120 s')
+        })
+
+        test('fetchBlob stops requesting once the budget is spent', async () => {
+            script.push({ status: 429, headers: { 'Retry-After': '120' } })
+            const budget = new RequestBudget()
+            expect(await fetchBlob('t', 'h1', 'a.metadata', 'https://s', budget)).toBeNull()
+            expect(await fetchBlob('t', 'h2', 'b.metadata', 'https://s', budget)).toBeNull()
+            expect(recordedRequests.length).toBe(1)
+        })
+
+        test('the deadline stops further attempts', async () => {
+            let now = 0
+            const budget = new RequestBudget({ deadlineMs: 1000, now: () => now })
+            script.push({ status: 503 })
+            const error = await requestWithRetry(
+                { url: 'https://x/a' },
+                {
+                    sleep: async () => {
+                        now = 1000
+                    },
+                    budget
+                }
+            ).catch((e: unknown) => e)
+            expect(error).toBeInstanceOf(RequestBudgetExhaustedError)
+            expect(recordedRequests.length).toBe(1)
+        })
+
+        test('an aborted signal stops retrying between attempts', async () => {
+            const controller = new AbortController()
+            const budget = new RequestBudget({ signal: controller.signal })
+            script.push({ status: 503 })
+            const error = await requestWithRetry(
+                { url: 'https://x/a' },
+                {
+                    sleep: async () => {
+                        controller.abort()
+                    },
+                    budget
+                }
+            ).catch((e: unknown) => e)
+            expect(error).toBeInstanceOf(RequestBudgetExhaustedError)
+            expect((error as Error).message).toContain('unloaded')
+            expect(recordedRequests.length).toBe(1)
         })
     })
 
@@ -177,6 +301,14 @@ describe('sync-protocol', () => {
             const index = '3\n3\nabc123:80000000:folder-id:0:0\nbadline\nghi789:0:doc-id:0:0\n'
             const entries = parseIndex(index)
             expect(entries.length).toBe(2)
+        })
+
+        test('reports the lines it rejected', () => {
+            const index = '3\n3\nabc123:80000000:folder-id:0:0\nbadline\n::x\nghi789:0:doc-id:0:0\n'
+            const { entries, rejected } = parseIndexDetailed(index)
+            expect(entries.length).toBe(2)
+            expect(rejected).toBe(2)
+            expect(parseIndexDetailed('3\nabc:0:doc:0:0\n').rejected).toBe(0)
         })
 
         test('parses document index entries with file paths', () => {

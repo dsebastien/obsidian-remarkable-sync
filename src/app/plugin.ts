@@ -39,6 +39,15 @@ export class RemarkableSyncPlugin extends Plugin {
     importService!: RmdocImportService
     autoSyncService!: AutoSyncService
 
+    /**
+     * Aborted on unload, so cloud requests stop retrying (and their backoff
+     * waits end) instead of outliving the plugin by minutes.
+     */
+    private readonly unloadController = new AbortController()
+    get unloadSignal(): AbortSignal {
+        return this.unloadController.signal
+    }
+
     /** Last known contents of `data.json`, kept so writes can merge instead of replace. */
     private rawData: Record<string, unknown> = {}
     /** Serializes `data.json` writes; see {@link persistData}. */
@@ -86,6 +95,7 @@ export class RemarkableSyncPlugin extends Plugin {
 
     override onunload(): void {
         log('Unloading', 'debug')
+        this.unloadController.abort()
     }
 
     async activatePanelView(): Promise<void> {

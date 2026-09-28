@@ -6,8 +6,7 @@ import type { PdfPageImage } from './pdf-writer.service'
 import type { Page, SourceDocument } from '../../domain/notebook'
 import { DEFAULT_SETTINGS } from '../../types/plugin-settings.intf'
 import type { PluginSettings } from '../../types/plugin-settings.intf'
-import { documentFileName } from './markdown-writer.service'
-import { linkToFile } from './vault-link'
+import { buildDocumentPath } from './markdown-writer.service'
 
 const page = (pageIndex: number): Page => ({
     pageId: `p${pageIndex}`,
@@ -478,25 +477,27 @@ describe('highlights note toggle', () => {
 })
 
 describe('highlights note link to the annotated PDF', () => {
-    test.each(['Book', 'Notes [v2]', 'A|B', 'C# notes'])(
-        'names the file the writer produced for %p',
-        async (notebookName) => {
-            // The link target and the written file name used to be composed by
-            // two separate expressions; both now come from documentFileName.
-            const h = createHarness()
-            await runSourceBacked(
-                h,
-                { savePdf: true, saveImages: false, saveHighlightsNote: true },
-                [highlightedPage(0)],
-                sourcePdf(),
-                notebookName
-            )
+    // Expected values are literals, not recomputed with the helpers under
+    // test: the link must name the file the real path builder writes.
+    test.each([
+        ['Book', '[[Book (annotated).pdf]]'],
+        ['Notes [v2]', '[Notes \\[v2\\] (annotated).pdf](<Notes [v2] (annotated).pdf>)'],
+        ['A|B', '[A\\|B (annotated).pdf](<A|B (annotated).pdf>)'],
+        ['C# notes', '`C# notes (annotated).pdf`']
+    ])('links %p as %p, the file the writer produced', async (notebookName, expectedLink) => {
+        const h = createHarness()
+        await runSourceBacked(
+            h,
+            { savePdf: true, saveImages: false, saveHighlightsNote: true },
+            [highlightedPage(0)],
+            sourcePdf(),
+            notebookName
+        )
 
-            const writtenName = documentFileName(h.pdfWrites[0]!.name, 'pdf')
-            expect(writtenName).toBe(`${notebookName} (annotated).pdf`)
-            expect(h.notesWritten[0]!.contents).toContain(
-                `Annotated document: ${linkToFile(writtenName)}`
-            )
-        }
-    )
+        const writtenAs = h.pdfWrites[0]!.name
+        expect(buildDocumentPath('rM', 'Work', writtenAs, 'pdf')).toBe(
+            `rM/Work/${notebookName} (annotated).pdf`
+        )
+        expect(h.notesWritten[0]!.contents).toContain(`Annotated document: ${expectedLink}`)
+    })
 })

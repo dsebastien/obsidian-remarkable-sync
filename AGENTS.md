@@ -144,7 +144,10 @@ Both commands are **MANDATORY** after code changes. Fix any lint errors before p
 
 ## Bun Runtime
 
-Default to using Bun instead of Node.js.
+Default to using Bun instead of Node.js, with one exception: ESLint runs under Node.
+
+- `bunfig.toml` sets `[run] bun = false`, so scripts with a `node` shebang (eslint, tsc, prettier, commitlint) run under Node, as the community catalog reviewer's lint does. Under Bun, `node:module` `isBuiltin('bun:test')` is true and `obsidianmd/no-nodejs-modules` misreads every spec's `bun:test` import.
+- Node must be on PATH (version in `.nvmrc`). Without it, `bun run lint` stops with a message instead of reporting findings the reviewer never raises. CI sets Node up from `.nvmrc`. A desktop-only plugin (`isDesktopOnly: true`) is exempt from the check: the preset turns the Node-module rules off for it, so Bun lints it the same way.
 
 - Use `bun <file>` instead of `node <file>` or `ts-node <file>`
 - Use `bun test` instead of `jest` or `vitest`
@@ -254,13 +257,133 @@ These rules apply to **`id`**, **`name`**, and **`description`** in `manifest.js
 - The command `name` must not include the plugin name — Obsidian already prefixes commands with the plugin name in the palette. If you need to rebrand, **rename `name`, not `id`** (renaming an id breaks any user-bound keyboard shortcut). Grep `docs/` and `README.md` for old command names when renaming.
 - File pickers in settings tabs: never hand-roll. Use `AbstractInputSuggest` for inline autocomplete and `FuzzySuggestModal` for a browse-button modal — both cover keyboard nav, theming, and popout-window correctness for free. Hand-rolled menus accumulate inline-style + `document.createElement` lint warnings fast.
 - Replace `window.confirm(...)` with a `Modal` subclass: `confirm()` blocks the UI thread, can't be themed, doesn't play with popout windows, and is forbidden by the scorecard.
+- Never give a `PluginSettingTab` subclass a method/property whose name collides with an Obsidian `SettingTab` base member — reserved as of API 1.13.0: `update`, `getSettingDefinitions`, `getControlValue`, `setControlValue`, `settingItems`, `icon` (plus long-standing `display`, `hide`, `containerEl`, `app`). A same-named helper silently **shadows** the framework method; e.g. `addSettingTab()` calls `tab.update()` with no args at registration, so a custom `update(mutator)` receives `undefined` and crashes (`[Immer] The first or second argument to 'produce' must be a function`, or any "expected a function" error). Name helpers distinctively (`mutateSettings`, `renderX`, …), and keep the `obsidian` dev types current so `noImplicitOverride` flags collisions at compile time.
+
+### Declarative settings (Obsidian 1.13+) — mandatory approach and traps
+
+This template declares its settings via `getSettingDefinitions()` (see
+`src/app/settings/settings-tab.ts`). Keep that approach. Every rule below cost
+a shipped bug the first time it was broken; `settings-guard.spec.ts` enforces
+the three statically-catchable ones.
+
+- **`getSettingDefinitions()` REPLACES `display()`.** Non-empty array means
+  `display()` is never called. No partial adoption: the whole settings UI is
+  declarative or none of it. Requires `minAppVersion` 1.13.0.
+- **A `render:` hook renders the ROW.** Write into `setting.settingEl` only
+  (drop `setting.infoEl` when the helper draws its own name/desc). Anything
+  written outside the row — `group.listEl`, siblings — is the framework's to
+  discard: the control is silently absent at runtime. Never call
+  `settingEl.remove()`.
+- **`update()` re-runs a `render:` hook on the SAME row and resets only its
+  control area (`controlEl`).** Controls added with `addButton`/`addText` are
+  cleared, but anything the hook appends elsewhere in the row (a support
+  block, help text, a status line) stays and is appended again: every refresh
+  stacks another copy. Render such content into a wrapper and return a
+  cleanup that removes it: create `el` with `setting.settingEl.createDiv()`,
+  draw into it, and `return () => el.remove()`. Obsidian calls the cleanup
+  before re-running the hook. Verified in Obsidian 1.13.7, where fleet
+  plugins using this template's Support row went from 1 to 3 copies after
+  two `update()` calls; a stacked editor also kept its stale copy on top,
+  whose Save wrote an outdated list.
+- **The definitions are built only in `update()` and reused on every
+  opening.** Anything a definition captures from outside the settings (another
+  plugin's state, e.g. which Starter Kit note types exist) is frozen at the
+  last `update()`, and plugin `onload` is early: other plugins may not be
+  loaded yet. Read such state in a `render:` hook or a `visible:` predicate,
+  which run on every render.
+- **`defaultValue` is the fallback for a RESOLVER returning undefined/null —
+  not for a cleared input.** On numeric controls it turns a cleared field into
+  a silent reset to the schema default. Declare none; let a bounds `validate`
+  refuse the cleared value inline.
+- **A row `action:` fires on the WHOLE row, not on a button.** Destructive
+  rows need their own confirmation modal.
+  It also draws NO button, so a link row that used to have a CTA silently loses
+  it in the port — use a `render:` hook with `addButton` to keep one.
+- **A `render:` hook draws into `.setting-item`, which is a flex ROW.** Anything
+  that is a vertical stack of full-width rows (the shared support block is the
+  canonical case) needs the row put back into block flow, or its heading,
+  buttons and badge lay out side by side. `settings-stack` does that.
+- **`onDelete` decorates only plain list rows — `type: 'page'` entries get NO
+  delete button.** A list of sub-pages silently loses its delete affordance;
+  give each page an explicit "Remove" row (a warning-styled button in its own
+  row, deleting by stable id). Caught in the first fleet port's vault review.
+- **`onDelete(index)` indexes the LIVE list.** The framework re-indexes on
+  drag immediately, while a settings refresh waits on persistence. Resolve the
+  entity from the live index, never from a render-time snapshot.
+- **Persist before committing to memory — AND serialize the writes.**
+  `updateSettings` must write to disk first and swap the in-memory settings
+  only on success — a rejection rolls the control back to `getControlValue`'s
+  answer, which must be the on-disk truth. And writes must queue: two
+  overlapping calls that both `produce()` from the same base across the save
+  await make the second commit silently drop the first edit. Chain them so
+  each mutation derives from the previous committed state (see
+  `src/app/plugin.ts`).
+- **`setControlValue` MUST reject on failure.** Resolving tells the framework
+  the write landed, so the pane keeps showing a value that was never stored.
+  Rejecting rolls the control back to `getControlValue`'s answer.
+- **A nullable object cannot be a dot-path control key.** The path walks to
+  `null`, the write is refused, and the choice silently does not persist.
+- **Free wins:** `SettingDefinitionList` provides drag-to-reorder, delete and
+  add natively — delete hand-rolled arrow buttons, do not port them. Declared
+  `name`/`desc` are indexed by Obsidian's settings search.
+- **Acceptance is a live vault check.** Nothing in CI renders a settings pane.
+  Five broken controls once shipped through 2806 passing tests, clean types,
+  `--max-warnings 0` and two adversarial reviews. For ANY settings change,
+  open the settings pane in a real vault before calling it done — flag it for
+  manual verification per the "No UI self-verification" rule.
 
 ## Versioning & releases
 
-- Bump `version` in `manifest.json` (SemVer) and update `versions.json` to map plugin version → minimum app version.
+- Do not bump `version` in `manifest.json` or edit `versions.json` by hand: `bun run release` does both. `versions.json` gets a new line ONLY when a release raises `minAppVersion`, and that line names the LAST release on the old floor (`"<last release>": "<its minAppVersion>"`), so users left behind by the raise get the newest release that still runs for them. Obsidian reads the file only when the latest manifest's floor is above the user's app, and installs the highest listed release whose floor the app meets. `scripts/version-bump.ts` finds that release as the highest `x.y.z` tag below the new version and fails the release rather than skip the line if it cannot. Every key must be a real published release in `x.y.z` form.
 - Create a GitHub release whose tag exactly matches `manifest.json`'s `version`. Do not use a leading `v`.
 - Attach `manifest.json`, `main.js`, and `styles.css` (if present) to the release as individual assets.
 - After the initial release, follow the process to add/update your plugin in the community catalog as required.
+
+### Cutting a release
+
+`bun run release` drives the whole thing. It is interactive by default, and takes flags so
+it can run unattended — an agent should use those rather than reimplementing the script:
+
+```bash
+bun run release -- --yes                      # accept the calculated version
+bun run release -- --version 2.0.0 --yes      # pin the version
+bun run release -- --version 2.0.0 --dry-run  # preview; pushes nothing, dispatches nothing
+bun run release -- --help
+```
+
+The version is derived from the conventional commits since the last tag
+(`bun scripts/calculate-next-version.ts --verbose` shows the analysis). Confirm it before
+using `--yes`: a stray `feat!` in the range turns a patch into a major.
+
+**Release notes are written, not generated, whenever users will read them.** The in-app
+"What's new" tab and the GitHub release body both show the release's `CHANGELOG.md`
+section, which by default is the conventional-changelog list of commit subjects
+("fix(build): align with the catalog reviewer's archive") — written for maintainers, not
+users. For any release a user should understand (a feature, a visible fix, a major that
+bundles earlier minors), write `NEXT_RELEASE.md` at the repo root and commit it before
+releasing: what changed for the user, in plain language, with `###` or deeper headings.
+A line that reads as a version heading (`### 1.2.0 ...`, even inside a code fence) would
+split the section for both readers, and `#`/`##` would outrank the release's own heading:
+both are refused. Remember the two surfaces render differently: GitHub autolinks `@user`
+(and notifies them) and `#123`, Obsidian renders `[[links]]`. The release uses it as the
+section's body under the generated version header, then deletes it in the release commit.
+Without it, the generated list is used. `release.sh` validates the file and says which
+source the release will use before dispatching. Never hand-edit a GitHub release body
+afterwards: that is how the two surfaces came to disagree.
+
+Before releasing: push, then wait for CI to go **green**. The release workflow builds from
+what is on `main`, so dispatching while CI is still running means finding out whether the
+code was releasable only after the tag exists — and a tag is the one part of this that is
+awkward to take back.
+
+**The workflow runs twice, and the first success is not the release.** Run 1 (`prepare`)
+bumps the version files, regenerates `CHANGELOG.md`, commits, tags, and re-dispatches
+itself at the tag. Run 2 (`publish`) builds, attests and creates the GitHub release. In
+between, the tag exists but `gh release view <version>` still reports "release not found",
+which reads exactly like a failure and is not one. Wait for the second run.
+
+Afterwards: `git pull --ff-only` to bring the release commit back, then `bun run dev` to
+deploy the released build into a vault and confirm the new version number is running.
 
 ## Security, privacy, and compliance
 
@@ -554,7 +677,9 @@ The community-plugin reviewer runs a fixed set of lint rules against every submi
 
 ### Reviewer build environment
 
-- The review's "Build verification" step runs `bun run build` in a clean environment with a **fixed, older Bun** (observed: 1.2.14), regardless of `packageManager`. Keep `scripts/build.ts` old-Bun-compatible: `sourcemap: 'none'` (not `false`), and an explicit `loader: { '.md': 'text' }` for `with { type: 'text' }` imports (old bundlers ignore import attributes). To verify locally, download the matching `bun-linux-x64.zip` from Bun's GitHub releases and run the build with it.
+- **CHANGELOG.md reaches the "What's new" view through a bundler `define`, not an import.** `import changelog from '../../CHANGELOG.md' with { type: 'text' }` is not resolvable on every Bun version, and the community catalog reviewer builds with one where it is not: the build fails there while succeeding locally. `scripts/build.ts` reads the file and substitutes `__PLUGIN_CHANGELOG__`; `src/app/whats-new.ts` declares the binding inline (not in a `.d.ts`, so `no-undef` sees it) and `typeof`-guards it for the test and dev runtimes, where nothing substitutes.
+- The curated notes (`NEXT_RELEASE.md`) reach the tab through the same path: `scripts/generate-changelog.ts` writes them into the new CHANGELOG.md section (`applyCuratedNotes`), and the release body is cut from CHANGELOG.md by the tab's own parser (`--release-body`, written to a file for `body_path`, never through a heredoc step output), so the tab and the GitHub release body always carry the same text.
+- Keep CHANGELOG.md out of `.gitattributes` `export-ignore` regardless — the archive build still needs it to produce non-empty release notes.
 
 ### Release workflow
 

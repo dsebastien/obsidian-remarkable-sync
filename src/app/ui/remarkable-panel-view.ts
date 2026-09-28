@@ -2,7 +2,7 @@ import { ItemView, setIcon } from 'obsidian'
 import type { WorkspaceLeaf } from 'obsidian'
 import type { RemarkableSyncPlugin } from '../plugin'
 import type { ListingOutcome, NotebookSummary } from '../domain/notebook'
-import { mergeListing } from '../domain/notebook'
+import { currentSyncTarget, mergeListing, syncCandidates } from '../domain/notebook'
 import type {
     PipelineProgress,
     PipelineStatus
@@ -609,10 +609,13 @@ export class RemarkablePanelView extends ItemView {
         this.render()
     }
 
-    private async processNotebook(notebook: NotebookSummary): Promise<void> {
-        if (this.staleIds.has(notebook.id)) {
-            // Its folder or trash state may be out of date: syncing could
-            // write it to the wrong vault folder.
+    private async processNotebook(requested: NotebookSummary): Promise<void> {
+        // Resolved again now: a refresh since the click (or during a bulk
+        // sync) may have moved, trashed or staled it. A stale entry's folder
+        // or trash state may be out of date: syncing could write it to the
+        // wrong vault folder.
+        const notebook = currentSyncTarget(this.notebooks, this.staleIds, requested.id)
+        if (!notebook) {
             return
         }
         this.notebookProgress.set(notebook.id, {
@@ -628,13 +631,18 @@ export class RemarkablePanelView extends ItemView {
         })
     }
 
-    /** The notebooks that may be synced: everything but stale entries. */
-    private syncable(): NotebookSummary[] {
-        return this.notebooks.filter((nb) => !this.staleIds.has(nb.id))
+    /** Process each id in turn, resolving its current entry when its turn comes. */
+    private async processIds(ids: readonly string[]): Promise<void> {
+        for (const id of ids) {
+            const notebook = currentSyncTarget(this.notebooks, this.staleIds, id)
+            if (notebook) {
+                await this.processNotebook(notebook)
+            }
+        }
     }
 
     private async syncAll(): Promise<void> {
-        const toSync = this.syncable().filter((nb) => {
+        const toSync = syncCandidates(this.notebooks, this.staleIds, (nb) => {
             const status = this.getSyncStatus(nb)
             return status === 'needs-sync' || status === 'never-synced'
         })
@@ -646,16 +654,16 @@ export class RemarkablePanelView extends ItemView {
         this.isBulkSyncing = true
         this.render()
 
-        for (const nb of toSync) {
-            await this.processNotebook(nb)
-        }
+        await this.processIds(toSync)
 
         this.isBulkSyncing = false
         this.render()
     }
 
     private async syncSelected(): Promise<void> {
-        const toSync = this.syncable().filter((nb) => this.selectedIds.has(nb.id))
+        const toSync = syncCandidates(this.notebooks, this.staleIds, (nb) =>
+            this.selectedIds.has(nb.id)
+        )
 
         if (toSync.length === 0) {
             return
@@ -664,9 +672,7 @@ export class RemarkablePanelView extends ItemView {
         this.isBulkSyncing = true
         this.render()
 
-        for (const nb of toSync) {
-            await this.processNotebook(nb)
-        }
+        await this.processIds(toSync)
 
         this.selectedIds.clear()
         this.isBulkSyncing = false

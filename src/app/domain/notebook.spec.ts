@@ -1,5 +1,12 @@
 import { test, expect, describe } from 'bun:test'
-import { describeListing, failedListing, mergeListing, notebookDisplayPath } from './notebook'
+import {
+    currentSyncTarget,
+    describeListing,
+    failedListing,
+    mergeListing,
+    notebookDisplayPath,
+    syncCandidates
+} from './notebook'
 import type { NotebookSummary } from './notebook'
 
 function notebook(id: string): NotebookSummary {
@@ -127,5 +134,31 @@ describe('mergeListing', () => {
         expect(describeListing([nb('a')], 1, ['b']).unreadableIds).toEqual(['b'])
         expect(describeListing([nb('a')], 0).unreadableIds).toEqual([])
         expect(failedListing('x').unreadableIds).toBeNull()
+    })
+})
+
+describe('sync candidates', () => {
+    const nb = (id: string, folderPath = ''): NotebookSummary => ({
+        id,
+        visibleName: id,
+        parent: '',
+        lastModified: '1',
+        pageCount: 0,
+        folderPath
+    })
+
+    test('never a stale entry; only what include accepts; ids in list order', () => {
+        const list = [nb('a'), nb('stale'), nb('b'), nb('skip')]
+        expect(syncCandidates(list, new Set(['stale']), (n) => n.id !== 'skip')).toEqual(['a', 'b'])
+    })
+
+    test('the current entry is synced, not the one captured earlier', () => {
+        const moved = [nb('a', 'B')]
+        expect(currentSyncTarget(moved, new Set(), 'a')?.folderPath).toBe('B')
+    })
+
+    test('nothing to sync when the entry is gone or stale', () => {
+        expect(currentSyncTarget([nb('b')], new Set(), 'a')).toBeNull()
+        expect(currentSyncTarget([nb('a')], new Set(['a']), 'a')).toBeNull()
     })
 })

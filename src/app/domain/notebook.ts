@@ -346,6 +346,38 @@ export function mergeListing(
     }
 }
 
+/**
+ * Ids of the notebooks a bulk sync should process: never a stale entry (see
+ * `mergeListing`), and only those `include` accepts.
+ *
+ * Ids, not summaries: a bulk sync runs for minutes, and a refresh in between
+ * can move or trash a notebook. Each id is resolved again when its turn comes
+ * (`currentSyncTarget`).
+ */
+export function syncCandidates(
+    notebooks: readonly NotebookSummary[],
+    staleIds: ReadonlySet<string>,
+    include: (nb: NotebookSummary) => boolean
+): string[] {
+    return notebooks.filter((nb) => !staleIds.has(nb.id) && include(nb)).map((nb) => nb.id)
+}
+
+/**
+ * The entry to sync for `id` NOW: the current one from the panel's list, or
+ * null when it is gone (deleted, trashed) or stale. Syncing a summary captured
+ * earlier would write a notebook moved since into its old folder.
+ */
+export function currentSyncTarget(
+    notebooks: readonly NotebookSummary[],
+    staleIds: ReadonlySet<string>,
+    id: string
+): NotebookSummary | null {
+    if (staleIds.has(id)) {
+        return null
+    }
+    return notebooks.find((nb) => nb.id === id) ?? null
+}
+
 export function notebookDisplayPath(nb: NotebookSummary): string {
     return nb.folderPath ? `${nb.folderPath}/${nb.visibleName}` : nb.visibleName
 }

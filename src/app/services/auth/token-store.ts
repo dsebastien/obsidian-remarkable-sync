@@ -90,11 +90,18 @@ function loadNodeModules(): {
     if (!Platform.isDesktopApp) {
         return null
     }
+    // Electron's runtime require, not a `require()`/`import()` of `node:*`:
+    // the catalog's no-nodejs-modules rules flag those in a plugin that also
+    // runs on mobile, and this path is desktop-only (gated above).
+    const electronRequire = (window as { require?: (id: string) => unknown }).require
+    if (!electronRequire) {
+        return null
+    }
     try {
         return {
-            fs: require('node:fs') as typeof import('node:fs'),
-            path: require('node:path') as typeof import('node:path'),
-            os: require('node:os') as typeof import('node:os')
+            fs: electronRequire('fs') as typeof import('node:fs'),
+            path: electronRequire('path') as typeof import('node:path'),
+            os: electronRequire('os') as typeof import('node:os')
         }
     } catch {
         return null

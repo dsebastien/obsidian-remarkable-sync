@@ -11,7 +11,7 @@ export async function mapSettledWithConcurrency<T, R>(
     limit: number,
     fn: (item: T, index: number) => Promise<R>
 ): Promise<PromiseSettledResult<R>[]> {
-    const results: PromiseSettledResult<R>[] = new Array(items.length)
+    const results = new Array<PromiseSettledResult<R>>(items.length)
     const workerCount = Math.max(1, Math.min(Math.floor(limit) || 1, items.length))
     let next = 0
 

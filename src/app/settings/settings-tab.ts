@@ -78,6 +78,13 @@ const IMAGE_FORMATS = ['jpeg', 'webp', 'png'] as const
  *   info rows need a no-op render hook.
  * - `visible:` is evaluated on each render; call `update()` after the state
  *   it reads changes.
+ * - `update()` re-runs a render hook on the SAME row and resets its name,
+ *   description and control area, not other settingEl children. A hook that
+ *   appends anywhere else in the row must return a cleanup that removes what
+ *   it added, or every refresh stacks a copy.
+ * - Obsidian builds the definitions only in `update()` and reuses them on
+ *   every opening. Anything read from outside the settings (another plugin's
+ *   state) belongs in a render hook, which each opening re-runs.
  */
 export class RemarkableSyncSettingTab extends PluginSettingTab {
     plugin: RemarkableSyncPlugin
@@ -139,7 +146,8 @@ export class RemarkableSyncSettingTab extends PluginSettingTab {
                         render: (setting): void => {
                             setting.addButton((button) => {
                                 button
-                                    .setWarning()
+                                    .setDestructive()
+                                    .setCta()
                                     .setButtonText('Remove')
                                     .onClick(() => {
                                         new Notice(
@@ -331,16 +339,22 @@ export class RemarkableSyncSettingTab extends PluginSettingTab {
                         name: 'Support',
                         // Not a setting — keep it out of the settings search.
                         searchable: false,
-                        render: (setting): void => {
+                        render: (setting): (() => void) => {
                             // Render INSIDE the row (settingEl), never into
                             // group.listEl — see the class docs above.
                             setting.infoEl.remove() // the section draws its own headings
                             // `.setting-item` is a flex ROW; the support block
                             // is a stack of full-width rows.
                             setting.settingEl.addClass('settings-stack')
-                            renderSupportSection(setting.settingEl, (el) => {
+                            // In a wrapper removed by the returned cleanup:
+                            // update() re-runs this hook on the SAME row and
+                            // only resets the control area, so content appended
+                            // straight to settingEl would pile up.
+                            const blockEl = setting.settingEl.createDiv()
+                            renderSupportSection(blockEl, (el) => {
                                 this.renderBuyMeACoffeeBadge(el)
                             })
+                            return () => blockEl.remove()
                         }
                     }
                 ]

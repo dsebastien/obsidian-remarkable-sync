@@ -45,7 +45,7 @@ function createHarness(config: {
     pages: Page[]
     /** pageIndexes whose render fails (returns null) */
     failingPages?: number[]
-    downloadFails?: boolean
+    downloadFails?: string
     settings?: Partial<typeof DEFAULT_SETTINGS>
 }): Harness {
     const progress: PipelineProgress[] = []
@@ -60,8 +60,8 @@ function createHarness(config: {
         cloudService: {
             downloadDocument: (): Promise<Map<string, ArrayBuffer> | { error: string }> =>
                 Promise.resolve(
-                    config.downloadFails
-                        ? { error: 'Download failed' }
+                    config.downloadFails !== undefined
+                        ? { error: config.downloadFails }
                         : new Map<string, ArrayBuffer>()
                 )
         },
@@ -163,13 +163,19 @@ describe('processNotebook', () => {
         expect(harness.updateStateCalls).toEqual([{ remarkableId: 'nb-1', syncedPageCount: 1 }])
     })
 
-    test('reports an error status when the download fails', async () => {
-        const harness = createHarness({ pages: [contentPage(0)], downloadFails: true })
+    test('reports the download failure with its reason', async () => {
+        const harness = createHarness({
+            pages: [contentPage(0)],
+            downloadFails: 'The notebook is no longer in the reMarkable cloud'
+        })
 
         const ok = await harness.service.processNotebook(summary(), (p) => harness.progress.push(p))
 
         expect(ok).toBe(false)
-        expect(harness.progress.at(-1)!.status).toBe('error')
+        expect(harness.progress.at(-1)).toMatchObject({
+            status: 'error',
+            error: 'The notebook is no longer in the reMarkable cloud'
+        })
         expect(harness.updateStateCalls).toEqual([])
     })
 

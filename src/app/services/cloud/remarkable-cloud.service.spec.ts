@@ -375,6 +375,13 @@ describe('downloadDocument against an in-memory cloud', () => {
         expect(await cloud.service().downloadDocument('d1')).toEqual({ error: 'Download failed' })
     })
 
+    test('says why: the notebook left the cloud', async () => {
+        const cloud = new FakeCloud().doc('d1', 'One', '', ['a.rm'])
+        expect(await cloud.service().downloadDocument('gone')).toEqual({
+            error: 'The notebook is no longer in the reMarkable cloud'
+        })
+    })
+
     test('fails when any file could not be fetched, instead of dropping pages', async () => {
         const cloud = new FakeCloud().doc('d1', 'One', '', ['a.rm', 'b.rm'])
         cloud.failing.add('file-d1-b.rm-v1')

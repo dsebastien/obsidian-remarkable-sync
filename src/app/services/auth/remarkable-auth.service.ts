@@ -42,15 +42,20 @@ export interface RemarkableAuthService {
 }
 
 /**
+ * Why the token endpoint gave no token. Only a transient answer (408, 429, a
+ * 5xx) means the cloud could not be reached; every other 4xx, including a 400
+ * for a malformed or revoked device token, is a refusal no retry will change,
+ * so the user is told to reconnect instead of to try again later.
+ */
+export function failureForStatus(status: number): TokenFailure {
+    return status === 408 || status === 429 || status >= 500 ? 'unreachable' : 'rejected'
+}
+
+/**
  * @param tokenStore injectable for tests; defaults to the plugin's `data.json`
  * backed store.
  * @param request injectable for tests; defaults to Obsidian's `requestUrl`.
  */
-/** 401 and 403 are the server refusing the device token; anything else passes. */
-export function failureForStatus(status: number): TokenFailure {
-    return status === 401 || status === 403 ? 'rejected' : 'unreachable'
-}
-
 export function createRemarkableAuthService(
     plugin: RemarkableSyncPlugin,
     tokenStore: TokenStore = createTokenStoreForPlugin(plugin),

@@ -147,11 +147,12 @@ describe('token outcomes', () => {
             return { status: 200, text: outcome.text ?? '' }
         }) as unknown as typeof requestUrl
 
-    test('only 401 and 403 are a refusal', () => {
-        expect(failureForStatus(401)).toBe('rejected')
-        expect(failureForStatus(403)).toBe('rejected')
-        expect(failureForStatus(429)).toBe('unreachable')
-        expect(failureForStatus(503)).toBe('unreachable')
+    test.each([400, 401, 403, 404, 422])('%p is a refusal: reconnect', (status) => {
+        expect(failureForStatus(status)).toBe('rejected')
+    })
+
+    test.each([408, 429, 500, 503])('%p is transient: try again later', (status) => {
+        expect(failureForStatus(status)).toBe('unreachable')
     })
 
     test('no stored tokens: not connected', async () => {

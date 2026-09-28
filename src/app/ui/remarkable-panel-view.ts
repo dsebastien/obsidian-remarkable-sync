@@ -54,6 +54,12 @@ export class RemarkablePanelView extends ItemView {
      */
     private listError: string | null = null
     private listOutcome: ListingOutcome = 'complete'
+    /**
+     * Entries carried over from an earlier listing because this one could not
+     * read them. Shown, never synced: their folder or trash state may be out
+     * of date (see `mergeListing`).
+     */
+    private staleIds: Set<string> = new Set()
     private isBulkSyncing = false
     private searchQuery = ''
     private filterMode: FilterMode = 'all'
@@ -111,9 +117,9 @@ export class RemarkablePanelView extends ItemView {
                 cls: 'remarkable-list-error-detail',
                 text:
                     this.listOutcome === 'partial'
-                        ? 'Some notebooks could not be read; their last known entries are kept. Nothing was deleted.'
+                        ? 'Some notebooks could not be read; their last known entries are shown greyed out and cannot be synced until they are read again. Nothing was deleted.'
                         : this.notebooks.length > 0
-                          ? 'Showing the last known list. Nothing was changed.'
+                          ? 'Showing the last known list, which cannot be synced until a refresh succeeds. Nothing was changed.'
                           : 'Nothing was changed. Select refresh to try again.'
             })
         }
@@ -451,7 +457,10 @@ export class RemarkablePanelView extends ItemView {
     }
 
     private renderNotebookRow(container: HTMLElement, notebook: NotebookSummary): void {
-        const row = container.createDiv({ cls: 'remarkable-notebook-row' })
+        const isStale = this.staleIds.has(notebook.id)
+        const row = container.createDiv({
+            cls: isStale ? 'remarkable-notebook-row is-stale' : 'remarkable-notebook-row'
+        })
         const syncStatus = this.getSyncStatus(notebook)
 
         const topRow = row.createDiv({ cls: 'remarkable-notebook-top' })
@@ -489,6 +498,10 @@ export class RemarkablePanelView extends ItemView {
             attr: { 'aria-label': 'Sync notebook' }
         })
         setIcon(syncBtn, 'refresh-cw')
+        if (isStale) {
+            syncBtn.disabled = true
+            syncBtn.setAttribute('aria-label', 'Could not be read from the cloud; refresh to sync')
+        }
         syncBtn.addEventListener('click', () => {
             void this.processNotebook(notebook)
         })
@@ -572,6 +585,7 @@ export class RemarkablePanelView extends ItemView {
             // which would look like a deletion on the device.
             const merged = mergeListing(this.notebooks, listing)
             this.notebooks = merged.notebooks
+            this.staleIds = merged.staleIds
             this.listOutcome = merged.outcome
 
             // Drop sync state for notebooks deleted on the device/cloud, but
@@ -588,6 +602,7 @@ export class RemarkablePanelView extends ItemView {
             log('Failed to refresh notebooks', 'error', error)
             this.listError = error instanceof Error ? error.message : 'Unknown error'
             this.listOutcome = 'failed'
+            this.staleIds = new Set(this.notebooks.map((nb) => nb.id))
         }
 
         this.isLoading = false
@@ -595,6 +610,11 @@ export class RemarkablePanelView extends ItemView {
     }
 
     private async processNotebook(notebook: NotebookSummary): Promise<void> {
+        if (this.staleIds.has(notebook.id)) {
+            // Its folder or trash state may be out of date: syncing could
+            // write it to the wrong vault folder.
+            return
+        }
         this.notebookProgress.set(notebook.id, {
             status: 'downloading',
             currentPage: 0,
@@ -608,8 +628,13 @@ export class RemarkablePanelView extends ItemView {
         })
     }
 
+    /** The notebooks that may be synced: everything but stale entries. */
+    private syncable(): NotebookSummary[] {
+        return this.notebooks.filter((nb) => !this.staleIds.has(nb.id))
+    }
+
     private async syncAll(): Promise<void> {
-        const toSync = this.notebooks.filter((nb) => {
+        const toSync = this.syncable().filter((nb) => {
             const status = this.getSyncStatus(nb)
             return status === 'needs-sync' || status === 'never-synced'
         })
@@ -630,7 +655,7 @@ export class RemarkablePanelView extends ItemView {
     }
 
     private async syncSelected(): Promise<void> {
-        const toSync = this.notebooks.filter((nb) => this.selectedIds.has(nb.id))
+        const toSync = this.syncable().filter((nb) => this.selectedIds.has(nb.id))
 
         if (toSync.length === 0) {
             return

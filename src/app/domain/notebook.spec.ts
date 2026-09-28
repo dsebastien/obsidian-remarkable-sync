@@ -90,21 +90,42 @@ describe('mergeListing', () => {
     })
     const ids = (list: NotebookSummary[]): string[] => list.map((n) => n.id)
 
-    test('a complete listing replaces the previous list', () => {
+    test('a complete listing replaces the previous list; nothing is stale', () => {
         const merged = mergeListing([nb('a'), nb('gone')], describeListing([nb('a'), nb('b')], 0))
         expect(merged.outcome).toBe('complete')
         expect(ids(merged.notebooks)).toEqual(['a', 'b'])
+        expect([...merged.staleIds]).toEqual([])
     })
 
-    test('a partial listing keeps the last known entry of what it did not return', () => {
-        const merged = mergeListing([nb('a'), nb('held')], describeListing([nb('a'), nb('b')], 1))
+    test('a partial listing keeps only the unreadable ones, marked stale', () => {
+        const merged = mergeListing(
+            [nb('a'), nb('held'), nb('deleted')],
+            describeListing([nb('a'), nb('b')], 1, ['held'])
+        )
         expect(merged.outcome).toBe('partial')
         expect(ids(merged.notebooks)).toEqual(['a', 'b', 'held'])
+        expect([...merged.staleIds]).toEqual(['held'])
     })
 
-    test('a failed listing keeps the previous list', () => {
+    test('a partial listing with unknown unreadable ids keeps every absent entry, stale', () => {
+        const merged = mergeListing(
+            [nb('a'), nb('x'), nb('y')],
+            describeListing([nb('a')], 1, null)
+        )
+        expect(ids(merged.notebooks)).toEqual(['a', 'x', 'y'])
+        expect([...merged.staleIds].sort()).toEqual(['x', 'y'])
+    })
+
+    test('a failed listing keeps the previous list, all stale', () => {
         const merged = mergeListing([nb('a')], failedListing('offline'))
         expect(merged.outcome).toBe('failed')
         expect(ids(merged.notebooks)).toEqual(['a'])
+        expect([...merged.staleIds]).toEqual(['a'])
+    })
+
+    test('describeListing carries the unreadable ids; a complete one has none', () => {
+        expect(describeListing([nb('a')], 1, ['b']).unreadableIds).toEqual(['b'])
+        expect(describeListing([nb('a')], 0).unreadableIds).toEqual([])
+        expect(failedListing('x').unreadableIds).toBeNull()
     })
 })

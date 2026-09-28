@@ -382,6 +382,11 @@
     background-color: var(--background-modifier-hover);
 }
 
+/* Carried over from an earlier listing; shown, not syncable. */
+.remarkable-notebook-row.is-stale {
+    opacity: 0.5;
+}
+
 .remarkable-notebook-info {
     @apply flex-1 min-w-0;
 }

@@ -22,12 +22,12 @@ function notebook(id: string, lastModified = '0'): NotebookSummary {
 
 /** A listing where everything was read, which is what allows pruning. */
 function complete(notebooks: NotebookSummary[]): DocumentListing {
-    return { notebooks, complete: true, error: null }
+    return { notebooks, complete: true, error: null, unreadableIds: [] }
 }
 
 /** A listing that failed or dropped entries. Pruning must not run on one. */
 function incomplete(notebooks: NotebookSummary[], error: string): DocumentListing {
-    return { notebooks, complete: false, error }
+    return { notebooks, complete: false, error, unreadableIds: null }
 }
 
 function syncState(id: string, lastSyncedAt: number, lastModifiedCloud: number): NotebookSyncState {

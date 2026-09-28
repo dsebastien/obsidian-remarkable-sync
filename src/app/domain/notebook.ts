@@ -257,6 +257,14 @@ export interface DocumentListing {
 
     /** A message to show the user, or null when the listing fully succeeded. */
     readonly error: string | null
+
+    /**
+     * Ids of the entries that were in the cloud index but could not be read,
+     * or were withheld (a parent folder unreadable). Null when the ids are not
+     * known: the listing failed outright, or index lines could not be parsed.
+     * Empty for a complete listing.
+     */
+    readonly unreadableIds: readonly string[] | null
 }
 
 /**
@@ -267,15 +275,20 @@ export interface DocumentListing {
  * decides whether destructive pruning may run is the part worth testing, and
  * it was previously buried inside a function that needs a live cloud to reach.
  */
-export function describeListing(notebooks: NotebookSummary[], unreadable: number): DocumentListing {
+export function describeListing(
+    notebooks: NotebookSummary[],
+    unreadable: number,
+    unreadableIds: readonly string[] | null = null
+): DocumentListing {
     if (unreadable > 0) {
         return {
             notebooks,
             complete: false,
-            error: `${unreadable} item(s) could not be read from the reMarkable cloud`
+            error: `${unreadable} item(s) could not be read from the reMarkable cloud`,
+            unreadableIds
         }
     }
-    return { notebooks, complete: true, error: null }
+    return { notebooks, complete: true, error: null, unreadableIds: [] }
 }
 
 /**
@@ -285,7 +298,7 @@ export function describeListing(notebooks: NotebookSummary[], unreadable: number
  * is the entire point of this type.
  */
 export function failedListing(message: string): DocumentListing {
-    return { notebooks: [], complete: false, error: message }
+    return { notebooks: [], complete: false, error: message, unreadableIds: null }
 }
 
 /** How a refresh went, for the panel's wording. */
@@ -296,24 +309,39 @@ export type ListingOutcome = 'complete' | 'partial' | 'failed'
  *
  * - complete: the listing, as is.
  * - partial (some entries unreadable, some notebooks listed): the listing,
- *   plus the last known entry of every notebook it did not return. An absent
- *   notebook may only be unreadable this time, and dropping it would look
- *   exactly like a deletion on the device.
- * - failed (nothing listed): the previous list, untouched.
+ *   plus the last known entry of every notebook that was UNREADABLE this time
+ *   (all absent ones when the unreadable ids are unknown). Dropping them would
+ *   look exactly like a deletion on the device.
+ * - failed (nothing listed): the previous list.
+ *
+ * Every entry carried over from before is STALE: its name, folder and trash
+ * state may have changed since, so it is shown but must never be synced. A
+ * notebook moved to a folder that is now unreadable would otherwise be written
+ * to its old folder, and to the new one on the next full listing (issue #28);
+ * a notebook trashed on the device could be synced back into the vault.
  */
 export function mergeListing(
     previous: readonly NotebookSummary[],
     listing: DocumentListing
-): { notebooks: NotebookSummary[]; outcome: ListingOutcome } {
+): { notebooks: NotebookSummary[]; staleIds: Set<string>; outcome: ListingOutcome } {
     if (listing.complete) {
-        return { notebooks: listing.notebooks, outcome: 'complete' }
+        return { notebooks: listing.notebooks, staleIds: new Set(), outcome: 'complete' }
     }
     if (listing.notebooks.length === 0) {
-        return { notebooks: [...previous], outcome: 'failed' }
+        return {
+            notebooks: [...previous],
+            staleIds: new Set(previous.map((nb) => nb.id)),
+            outcome: 'failed'
+        }
     }
     const listed = new Set(listing.notebooks.map((nb) => nb.id))
+    const unreadable = listing.unreadableIds === null ? null : new Set(listing.unreadableIds)
+    const kept = previous.filter(
+        (nb) => !listed.has(nb.id) && (unreadable === null || unreadable.has(nb.id))
+    )
     return {
-        notebooks: [...listing.notebooks, ...previous.filter((nb) => !listed.has(nb.id))],
+        notebooks: [...listing.notebooks, ...kept],
+        staleIds: new Set(kept.map((nb) => nb.id)),
         outcome: 'partial'
     }
 }

@@ -1,5 +1,12 @@
-import { test, expect, describe } from 'bun:test'
-import { createTokenStore, parseStoredTokens, toStoredTokens } from './token-store'
+import { afterEach, test, expect, describe } from 'bun:test'
+import { Platform } from 'obsidian'
+import {
+    createTokenStore,
+    legacyTokenFileExists,
+    parseStoredTokens,
+    readLegacyTokenFile,
+    toStoredTokens
+} from './token-store'
 import type { StoredTokens, TokenStatePatch, TokenStoreDeps } from './token-store'
 
 describe('parseStoredTokens', () => {
@@ -237,5 +244,55 @@ describe('createTokenStore', () => {
                 createHarness({ stored: { ...tokens, deviceToken: '' } }).deps
             ).hasValid()
         ).toBe(false)
+    })
+})
+
+describe('legacy token file (desktop)', () => {
+    afterEach(() => {
+        Reflect.set(Platform, 'isDesktopApp', false)
+        Reflect.deleteProperty(window, 'require')
+    })
+
+    function stubElectronRequire(files: Record<string, string>): string[] {
+        const requested: string[] = []
+        const modules: Record<string, unknown> = {
+            fs: {
+                readFileSync: (path: string): string => {
+                    const content = files[path]
+                    if (content === undefined) {
+                        throw new Error('ENOENT')
+                    }
+                    return content
+                },
+                existsSync: (path: string): boolean => path in files
+            },
+            path: { join: (...parts: string[]): string => parts.join('/') },
+            os: { homedir: (): string => '/home/u' }
+        }
+        Reflect.set(window, 'require', (id: string): unknown => {
+            requested.push(id)
+            return modules[id]
+        })
+        return requested
+    }
+
+    test("reads the file through Electron's require, by bare module ids", () => {
+        Reflect.set(Platform, 'isDesktopApp', true)
+        const requested = stubElectronRequire({ '/home/u/.remarkable-sync/token.json': '{"x":1}' })
+        expect(readLegacyTokenFile()).toBe('{"x":1}')
+        expect(legacyTokenFileExists()).toBe(true)
+        expect(new Set(requested)).toEqual(new Set(['fs', 'path', 'os']))
+    })
+
+    test('is absent when Electron exposes no require', () => {
+        Reflect.set(Platform, 'isDesktopApp', true)
+        expect(readLegacyTokenFile()).toBeNull()
+        expect(legacyTokenFileExists()).toBe(false)
+    })
+
+    test('is never looked up off desktop', () => {
+        const requested = stubElectronRequire({ '/home/u/.remarkable-sync/token.json': '{}' })
+        expect(readLegacyTokenFile()).toBeNull()
+        expect(requested).toEqual([])
     })
 })

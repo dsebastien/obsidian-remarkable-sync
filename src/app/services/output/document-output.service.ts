@@ -10,6 +10,7 @@ import type { PdfPageImage } from './pdf-writer.service'
 import { annotateSourcePdf } from './pdf-annotator.service'
 import {
     ANNOTATED_SUFFIX,
+    documentFileName,
     writeDocumentFile,
     writeDocumentPdf,
     writeMarkdownNote,
@@ -270,7 +271,12 @@ export async function renderAndWritePages(
                 documentName: notebookName,
                 pages,
                 ...(annotatedWritten
-                    ? { annotatedPath: `${notebookName}${ANNOTATED_SUFFIX}.pdf` }
+                    ? {
+                          annotatedFileName: documentFileName(
+                              `${notebookName}${ANNOTATED_SUFFIX}`,
+                              'pdf'
+                          )
+                      }
                     : {})
             })
         )

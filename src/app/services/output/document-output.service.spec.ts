@@ -6,6 +6,8 @@ import type { PdfPageImage } from './pdf-writer.service'
 import type { Page, SourceDocument } from '../../domain/notebook'
 import { DEFAULT_SETTINGS } from '../../types/plugin-settings.intf'
 import type { PluginSettings } from '../../types/plugin-settings.intf'
+import { documentFileName } from './markdown-writer.service'
+import { linkToFile } from './vault-link'
 
 const page = (pageIndex: number): Page => ({
     pageId: `p${pageIndex}`,
@@ -262,12 +264,13 @@ async function runSourceBacked(
     h: Harness,
     settings: Partial<PluginSettings>,
     pages: Page[],
-    source: SourceDocument | null = sourcePdf()
+    source: SourceDocument | null = sourcePdf(),
+    notebookName = 'Book'
 ): Promise<Awaited<ReturnType<typeof renderAndWritePages>>> {
     return renderAndWritePages(
         {
             pages,
-            notebookName: 'Book',
+            notebookName,
             folderPath: 'Work',
             settings: { ...DEFAULT_SETTINGS, ...settings },
             vault: {} as Vault,
@@ -472,4 +475,28 @@ describe('highlights note toggle', () => {
         expect(h.pdfWrites).toHaveLength(0)
         expect(result.highlightsNoteWritten).toBe(true)
     })
+})
+
+describe('highlights note link to the annotated PDF', () => {
+    test.each(['Book', 'Notes [v2]', 'A|B', 'C# notes'])(
+        'names the file the writer produced for %p',
+        async (notebookName) => {
+            // The link target and the written file name used to be composed by
+            // two separate expressions; both now come from documentFileName.
+            const h = createHarness()
+            await runSourceBacked(
+                h,
+                { savePdf: true, saveImages: false, saveHighlightsNote: true },
+                [highlightedPage(0)],
+                sourcePdf(),
+                notebookName
+            )
+
+            const writtenName = documentFileName(h.pdfWrites[0]!.name, 'pdf')
+            expect(writtenName).toBe(`${notebookName} (annotated).pdf`)
+            expect(h.notesWritten[0]!.contents).toContain(
+                `Annotated document: ${linkToFile(writtenName)}`
+            )
+        }
+    )
 })

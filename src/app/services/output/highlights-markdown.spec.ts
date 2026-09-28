@@ -136,9 +136,21 @@ describe('buildHighlightsNote', () => {
         const note = buildHighlightsNote({
             documentName: 'Doc',
             pages: [page(0, [highlight('x')], 0)],
-            annotatedPath: 'Doc (annotated).pdf'
+            annotatedFileName: 'Doc (annotated).pdf'
         })
         expect(note).toContain('[[Doc (annotated).pdf]]')
+    })
+
+    test('links a name that would break a wikilink in a form that resolves', () => {
+        const note = buildHighlightsNote({
+            documentName: 'Notes [v2]',
+            pages: [page(0, [highlight('x')], 0)],
+            annotatedFileName: 'Notes [v2] (annotated).pdf'
+        })
+        expect(note).toContain(
+            'Annotated document: [Notes \\[v2\\] (annotated).pdf](<Notes [v2] (annotated).pdf>)'
+        )
+        expect(note).not.toContain('[[Notes [v2]')
     })
 
     test('omits the link when no annotated copy exists', () => {

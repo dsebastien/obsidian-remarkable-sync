@@ -48,9 +48,21 @@ export function buildDocumentPath(
     if (folderPath) {
         parts.push(folderPath)
     }
-    parts.push(`${notebookName}.${extension}`)
+    parts.push(documentFileName(notebookName, extension))
 
     return parts.join('/')
+}
+
+/**
+ * The file name a whole-document output (PDF, EPUB, markdown note) is written
+ * under.
+ *
+ * The one definition of it: the highlights note derives its link to the
+ * annotated PDF from this too. Composing the two independently is how a link
+ * ends up pointing at a file that does not exist the moment either changes.
+ */
+export function documentFileName(notebookName: string, extension: string): string {
+    return `${notebookName}.${extension}`
 }
 
 /**

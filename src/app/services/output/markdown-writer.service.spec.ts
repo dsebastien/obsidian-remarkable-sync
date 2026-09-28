@@ -4,6 +4,7 @@ import {
     buildDocumentPath,
     buildPagePath,
     buffersEqual,
+    documentFileName,
     writeBinaryIfChanged,
     writeDocumentPdf,
     writePageImage
@@ -303,5 +304,17 @@ describe('writeBinaryIfChanged path conflicts', () => {
         await writeBinaryIfChanged(vault, 'Notes/Meeting.pdf', bytes(1))
 
         expect(calls.created).toEqual(['Notes/Meeting.pdf'])
+    })
+})
+
+describe('documentFileName', () => {
+    test('is the last segment of the document path, unchanged', () => {
+        // The highlights note links to this name; it must be exactly what
+        // buildDocumentPath writes, and it must not be sanitised yet (that
+        // would move existing output, deferred to the next major).
+        expect(documentFileName('C# notes (annotated)', 'pdf')).toBe('C# notes (annotated).pdf')
+        expect(buildDocumentPath('rM', 'Work', 'C# notes (annotated)', 'pdf')).toBe(
+            `rM/Work/${documentFileName('C# notes (annotated)', 'pdf')}`
+        )
     })
 })

@@ -1,4 +1,5 @@
 import type { Highlight, Page } from '../../domain/notebook'
+import { linkToFile } from './vault-link'
 
 /**
  * Score how plausible it is that a line break sat immediately before `index`.
@@ -144,8 +145,12 @@ export function normaliseHighlightText(text: string, rectWidths: readonly number
 export interface HighlightNoteOptions {
     documentName: string
     pages: readonly Page[]
-    /** Vault path of the annotated PDF, linked from the note when present */
-    annotatedPath?: string
+    /**
+     * File name of the annotated PDF, linked from the note when present. Must
+     * come from `documentFileName`, the same function the writer names the
+     * file with, so the link cannot point at a file that does not exist.
+     */
+    annotatedFileName?: string
 }
 
 interface PageHighlights {
@@ -180,13 +185,13 @@ export function hasHighlights(pages: readonly Page[]): boolean {
  * alone.
  */
 export function buildHighlightsNote(options: HighlightNoteOptions): string {
-    const { documentName, pages, annotatedPath } = options
+    const { documentName, pages, annotatedFileName } = options
     const byPage = collect(pages)
 
     const lines: string[] = [`# ${documentName} — highlights`, '']
 
-    if (annotatedPath) {
-        lines.push(`Annotated document: [[${annotatedPath}]]`, '')
+    if (annotatedFileName) {
+        lines.push(`Annotated document: ${linkToFile(annotatedFileName)}`, '')
     }
 
     const total = byPage.reduce((n, p) => n + p.highlights.length, 0)

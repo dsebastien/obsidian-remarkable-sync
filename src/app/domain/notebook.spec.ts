@@ -1,5 +1,5 @@
 import { test, expect, describe } from 'bun:test'
-import { describeListing, failedListing, notebookDisplayPath } from './notebook'
+import { describeListing, failedListing, mergeListing, notebookDisplayPath } from './notebook'
 import type { NotebookSummary } from './notebook'
 
 function notebook(id: string): NotebookSummary {
@@ -76,5 +76,35 @@ describe('notebookDisplayPath', () => {
 
     test('returns the bare name at the vault root', () => {
         expect(notebookDisplayPath(notebook('a'))).toBe('a')
+    })
+})
+
+describe('mergeListing', () => {
+    const nb = (id: string): NotebookSummary => ({
+        id,
+        visibleName: id,
+        parent: '',
+        lastModified: '1',
+        pageCount: 0,
+        folderPath: ''
+    })
+    const ids = (list: NotebookSummary[]): string[] => list.map((n) => n.id)
+
+    test('a complete listing replaces the previous list', () => {
+        const merged = mergeListing([nb('a'), nb('gone')], describeListing([nb('a'), nb('b')], 0))
+        expect(merged.outcome).toBe('complete')
+        expect(ids(merged.notebooks)).toEqual(['a', 'b'])
+    })
+
+    test('a partial listing keeps the last known entry of what it did not return', () => {
+        const merged = mergeListing([nb('a'), nb('held')], describeListing([nb('a'), nb('b')], 1))
+        expect(merged.outcome).toBe('partial')
+        expect(ids(merged.notebooks)).toEqual(['a', 'b', 'held'])
+    })
+
+    test('a failed listing keeps the previous list', () => {
+        const merged = mergeListing([nb('a')], failedListing('offline'))
+        expect(merged.outcome).toBe('failed')
+        expect(ids(merged.notebooks)).toEqual(['a'])
     })
 })

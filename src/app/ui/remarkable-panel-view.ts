@@ -1,7 +1,8 @@
 import { ItemView, setIcon } from 'obsidian'
 import type { WorkspaceLeaf } from 'obsidian'
 import type { RemarkableSyncPlugin } from '../plugin'
-import type { NotebookSummary } from '../domain/notebook'
+import type { ListingOutcome, NotebookSummary } from '../domain/notebook'
+import { mergeListing } from '../domain/notebook'
 import type {
     PipelineProgress,
     PipelineStatus
@@ -52,6 +53,7 @@ export class RemarkablePanelView extends ItemView {
      * from 1.10.0 to 2.1.0.
      */
     private listError: string | null = null
+    private listOutcome: ListingOutcome = 'complete'
     private isBulkSyncing = false
     private searchQuery = ''
     private filterMode: FilterMode = 'all'
@@ -108,9 +110,11 @@ export class RemarkablePanelView extends ItemView {
             banner.createEl('p', {
                 cls: 'remarkable-list-error-detail',
                 text:
-                    this.notebooks.length > 0
-                        ? 'Showing the last known list. Nothing was changed.'
-                        : 'Nothing was changed. Select refresh to try again.'
+                    this.listOutcome === 'partial'
+                        ? 'Some notebooks could not be read; their last known entries are kept. Nothing was deleted.'
+                        : this.notebooks.length > 0
+                          ? 'Showing the last known list. Nothing was changed.'
+                          : 'Nothing was changed. Select refresh to try again.'
             })
         }
 
@@ -564,11 +568,11 @@ export class RemarkablePanelView extends ItemView {
             const listing = await this.plugin.cloudService.listDocuments()
             this.listError = listing.error
 
-            // Keep the previous list rather than blanking the panel when the
-            // cloud could not be reached at all.
-            if (listing.complete || listing.notebooks.length > 0) {
-                this.notebooks = listing.notebooks
-            }
+            // Keep what the listing could not read rather than dropping it,
+            // which would look like a deletion on the device.
+            const merged = mergeListing(this.notebooks, listing)
+            this.notebooks = merged.notebooks
+            this.listOutcome = merged.outcome
 
             // Drop sync state for notebooks deleted on the device/cloud, but
             // ONLY from a listing known to be complete: an unreachable cloud
@@ -583,6 +587,7 @@ export class RemarkablePanelView extends ItemView {
         } catch (error) {
             log('Failed to refresh notebooks', 'error', error)
             this.listError = error instanceof Error ? error.message : 'Unknown error'
+            this.listOutcome = 'failed'
         }
 
         this.isLoading = false

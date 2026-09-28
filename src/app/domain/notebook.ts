@@ -288,6 +288,36 @@ export function failedListing(message: string): DocumentListing {
     return { notebooks: [], complete: false, error: message }
 }
 
+/** How a refresh went, for the panel's wording. */
+export type ListingOutcome = 'complete' | 'partial' | 'failed'
+
+/**
+ * What the panel shows after a refresh, given what it showed before.
+ *
+ * - complete: the listing, as is.
+ * - partial (some entries unreadable, some notebooks listed): the listing,
+ *   plus the last known entry of every notebook it did not return. An absent
+ *   notebook may only be unreadable this time, and dropping it would look
+ *   exactly like a deletion on the device.
+ * - failed (nothing listed): the previous list, untouched.
+ */
+export function mergeListing(
+    previous: readonly NotebookSummary[],
+    listing: DocumentListing
+): { notebooks: NotebookSummary[]; outcome: ListingOutcome } {
+    if (listing.complete) {
+        return { notebooks: listing.notebooks, outcome: 'complete' }
+    }
+    if (listing.notebooks.length === 0) {
+        return { notebooks: [...previous], outcome: 'failed' }
+    }
+    const listed = new Set(listing.notebooks.map((nb) => nb.id))
+    return {
+        notebooks: [...listing.notebooks, ...previous.filter((nb) => !listed.has(nb.id))],
+        outcome: 'partial'
+    }
+}
+
 export function notebookDisplayPath(nb: NotebookSummary): string {
     return nb.folderPath ? `${nb.folderPath}/${nb.visibleName}` : nb.visibleName
 }

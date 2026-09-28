@@ -27,6 +27,7 @@
         "eslint-config-prettier": "10.1.8",
         "eslint-plugin-obsidianmd": "0.4.1",
         "globals": "17.0.0",
+        "jiti": "2.6.1",
         "obsidian": "1.13.1",
         "prettier": "3.9.6",
         "tailwindcss": "4.1.17",

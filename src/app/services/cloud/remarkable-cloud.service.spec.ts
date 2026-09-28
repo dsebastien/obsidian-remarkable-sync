@@ -1,5 +1,9 @@
 import { describe, expect, test } from 'bun:test'
-import { createRemarkableCloudService, resolveFolderPath } from './remarkable-cloud.service'
+import {
+    AUTHENTICATION_FAILED,
+    createRemarkableCloudService,
+    resolveFolderPath
+} from './remarkable-cloud.service'
 import type {
     CloudServiceHost,
     CloudTransport,
@@ -58,8 +62,16 @@ class FakeCloud {
     readonly blobs = new Map<string, string>()
     readonly failing = new Set<string>()
     readonly throwing = new Set<string>()
+    /** Hashes whose request fails after exhausting its retries (counted by the budget). */
+    readonly exhausting = new Set<string>()
     readonly fetched: string[] = []
+    readonly budgets: (RequestBudget | undefined)[] = []
     rootExtraLines = ''
+    /** Scripted root-hash outcomes, consumed in order; empty means success. */
+    readonly rootScript: ('401' | 'ok')[] = []
+    refreshes = 0
+    refreshedToken: string | null = 'token-2'
+    unloadSignal = new AbortController().signal
     private root: { id: string; indexHash: string }[] = []
     onFetch: ((hash: string, budget: RequestBudget | undefined) => void) | null = null
 
@@ -69,6 +81,12 @@ class FakeCloud {
 
     doc(id: string, name: string, parent = '', files: string[] = [], version = 1): this {
         return this.entry(id, { type: 'DocumentType', visibleName: name, parent }, files, version)
+    }
+
+    corruptIndex(id: string, version = 1): this {
+        const key = `idx-${id}-v${version}`
+        this.blobs.set(key, `${this.blobs.get(key)}garbled\n`)
+        return this
     }
 
     remove(id: string): this {
@@ -102,14 +120,25 @@ class FakeCloud {
     transport(): CloudTransport {
         return {
             fetchRootHash: async () => {
+                if (this.rootScript.shift() === '401') {
+                    throw Object.assign(new Error('HTTP 401'), { status: 401 })
+                }
                 const lines = this.root.map((e) => `${e.indexHash}:80000000:${e.id}:0:0`)
                 this.blobs.set('root', `3\n${lines.join('\n')}\n${this.rootExtraLines}`)
                 return 'root'
             },
             fetchBlob: async (_token, hash, _name, _base, budget) => {
+                // Mirrors the real fetchBlob: a spent budget makes no request.
+                if (budget?.exhaustedReason) return null
                 this.fetched.push(hash)
+                this.budgets.push(budget)
                 this.onFetch?.(hash, budget)
                 if (this.throwing.has(hash)) throw new Error(`boom ${hash}`)
+                if (this.exhausting.has(hash)) {
+                    budget?.recordFailedRequest()
+                    return null
+                }
+                budget?.recordAnswered()
                 if (this.failing.has(hash)) return null
                 const text = this.blobs.get(hash)
                 return text === undefined ? null : new TextEncoder().encode(text).buffer
@@ -122,9 +151,12 @@ class FakeCloud {
             settings: DEFAULT_SETTINGS,
             authService: {
                 getUserToken: async () => 'token',
-                refreshAndGetUserToken: async () => 'token'
+                refreshAndGetUserToken: async () => {
+                    this.refreshes++
+                    return this.refreshedToken
+                }
             },
-            unloadSignal: new AbortController().signal
+            unloadSignal: this.unloadSignal
         } as unknown as CloudServiceHost
         return createRemarkableCloudService(host, this.transport())
     }
@@ -195,21 +227,71 @@ describe('listDocuments against an in-memory cloud', () => {
         expect(cloud.fetched).toEqual(['root', 'idx-d2-v1', 'meta-d2-v1'])
     })
 
-    test('every request of one listing shares a budget, whose stop reason is reported', async () => {
-        const cloud = new FakeCloud().doc('d1', 'One').doc('d2', 'Two')
-        const budgets = new Set<RequestBudget | undefined>()
+    test('consecutive exhausted requests stop the listing and report why', async () => {
+        const cloud = new FakeCloud()
+        for (let i = 0; i < 20; i++) cloud.doc(`d${i}`, `Doc ${i}`)
+        for (let i = 0; i < 20; i++) cloud.exhausting.add(`idx-d${i}-v1`)
+        const listing = await cloud.service().listDocuments()
+        expect(listing.complete).toBe(false)
+        expect(listing.error).toContain('keeps failing')
+        // Stopped after a few failures, not one per entry.
+        expect(cloud.fetched.length).toBeLessThan(20)
+        // One budget for the whole listing.
+        expect(new Set(cloud.budgets).size).toBe(1)
+        expect(cloud.budgets[0]).toBeInstanceOf(RequestBudget)
+    })
+
+    test('a budget stopped after every entry was read keeps the listing complete', async () => {
+        const cloud = new FakeCloud().doc('d1', 'One')
         cloud.onFetch = (hash, budget): void => {
-            budgets.add(budget)
-            if (hash === 'idx-d1-v1') {
-                budget?.stop('rate limited')
-                cloud.failing.add(hash)
-            }
+            if (hash === 'meta-d1-v1') budget?.stop('late stop')
         }
         const listing = await cloud.service().listDocuments()
-        expect(budgets.size).toBe(1)
-        expect([...budgets][0]).toBeInstanceOf(RequestBudget)
+        expect(listing.complete).toBe(true)
+        expect(listing.error).toBeNull()
+    })
+
+    test('the listing carries the ids it could not read, and withheld ones', async () => {
+        const cloud = new FakeCloud().folder('f', 'Work').doc('d1', 'Notes', 'f').doc('d2', 'Two')
+        cloud.failing.add('meta-f-v1')
+        const listing = await cloud.service().listDocuments()
+        expect([...(listing.unreadableIds ?? [])].sort()).toEqual(['d1', 'f'])
+    })
+
+    test('rejected root lines make the unreadable ids unknown', async () => {
+        const cloud = new FakeCloud().doc('d1', 'One')
+        cloud.rootExtraLines = 'garbled-line\n'
+        expect((await cloud.service().listDocuments()).unreadableIds).toBeNull()
+    })
+
+    test('an unloaded plugin makes no request at all', async () => {
+        const cloud = new FakeCloud().doc('d1', 'One')
+        const controller = new AbortController()
+        controller.abort()
+        cloud.unloadSignal = controller.signal
+        const listing = await cloud.service().listDocuments()
         expect(listing.complete).toBe(false)
-        expect(listing.error).toBe('rate limited')
+        expect(listing.error).toContain('unloaded')
+        expect(cloud.fetched).toEqual([])
+    })
+
+    test('a 401 refreshes the token once and the listing proceeds', async () => {
+        const cloud = new FakeCloud().doc('d1', 'One')
+        cloud.rootScript.push('401')
+        const listing = await cloud.service().listDocuments()
+        expect(cloud.refreshes).toBe(1)
+        expect(listing.complete).toBe(true)
+    })
+
+    test('a failed refresh or a second 401 asks to reconnect', async () => {
+        const failedRefresh = new FakeCloud().doc('d1', 'One')
+        failedRefresh.rootScript.push('401')
+        failedRefresh.refreshedToken = null
+        expect((await failedRefresh.service().listDocuments()).error).toBe(AUTHENTICATION_FAILED)
+
+        const twice = new FakeCloud().doc('d1', 'One')
+        twice.rootScript.push('401', '401')
+        expect((await twice.service().listDocuments()).error).toBe(AUTHENTICATION_FAILED)
     })
 })
 
@@ -218,6 +300,24 @@ describe('downloadDocument against an in-memory cloud', () => {
         const cloud = new FakeCloud().doc('d1', 'One', '', ['a.rm', 'b.rm'])
         const files = await cloud.service().downloadDocument('d1')
         expect([...(files?.keys() ?? [])].sort()).toEqual(['d1.metadata', 'd1/a.rm', 'd1/b.rm'])
+    })
+
+    test('every file fetch of one download shares one budget, without a deadline', async () => {
+        const cloud = new FakeCloud().doc('d1', 'One', '', ['a.rm', 'b.rm'])
+        const service = cloud.service()
+        await service.listDocuments()
+        cloud.budgets.length = 0
+        await service.downloadDocument('d1')
+        expect(cloud.budgets).toHaveLength(4)
+        expect(new Set(cloud.budgets).size).toBe(1)
+        const budget = cloud.budgets[0]!
+        expect(budget).toBeInstanceOf(RequestBudget)
+        expect(Reflect.get(budget, 'deadline')).toBeNull()
+    })
+
+    test('fails when the document index has a line it cannot parse', async () => {
+        const cloud = new FakeCloud().doc('d1', 'One', '', ['a.rm']).corruptIndex('d1')
+        expect(await cloud.service().downloadDocument('d1')).toBeNull()
     })
 
     test('fails when any file could not be fetched, instead of dropping pages', async () => {

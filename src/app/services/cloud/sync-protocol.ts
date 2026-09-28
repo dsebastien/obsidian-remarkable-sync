@@ -71,15 +71,15 @@ function headerValue(
 }
 
 /**
- * Retryable failures in a row, across every request of one operation, after
- * which the operation gives up. Six workers retrying independently would keep
- * hammering a server that is down or rate limiting; a handful of consecutive
- * failures is already enough to tell.
+ * Requests in a row, across one operation, that failed even after all their
+ * retries, after which the operation gives up. Counting individual attempts
+ * instead would trip on a handful of transient errors spread over the six
+ * parallel workers, each of which would have succeeded on its next try.
  */
-export const MAX_CONSECUTIVE_FAILURES = 8
+export const MAX_CONSECUTIVE_FAILED_REQUESTS = 3
 
-/** Wall-clock limit for one listing or one download. */
-export const OPERATION_DEADLINE_MS = 10 * 60_000
+/** Wall-clock limit for one listing. Downloads have none (see `RequestBudget`). */
+export const LISTING_DEADLINE_MS = 10 * 60_000
 
 /**
  * Thrown instead of making a request once the operation's budget is spent.
@@ -102,27 +102,42 @@ export class RequestBudgetExhaustedError extends Error {
  * hours before the listing came back incomplete anyway. The budget stops the
  * whole operation instead, when any of these holds:
  *
- * - `MAX_CONSECUTIVE_FAILURES` retryable failures in a row (any success resets
- *   the count);
+ * - `MAX_CONSECUTIVE_FAILED_REQUESTS` requests in a row exhausted their
+ *   retries (any request that gets a final answer resets the count);
  * - the server asked for a longer wait (`Retry-After`) than the backoff cap:
  *   waiting less would only hit the limit again;
- * - the operation's deadline passed;
- * - the signal was aborted (the plugin unloaded).
+ * - the deadline passed, when one is set (listings only: a large download that
+ *   is still making progress must not be cut off);
+ * - the parent signal was aborted (the plugin unloaded).
+ *
+ * Stopping aborts the budget's own signal, so every other worker's backoff
+ * wait ends at once instead of running its course.
  */
 export class RequestBudget {
     private consecutiveFailures = 0
     private stopReason: string | null = null
-    private readonly deadline: number
+    private readonly deadline: number | null
+    private readonly controller = new AbortController()
 
     constructor(
         private readonly options: {
+            /** Aborted when the plugin unloads. */
             readonly signal?: AbortSignal
-            readonly deadlineMs?: number
+            /** Null for no deadline. */
+            readonly deadlineMs?: number | null
             readonly maxConsecutiveFailures?: number
             readonly now?: () => number
         } = {}
     ) {
-        this.deadline = this.now() + (options.deadlineMs ?? OPERATION_DEADLINE_MS)
+        const deadlineMs =
+            options.deadlineMs === undefined ? LISTING_DEADLINE_MS : options.deadlineMs
+        this.deadline = deadlineMs === null ? null : this.now() + deadlineMs
+        const parent = options.signal
+        if (parent?.aborted) {
+            this.stop(UNLOADED)
+        } else {
+            parent?.addEventListener('abort', () => this.stop(UNLOADED), { once: true })
+        }
     }
 
     private now(): number {
@@ -131,18 +146,15 @@ export class RequestBudget {
 
     /** Why the operation stopped, or null while it may continue. */
     get exhaustedReason(): string | null {
-        if (this.stopReason === null) {
-            if (this.options.signal?.aborted) {
-                this.stopReason = 'Stopped: the plugin was unloaded'
-            } else if (this.now() >= this.deadline) {
-                this.stopReason = 'The reMarkable cloud took too long to answer'
-            }
+        if (this.stopReason === null && this.deadline !== null && this.now() >= this.deadline) {
+            this.stop('The reMarkable cloud took too long to answer')
         }
         return this.stopReason
     }
 
-    get signal(): AbortSignal | undefined {
-        return this.options.signal
+    /** Aborted as soon as the budget stops, for whatever reason. */
+    get signal(): AbortSignal {
+        return this.controller.signal
     }
 
     /** Throw when no further request may be made. */
@@ -153,24 +165,30 @@ export class RequestBudget {
         }
     }
 
-    recordSuccess(): void {
+    /** A request got a final answer (whatever its status). */
+    recordAnswered(): void {
         this.consecutiveFailures = 0
     }
 
-    recordRetryableFailure(): void {
+    /** A request failed after exhausting its retries. */
+    recordFailedRequest(): void {
         this.consecutiveFailures++
         if (
             this.consecutiveFailures >=
-            (this.options.maxConsecutiveFailures ?? MAX_CONSECUTIVE_FAILURES)
+            (this.options.maxConsecutiveFailures ?? MAX_CONSECUTIVE_FAILED_REQUESTS)
         ) {
             this.stop('The reMarkable cloud keeps failing; try again later')
         }
     }
 
     stop(reason: string): void {
-        this.stopReason ??= reason
+        if (this.stopReason !== null) return
+        this.stopReason = reason
+        this.controller.abort()
     }
 }
+
+const UNLOADED = 'Stopped: the plugin was unloaded'
 
 /**
  * The wait a `Retry-After` header asks for, in ms, unclamped; null when there
@@ -188,7 +206,7 @@ export function requestedRetryAfterMs(
 }
 
 /** A timer that an abort signal cuts short. */
-function sleepUnlessAborted(ms: number, signal?: AbortSignal): Promise<void> {
+export function sleepUnlessAborted(ms: number, signal?: AbortSignal): Promise<void> {
     if (ms <= 0 || signal?.aborted) return Promise.resolve()
     return new Promise((resolve) => {
         const onAbort = (): void => {
@@ -204,7 +222,7 @@ function sleepUnlessAborted(ms: number, signal?: AbortSignal): Promise<void> {
 }
 
 export interface RetryOptions {
-    /** Injected in tests; defaults to a timer the budget's signal can cut short. */
+    /** Injected in tests; defaults to a timer the budget's signal cuts short. */
     readonly sleep?: (ms: number) => Promise<void>
     /** Shared by every request of one operation; a private one when omitted. */
     readonly budget?: RequestBudget
@@ -234,8 +252,10 @@ export async function requestWithRetry(
         try {
             response = await requestUrl({ ...params, throw: false })
         } catch (error: unknown) {
-            budget.recordRetryableFailure()
-            if (isLast) throw error
+            if (isLast) {
+                budget.recordFailedRequest()
+                throw error
+            }
             const delay = retryDelayMs(attempt)
             log(`Request to ${params.url} failed, retrying in ${delay} ms`, 'debug', error)
             await sleep(delay)
@@ -243,10 +263,9 @@ export async function requestWithRetry(
         }
 
         if (!isRetryableStatus(response.status)) {
-            budget.recordSuccess()
+            budget.recordAnswered()
             return response
         }
-        budget.recordRetryableFailure()
         const retryAfter = headerValue(response.headers, 'retry-after')
         const requested = requestedRetryAfterMs(retryAfter)
         if (requested !== null && requested > MAX_BACKOFF_MS) {
@@ -257,6 +276,7 @@ export async function requestWithRetry(
             return response
         }
         if (isLast) {
+            budget.recordFailedRequest()
             return response
         }
         const delay = retryDelayMs(attempt, retryAfter)

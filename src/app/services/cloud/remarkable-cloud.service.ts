@@ -22,6 +22,9 @@ import { resolveCloudUrls } from './cloud-urls'
  */
 export const CLOUD_REQUEST_CONCURRENCY = 6
 
+export const AUTHENTICATION_FAILED =
+    'Authentication failed; reconnect to the reMarkable cloud in the settings'
+
 /**
  * Resolve a document's folder path from its parent chain.
  *
@@ -128,31 +131,40 @@ export function createRemarkableCloudService(
         }
     }
 
+    /**
+     * The root hash, refreshing the token once on a 401. On failure, the reason
+     * to show: an authentication problem needs a reconnect, not a retry.
+     */
     async function getRootHashWithRetry(
         budget: RequestBudget
-    ): Promise<{ rootHash: string; userToken: string } | null> {
+    ): Promise<{ rootHash: string; userToken: string } | { failure: string }> {
         const { syncBaseUrl } = resolveCloudUrls(plugin.settings)
+        const unreachable = { failure: 'Could not reach the reMarkable cloud' }
         let userToken = await plugin.authService.getUserToken()
         if (!userToken) {
             log('Not authenticated', 'error')
-            return null
+            return { failure: AUTHENTICATION_FAILED }
         }
 
         try {
             const rootHash = await transport.fetchRootHash(userToken, syncBaseUrl, budget)
-            if (!rootHash) return null
-            return { rootHash, userToken }
+            return rootHash ? { rootHash, userToken } : unreachable
         } catch {
             // 401 — try refreshing the token once
             log('Token rejected, refreshing...', 'debug')
-            userToken = await plugin.authService.refreshAndGetUserToken()
-            if (!userToken) {
-                log('Token refresh failed', 'error')
-                return null
-            }
+        }
+
+        userToken = await plugin.authService.refreshAndGetUserToken()
+        if (!userToken) {
+            log('Token refresh failed', 'error')
+            return { failure: AUTHENTICATION_FAILED }
+        }
+        try {
             const rootHash = await transport.fetchRootHash(userToken, syncBaseUrl, budget)
-            if (!rootHash) return null
-            return { rootHash, userToken }
+            return rootHash ? { rootHash, userToken } : unreachable
+        } catch {
+            log('Token rejected after a refresh', 'error')
+            return { failure: AUTHENTICATION_FAILED }
         }
     }
 
@@ -163,21 +175,24 @@ export function createRemarkableCloudService(
     }
 
     /** One failure budget per listing or download (see `RequestBudget`). */
-    function newBudget(): RequestBudget {
-        return new RequestBudget({ signal: plugin.unloadSignal })
+    function newBudget(kind: 'listing' | 'download'): RequestBudget {
+        return new RequestBudget({
+            signal: plugin.unloadSignal,
+            // A large download still making progress must not be cut off; the
+            // failure limit and unload still stop a dead one.
+            ...(kind === 'download' ? { deadlineMs: null } : {})
+        })
     }
 
     async function listDocuments(): Promise<DocumentListing> {
         try {
             const { syncBaseUrl } = resolveCloudUrls(plugin.settings)
-            const budget = newBudget()
+            const budget = newBudget('listing')
 
             // Step 1: Get root hash (with token refresh on 401)
             const result = await getRootHashWithRetry(budget)
-            if (!result) {
-                return listingFailed(
-                    budget.exhaustedReason ?? 'Could not reach the reMarkable cloud'
-                )
+            if ('failure' in result) {
+                return listingFailed(budget.exhaustedReason ?? result.failure)
             }
             const { rootHash, userToken } = result
 
@@ -260,6 +275,7 @@ export function createRemarkableCloudService(
             // Collect documents
             const notebooks: NotebookSummary[] = []
             let withheld = 0
+            const withheldIds: string[] = []
 
             for (const result of metadataResults) {
                 if (result.status !== 'fulfilled' || !result.value.metadata) continue
@@ -275,6 +291,7 @@ export function createRemarkableCloudService(
                     unreadableIds
                 )
                 if (null === folderPath) {
+                    withheldIds.push(entry.id)
                     // Withheld rather than written to a truncated path; counts
                     // as unreadable so the listing is reported incomplete.
                     log(
@@ -299,7 +316,9 @@ export function createRemarkableCloudService(
 
             const described = describeListing(
                 notebooks,
-                unreadableIds.size + withheld + rejectedRootLines
+                unreadableIds.size + withheld + rejectedRootLines,
+                // A rejected root line is an entry whose id is unknown.
+                rejectedRootLines > 0 ? null : [...unreadableIds, ...withheldIds]
             )
             // When the budget stopped the listing, its reason says more than a
             // count of unreadable items.
@@ -322,14 +341,14 @@ export function createRemarkableCloudService(
     async function downloadDocument(documentId: string): Promise<Map<string, ArrayBuffer> | null> {
         try {
             const { syncBaseUrl } = resolveCloudUrls(plugin.settings)
-            const budget = newBudget()
+            const budget = newBudget('download')
 
             // Look up document's index hash (fetch root if not cached)
             let indexHash = entryHashMap.get(documentId)
             let userToken: string | null = null
             if (!indexHash) {
                 const result = await getRootHashWithRetry(budget)
-                if (!result) return null
+                if ('failure' in result) return null
                 userToken = result.userToken
 
                 const rootBlob = await transport.fetchBlob(
@@ -371,7 +390,16 @@ export function createRemarkableCloudService(
             if (!indexBlob) return null
 
             const indexContent = new TextDecoder().decode(indexBlob)
-            const fileEntries = parseIndex(indexContent)
+            // A line the parser rejects is a file it cannot name: processing
+            // the rest would mark the notebook synced with that file absent.
+            const { entries: fileEntries, rejected } = parseIndexDetailed(indexContent)
+            if (rejected > 0) {
+                log(
+                    `${rejected} unreadable line(s) in the index of document ${documentId}`,
+                    'error'
+                )
+                return null
+            }
 
             // Download all files, a bounded number at a time
             const fileResults = await mapSettledWithConcurrency(

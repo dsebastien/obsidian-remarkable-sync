@@ -164,46 +164,59 @@ describe('sync-protocol', () => {
             script.length = 0
         })
 
-        test('consecutive failures across requests stop the whole operation', async () => {
-            for (let i = 0; i < 10; i++) script.push({ status: 503 })
-            const budget = new RequestBudget({ maxConsecutiveFailures: 3 })
-            const first = await requestWithRetry(
-                { url: 'https://x/a' },
-                { sleep: noSleep, budget }
-            ).catch((e: unknown) => e)
-            expect(first).toBeInstanceOf(RequestBudgetExhaustedError)
-            expect(recordedRequests.length).toBe(3)
+        test('requests that exhaust their retries in a row stop the whole operation', async () => {
+            for (let i = 0; i < 20; i++) script.push({ status: 503 })
+            const budget = new RequestBudget({ maxConsecutiveFailures: 2 })
+            const first = await requestWithRetry({ url: 'https://x/a' }, { sleep: noSleep, budget })
+            expect(first.status).toBe(503)
+            expect(recordedRequests.length).toBe(MAX_REQUEST_ATTEMPTS)
+            expect(budget.exhaustedReason).toBeNull()
+
+            await requestWithRetry({ url: 'https://x/b' }, { sleep: noSleep, budget })
+            expect(recordedRequests.length).toBe(2 * MAX_REQUEST_ATTEMPTS)
+            expect(budget.exhaustedReason).toContain('keeps failing')
+            expect(budget.signal.aborted).toBe(true)
 
             // The next request of the same operation is not even attempted.
-            const second = await requestWithRetry(
-                { url: 'https://x/b' },
+            const third = await requestWithRetry(
+                { url: 'https://x/c' },
                 { sleep: noSleep, budget }
             ).catch((e: unknown) => e)
-            expect(second).toBeInstanceOf(RequestBudgetExhaustedError)
-            expect(recordedRequests.length).toBe(3)
+            expect(third).toBeInstanceOf(RequestBudgetExhaustedError)
+            expect(recordedRequests.length).toBe(2 * MAX_REQUEST_ATTEMPTS)
         })
 
-        test('network errors count against the budget too', async () => {
+        test('a transient failure that recovers does not count', async () => {
+            for (let i = 0; i < 3; i++) script.push({ status: 503 }, { status: 200 })
+            const budget = new RequestBudget({ maxConsecutiveFailures: 1 })
+            for (const url of ['https://x/a', 'https://x/b', 'https://x/c']) {
+                await requestWithRetry({ url }, { sleep: noSleep, budget })
+            }
+            expect(budget.exhaustedReason).toBeNull()
+        })
+
+        test('network errors that exhaust the retries count too', async () => {
             for (let i = 0; i < 10; i++) script.push(new Error('offline'))
-            const budget = new RequestBudget({ maxConsecutiveFailures: 2 })
+            const budget = new RequestBudget({ maxConsecutiveFailures: 1 })
             const error = await requestWithRetry(
                 { url: 'https://x/a' },
                 { sleep: noSleep, budget }
             ).catch((e: unknown) => e)
-            expect(error).toBeInstanceOf(RequestBudgetExhaustedError)
-            expect(recordedRequests.length).toBe(2)
+            expect((error as Error).message).toBe('offline')
+            expect(budget.exhaustedReason).toContain('keeps failing')
         })
 
-        test('a success resets the consecutive failure count', async () => {
-            script.push({ status: 503 }, { status: 503 }, { status: 200 })
-            script.push({ status: 503 }, { status: 503 }, { status: 200 })
-            const budget = new RequestBudget({ maxConsecutiveFailures: 3 })
-            await requestWithRetry({ url: 'https://x/a' }, { sleep: noSleep, budget })
-            const response = await requestWithRetry(
-                { url: 'https://x/b' },
-                { sleep: noSleep, budget }
-            )
-            expect(response.status).toBe(200)
+        test('an answered request resets the consecutive failure count', async () => {
+            const exhaust = (): void => {
+                for (let i = 0; i < MAX_REQUEST_ATTEMPTS; i++) script.push({ status: 503 })
+            }
+            exhaust()
+            script.push({ status: 404 })
+            exhaust()
+            const budget = new RequestBudget({ maxConsecutiveFailures: 2 })
+            for (const url of ['https://x/a', 'https://x/b', 'https://x/c']) {
+                await requestWithRetry({ url }, { sleep: noSleep, budget })
+            }
             expect(budget.exhaustedReason).toBeNull()
         })
 
@@ -217,6 +230,76 @@ describe('sync-protocol', () => {
             expect(response.status).toBe(429)
             expect(recordedRequests.length).toBe(1)
             expect(budget.exhaustedReason).toContain('120 s')
+        })
+
+        test('a Retry-After of exactly the cap is waited out, not a stop', async () => {
+            script.push({ status: 429, headers: { 'Retry-After': '30' } }, { status: 200 })
+            const waits: number[] = []
+            const budget = new RequestBudget()
+            const response = await requestWithRetry(
+                { url: 'https://x/a' },
+                {
+                    sleep: async (ms: number) => {
+                        waits.push(ms)
+                    },
+                    budget
+                }
+            )
+            expect(response.status).toBe(200)
+            expect(waits).toEqual([30_000])
+            expect(budget.exhaustedReason).toBeNull()
+        })
+
+        test('an HTTP-date Retry-After beyond the cap stops the operation', async () => {
+            const later = new Date(Date.now() + 120_000).toUTCString()
+            script.push({ status: 429, headers: { 'Retry-After': later } })
+            const budget = new RequestBudget()
+            await requestWithRetry({ url: 'https://x/a' }, { sleep: noSleep, budget })
+            expect(recordedRequests.length).toBe(1)
+            expect(budget.exhaustedReason).toContain('asked to wait')
+        })
+
+        test('stopping the budget cuts a real backoff wait short', async () => {
+            const hadWindow = 'window' in globalThis
+            if (!hadWindow)
+                Object.defineProperty(globalThis, 'window', {
+                    value: globalThis,
+                    configurable: true
+                })
+            try {
+                script.push({ status: 503, headers: { 'Retry-After': '20' } })
+                const budget = new RequestBudget()
+                const started = Date.now()
+                const pending = requestWithRetry({ url: 'https://x/a' }, { budget }).catch(
+                    (e: unknown) => e
+                )
+                setTimeout(() => budget.stop('another worker gave up'), 20)
+                const error = await pending
+                expect(error).toBeInstanceOf(RequestBudgetExhaustedError)
+                expect(Date.now() - started).toBeLessThan(2000)
+                expect(recordedRequests.length).toBe(1)
+            } finally {
+                if (!hadWindow) Reflect.deleteProperty(globalThis, 'window')
+            }
+        })
+
+        test('a parent signal already aborted stops the budget before any request', async () => {
+            const controller = new AbortController()
+            controller.abort()
+            const budget = new RequestBudget({ signal: controller.signal })
+            const error = await requestWithRetry(
+                { url: 'https://x/a' },
+                { sleep: noSleep, budget }
+            ).catch((e: unknown) => e)
+            expect((error as Error).message).toContain('unloaded')
+            expect(recordedRequests.length).toBe(0)
+        })
+
+        test('a budget without a deadline never times out', () => {
+            let now = 0
+            const budget = new RequestBudget({ deadlineMs: null, now: () => now })
+            now = 1e12
+            expect(budget.exhaustedReason).toBeNull()
         })
 
         test('fetchBlob stops requesting once the budget is spent', async () => {

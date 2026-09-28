@@ -1,4 +1,4 @@
-import { test, expect, describe } from 'bun:test'
+import { test, expect, describe, spyOn } from 'bun:test'
 import {
     containVaultFolderPath,
     normaliseTargetFolderInput,
@@ -291,6 +291,30 @@ describe('containVaultFolderPath', () => {
         for (const value of ['../../etc', '/notes', 'C:\\x', '.config', 'a//b', 'rM:notes']) {
             const once = containVaultFolderPath(value)
             expect(containVaultFolderPath(once), `for ${JSON.stringify(value)}`).toBe(once)
+        }
+    })
+})
+
+describe('truncation warning', () => {
+    const long = 'x'.repeat(400)
+
+    test('sanitising a name for writing reports the truncation', () => {
+        const warn = spyOn(console, 'warn').mockImplementation(() => {})
+        try {
+            sanitiseName(long)
+            expect(warn).toHaveBeenCalledTimes(1)
+        } finally {
+            warn.mockRestore()
+        }
+    })
+
+    test('validation stays silent: it runs on every settings keystroke', () => {
+        const warn = spyOn(console, 'warn').mockImplementation(() => {})
+        try {
+            expect(validateVaultFolderPath(long)).not.toBeNull()
+            expect(warn).not.toHaveBeenCalled()
+        } finally {
+            warn.mockRestore()
         }
     })
 })

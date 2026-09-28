@@ -174,9 +174,15 @@ function truncate(name: string): string {
         used += size
     }
 
-    const result = `${stem}-${discriminator(name)}`
-    log(`Name too long for a file path, shortened to "${result}"`, 'warn')
-    return result
+    return `${stem}-${discriminator(name)}`
+}
+
+export interface SanitiseOptions {
+    /**
+     * Log a warning when a name is shortened. Off for validation, which runs
+     * on every keystroke in the settings pane and only needs the verdict.
+     */
+    readonly reportTruncation?: boolean
 }
 
 /**
@@ -196,7 +202,7 @@ function truncate(name: string): string {
  * written by earlier versions on macOS may be recorded NFD; renormalising would
  * make `getAbstractFileByPath` miss them and rewrite every file on every sync.
  */
-export function sanitiseName(name: string): string {
+export function sanitiseName(name: string, options: SanitiseOptions = {}): string {
     let result = stripControlCharacters(name)
     result = result.replace(UNSAFE_CHARACTERS, '-')
     // Trim BEFORE the leading-dot check: `^\.+` does not match " .hidden", so
@@ -204,7 +210,11 @@ export function sanitiseName(name: string): string {
     // name kept the prefix Obsidian excludes from the vault index.
     result = result.trim()
     result = result.replace(LEADING_DOTS, '-')
+    const untruncated = result
     result = truncate(result)
+    if (result !== untruncated && (options.reportTruncation ?? true)) {
+        log(`Name too long for a file path, shortened to "${result}"`, 'warn')
+    }
     result = result.replace(TRAILING_DOTS_AND_SPACES, '')
 
     if ('' === result || ONLY_HYPHENS.test(result)) {
@@ -228,12 +238,12 @@ export function sanitiseName(name: string): string {
  * looks deliberate; dropping them is what actually contains the traversal.
  * Empty segments go for the same reason, so `a//b` is `a/b`.
  */
-export function sanitiseRelativePath(path: string): string {
+export function sanitiseRelativePath(path: string, options: SanitiseOptions = {}): string {
     return path
         .split('/')
         .map((segment) => segment.trim())
         .filter((segment) => '' !== segment && '.' !== segment && '..' !== segment)
-        .map(sanitiseName)
+        .map((segment) => sanitiseName(segment, options))
         .join('/')
 }
 
@@ -275,7 +285,7 @@ export function validateVaultFolderPath(value: string): string | null {
         return 'Folder path cannot contain "." or ".." segments.'
     }
 
-    if (sanitiseRelativePath(value) !== value) {
+    if (sanitiseRelativePath(value, { reportTruncation: false }) !== value) {
         return 'Folder path cannot contain \\ : * ? " < > | [ ] # ^, empty segments, leading dots, or trailing dots or spaces.'
     }
 

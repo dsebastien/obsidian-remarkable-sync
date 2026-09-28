@@ -1,5 +1,6 @@
 import { test, expect, describe } from 'bun:test'
-import { createRemarkableAuthService } from './remarkable-auth.service'
+import { createRemarkableAuthService, failureForStatus } from './remarkable-auth.service'
+import type { requestUrl } from 'obsidian'
 import type { StoredTokens, TokenStore } from './token-store'
 import type { RemarkableSyncPlugin } from '../../plugin'
 import { DEFAULT_SETTINGS } from '../../types/plugin-settings.intf'
@@ -127,5 +128,65 @@ describe('createRemarkableAuthService', () => {
         await service.disconnect()
 
         expect(await service.getUserToken()).toBeNull()
+    })
+})
+
+describe('token outcomes', () => {
+    const expired: StoredTokens = {
+        deviceToken: 'device-abc',
+        userToken: 'old',
+        userTokenExpiry: Date.now() - 1000
+    }
+    const answering = (outcome: { status: number; text?: string } | Error): typeof requestUrl =>
+        (async () => {
+            if (outcome instanceof Error) throw outcome
+            if (outcome.status !== 200) {
+                // requestUrl throws on a non-2xx status, carrying it.
+                throw Object.assign(new Error(`HTTP ${outcome.status}`), { status: outcome.status })
+            }
+            return { status: 200, text: outcome.text ?? '' }
+        }) as unknown as typeof requestUrl
+
+    test('only 401 and 403 are a refusal', () => {
+        expect(failureForStatus(401)).toBe('rejected')
+        expect(failureForStatus(403)).toBe('rejected')
+        expect(failureForStatus(429)).toBe('unreachable')
+        expect(failureForStatus(503)).toBe('unreachable')
+    })
+
+    test('no stored tokens: not connected', async () => {
+        const service = createRemarkableAuthService(createFakePlugin(), createFakeStore(null))
+        expect(await service.acquireUserToken()).toEqual({ failure: 'not-connected' })
+        expect(await service.forceRefreshUserToken()).toEqual({ failure: 'not-connected' })
+    })
+
+    test('an expired token renewed: the new token', async () => {
+        const service = createRemarkableAuthService(
+            createFakePlugin(),
+            createFakeStore(expired),
+            answering({ status: 200, text: 'fresh' })
+        )
+        expect(await service.acquireUserToken()).toEqual({ token: 'fresh' })
+    })
+
+    test('a token endpoint refusing the device token: rejected', async () => {
+        const service = createRemarkableAuthService(
+            createFakePlugin(),
+            createFakeStore(expired),
+            answering({ status: 401 })
+        )
+        expect(await service.acquireUserToken()).toEqual({ failure: 'rejected' })
+        expect(await service.forceRefreshUserToken()).toEqual({ failure: 'rejected' })
+    })
+
+    test('an offline or failing token endpoint: unreachable, not a reason to reconnect', async () => {
+        for (const outcome of [new Error('offline'), { status: 503 }, { status: 429 }]) {
+            const service = createRemarkableAuthService(
+                createFakePlugin(),
+                createFakeStore(expired),
+                answering(outcome)
+            )
+            expect(await service.acquireUserToken()).toEqual({ failure: 'unreachable' })
+        }
     })
 })

@@ -295,6 +295,39 @@ describe('sync-protocol', () => {
             expect(recordedRequests.length).toBe(0)
         })
 
+        test('the first stop reason wins', () => {
+            const budget = new RequestBudget()
+            budget.stop('first')
+            budget.stop('second')
+            expect(budget.exhaustedReason).toBe('first')
+        })
+
+        test('by default, three requests exhausting their retries in a row stop it', async () => {
+            for (let i = 0; i < 3 * MAX_REQUEST_ATTEMPTS; i++) script.push({ status: 503 })
+            const budget = new RequestBudget()
+            for (const url of ['https://x/a', 'https://x/b']) {
+                await requestWithRetry({ url }, { sleep: noSleep, budget })
+            }
+            expect(budget.exhaustedReason).toBeNull()
+            await requestWithRetry({ url: 'https://x/c' }, { sleep: noSleep, budget })
+            expect(budget.exhaustedReason).toContain('keeps failing')
+        })
+
+        test('dispose detaches from the parent signal', () => {
+            const controller = new AbortController()
+            const budget = new RequestBudget({ signal: controller.signal })
+            budget.dispose()
+            controller.abort()
+            expect(budget.exhaustedReason).toBeNull()
+        })
+
+        test('an attached budget stops when the parent aborts', () => {
+            const controller = new AbortController()
+            const budget = new RequestBudget({ signal: controller.signal })
+            controller.abort()
+            expect(budget.exhaustedReason).toContain('unloaded')
+        })
+
         test('a budget without a deadline never times out', () => {
             let now = 0
             const budget = new RequestBudget({ deadlineMs: null, now: () => now })

@@ -58,8 +58,12 @@ function createHarness(config: {
         settings: { ...DEFAULT_SETTINGS, ...config.settings },
         app: { vault: {} },
         cloudService: {
-            downloadDocument: (): Promise<Map<string, ArrayBuffer> | null> =>
-                Promise.resolve(config.downloadFails ? null : new Map<string, ArrayBuffer>())
+            downloadDocument: (): Promise<Map<string, ArrayBuffer> | { error: string }> =>
+                Promise.resolve(
+                    config.downloadFails
+                        ? { error: 'Download failed' }
+                        : new Map<string, ArrayBuffer>()
+                )
         },
         syncStoreService: {
             updateState: (

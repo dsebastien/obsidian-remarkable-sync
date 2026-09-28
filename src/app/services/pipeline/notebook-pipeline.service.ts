@@ -86,12 +86,12 @@ export function createNotebookPipelineService(
             // Step 1: Download
             onProgress({ status: 'downloading', currentPage: 0, totalPages: 0 })
             const files = await plugin.cloudService.downloadDocument(notebook.id)
-            if (!files) {
+            if (!(files instanceof Map)) {
                 onProgress({
                     status: 'error',
                     currentPage: 0,
                     totalPages: 0,
-                    error: 'Download failed'
+                    error: files.error
                 })
                 return false
             }

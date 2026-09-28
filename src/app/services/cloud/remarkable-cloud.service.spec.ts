@@ -1,6 +1,8 @@
 import { describe, expect, test } from 'bun:test'
+import type { TokenOutcome } from '../auth/remarkable-auth.service'
 import {
     AUTHENTICATION_FAILED,
+    SESSION_RENEWAL_FAILED,
     createRemarkableCloudService,
     resolveFolderPath
 } from './remarkable-cloud.service'
@@ -70,7 +72,9 @@ class FakeCloud {
     /** Scripted root-hash outcomes, consumed in order; empty means success. */
     readonly rootScript: ('401' | 'ok')[] = []
     refreshes = 0
-    refreshedToken: string | null = 'token-2'
+    /** What the auth service answers: a token, or why not. */
+    initialToken: TokenOutcome = { token: 'token' }
+    refreshedToken: TokenOutcome = { token: 'token-2' }
     unloadSignal = new AbortController().signal
     private root: { id: string; indexHash: string }[] = []
     onFetch: ((hash: string, budget: RequestBudget | undefined) => void) | null = null
@@ -119,7 +123,9 @@ class FakeCloud {
 
     transport(): CloudTransport {
         return {
-            fetchRootHash: async () => {
+            fetchRootHash: async (_token, _base, budget) => {
+                // Mirrors the real fetchRootHash: a spent budget makes no request.
+                if (budget?.exhaustedReason) return null
                 if (this.rootScript.shift() === '401') {
                     throw Object.assign(new Error('HTTP 401'), { status: 401 })
                 }
@@ -150,8 +156,8 @@ class FakeCloud {
         const host = {
             settings: DEFAULT_SETTINGS,
             authService: {
-                getUserToken: async () => 'token',
-                refreshAndGetUserToken: async () => {
+                acquireUserToken: async () => this.initialToken,
+                forceRefreshUserToken: async () => {
                     this.refreshes++
                     return this.refreshedToken
                 }
@@ -275,6 +281,19 @@ describe('listDocuments against an in-memory cloud', () => {
         expect(cloud.fetched).toEqual([])
     })
 
+    test('a budget stopped while reading the root index reports its reason', async () => {
+        const cloud = new FakeCloud().doc('d1', 'One')
+        cloud.onFetch = (hash, budget): void => {
+            if (hash === 'root') {
+                budget?.stop('rate limited')
+                cloud.failing.add(hash)
+            }
+        }
+        const listing = await cloud.service().listDocuments()
+        expect(listing.complete).toBe(false)
+        expect(listing.error).toBe('rate limited')
+    })
+
     test('a 401 refreshes the token once and the listing proceeds', async () => {
         const cloud = new FakeCloud().doc('d1', 'One')
         cloud.rootScript.push('401')
@@ -286,12 +305,44 @@ describe('listDocuments against an in-memory cloud', () => {
     test('a failed refresh or a second 401 asks to reconnect', async () => {
         const failedRefresh = new FakeCloud().doc('d1', 'One')
         failedRefresh.rootScript.push('401')
-        failedRefresh.refreshedToken = null
+        failedRefresh.refreshedToken = { failure: 'rejected' }
         expect((await failedRefresh.service().listDocuments()).error).toBe(AUTHENTICATION_FAILED)
 
         const twice = new FakeCloud().doc('d1', 'One')
         twice.rootScript.push('401', '401')
         expect((await twice.service().listDocuments()).error).toBe(AUTHENTICATION_FAILED)
+    })
+
+    test('no connection asks to reconnect and makes no request', async () => {
+        const cloud = new FakeCloud().doc('d1', 'One')
+        cloud.initialToken = { failure: 'not-connected' }
+        expect((await cloud.service().listDocuments()).error).toBe(AUTHENTICATION_FAILED)
+        expect(cloud.fetched).toEqual([])
+    })
+
+    test('an unreachable token endpoint is not a reason to reconnect', async () => {
+        const expired = new FakeCloud().doc('d1', 'One')
+        expired.initialToken = { failure: 'unreachable' }
+        expect((await expired.service().listDocuments()).error).toBe(SESSION_RENEWAL_FAILED)
+
+        const onRefresh = new FakeCloud().doc('d1', 'One')
+        onRefresh.rootScript.push('401')
+        onRefresh.refreshedToken = { failure: 'unreachable' }
+        expect((await onRefresh.service().listDocuments()).error).toBe(SESSION_RENEWAL_FAILED)
+    })
+
+    test('the budget is detached from the unload signal once the listing ends', async () => {
+        const cloud = new FakeCloud().doc('d1', 'One')
+        const controller = new AbortController()
+        cloud.unloadSignal = controller.signal
+        let stoppedAfterwards: RequestBudget | undefined
+        cloud.onFetch = (_hash, budget): void => {
+            stoppedAfterwards = budget
+        }
+        await cloud.service().listDocuments()
+        controller.abort()
+        // Detached: unloading after the listing no longer reaches its budget.
+        expect(stoppedAfterwards?.exhaustedReason).toBeNull()
     })
 })
 
@@ -299,7 +350,11 @@ describe('downloadDocument against an in-memory cloud', () => {
     test('returns every file of the document', async () => {
         const cloud = new FakeCloud().doc('d1', 'One', '', ['a.rm', 'b.rm'])
         const files = await cloud.service().downloadDocument('d1')
-        expect([...(files?.keys() ?? [])].sort()).toEqual(['d1.metadata', 'd1/a.rm', 'd1/b.rm'])
+        expect(files instanceof Map ? [...files.keys()].sort() : files).toEqual([
+            'd1.metadata',
+            'd1/a.rm',
+            'd1/b.rm'
+        ])
     })
 
     test('every file fetch of one download shares one budget, without a deadline', async () => {
@@ -317,12 +372,37 @@ describe('downloadDocument against an in-memory cloud', () => {
 
     test('fails when the document index has a line it cannot parse', async () => {
         const cloud = new FakeCloud().doc('d1', 'One', '', ['a.rm']).corruptIndex('d1')
-        expect(await cloud.service().downloadDocument('d1')).toBeNull()
+        expect(await cloud.service().downloadDocument('d1')).toEqual({ error: 'Download failed' })
     })
 
     test('fails when any file could not be fetched, instead of dropping pages', async () => {
         const cloud = new FakeCloud().doc('d1', 'One', '', ['a.rm', 'b.rm'])
         cloud.failing.add('file-d1-b.rm-v1')
-        expect(await cloud.service().downloadDocument('d1')).toBeNull()
+        expect(await cloud.service().downloadDocument('d1')).toEqual({ error: 'Download failed' })
+    })
+
+    test('says why: an authentication failure', async () => {
+        const cloud = new FakeCloud().doc('d1', 'One', '', ['a.rm'])
+        cloud.initialToken = { failure: 'rejected' }
+        expect(await cloud.service().downloadDocument('d1')).toEqual({
+            error: AUTHENTICATION_FAILED
+        })
+
+        const cached = new FakeCloud().doc('d1', 'One', '', ['a.rm'])
+        const service = cached.service()
+        await service.listDocuments()
+        cached.initialToken = { failure: 'unreachable' }
+        expect(await service.downloadDocument('d1')).toEqual({ error: SESSION_RENEWAL_FAILED })
+    })
+
+    test('says why: the budget stopped', async () => {
+        const cloud = new FakeCloud().doc('d1', 'One', '', ['a.rm'])
+        cloud.onFetch = (hash, budget): void => {
+            if (hash === 'file-d1-a.rm-v1') {
+                budget?.stop('rate limited')
+                cloud.failing.add(hash)
+            }
+        }
+        expect(await cloud.service().downloadDocument('d1')).toEqual({ error: 'rate limited' })
     })
 })

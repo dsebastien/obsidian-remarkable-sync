@@ -19,10 +19,24 @@ function getDeviceId(): string {
     return deviceId
 }
 
+/**
+ * Why no user token could be had. Only `not-connected` and `rejected` need
+ * the user to reconnect; `unreachable` (offline, a 5xx, a 429 from the token
+ * endpoint) passes on its own, and telling an offline user to re-register
+ * would push them into a pointless reconnect every day.
+ */
+export type TokenFailure = 'not-connected' | 'rejected' | 'unreachable'
+
+export type TokenOutcome = { readonly token: string } | { readonly failure: TokenFailure }
+
 export interface RemarkableAuthService {
     registerDevice(oneTimeCode: string): Promise<boolean>
     getUserToken(): Promise<string | null>
     refreshAndGetUserToken(): Promise<string | null>
+    /** `getUserToken`, saying why when there is none. */
+    acquireUserToken(): Promise<TokenOutcome>
+    /** `refreshAndGetUserToken`, saying why when there is none. */
+    forceRefreshUserToken(): Promise<TokenOutcome>
     isAuthenticated(): Promise<boolean>
     disconnect(): Promise<void>
 }
@@ -30,10 +44,17 @@ export interface RemarkableAuthService {
 /**
  * @param tokenStore injectable for tests; defaults to the plugin's `data.json`
  * backed store.
+ * @param request injectable for tests; defaults to Obsidian's `requestUrl`.
  */
+/** 401 and 403 are the server refusing the device token; anything else passes. */
+export function failureForStatus(status: number): TokenFailure {
+    return status === 401 || status === 403 ? 'rejected' : 'unreachable'
+}
+
 export function createRemarkableAuthService(
     plugin: RemarkableSyncPlugin,
-    tokenStore: TokenStore = createTokenStoreForPlugin(plugin)
+    tokenStore: TokenStore = createTokenStoreForPlugin(plugin),
+    request: typeof requestUrl = requestUrl
 ): RemarkableAuthService {
     let cachedUserToken: string | null = null
     let tokenExpiryTime = 0
@@ -113,7 +134,7 @@ export function createRemarkableAuthService(
 
             // Exchange device token for user token
             const userTokenResult = await refreshUserToken(deviceToken)
-            if (!userTokenResult) {
+            if ('failure' in userTokenResult) {
                 return false
             }
 
@@ -136,10 +157,10 @@ export function createRemarkableAuthService(
 
     async function refreshUserToken(
         deviceToken: string
-    ): Promise<{ token: string; expiry: number } | null> {
+    ): Promise<{ token: string; expiry: number } | { failure: TokenFailure }> {
         try {
             const urls = resolveCloudUrls(plugin.settings)
-            const response = await requestUrl({
+            const response = await request({
                 url: urls.userTokenUrl,
                 method: 'POST',
                 headers: {
@@ -149,13 +170,13 @@ export function createRemarkableAuthService(
 
             if (response.status !== 200) {
                 log(`User token refresh failed with status ${response.status}`, 'error')
-                return null
+                return { failure: failureForStatus(response.status) }
             }
 
             const userToken = response.text
             if (!userToken) {
                 log('No user token received', 'error')
-                return null
+                return { failure: 'unreachable' }
             }
 
             // User tokens expire in 24 hours, refresh after 23h
@@ -164,14 +185,18 @@ export function createRemarkableAuthService(
             return { token: userToken, expiry }
         } catch (error) {
             log('User token refresh failed', 'error', error)
-            return null
+            const status =
+                error && typeof error === 'object' && 'status' in error
+                    ? Number((error as { status: unknown }).status)
+                    : undefined
+            return { failure: status === undefined ? 'unreachable' : failureForStatus(status) }
         }
     }
 
-    async function getUserToken(): Promise<string | null> {
+    async function acquireUserToken(): Promise<TokenOutcome> {
         // Return cached token if still valid
         if (cachedUserToken && Date.now() < tokenExpiryTime) {
-            return cachedUserToken
+            return { token: cachedUserToken }
         }
 
         const generation = authGeneration
@@ -179,54 +204,57 @@ export function createRemarkableAuthService(
         // Try to load from stored tokens
         const stored = await tokenStore.read()
         if (!stored || isStale(generation)) {
-            return null
+            return { failure: 'not-connected' }
         }
 
         // Check if user token is still valid
         if (Date.now() < stored.userTokenExpiry) {
             cachedUserToken = stored.userToken
             tokenExpiryTime = stored.userTokenExpiry
-            return cachedUserToken
+            return { token: cachedUserToken }
         }
 
         // Token expired, refresh using device token
-        const result = await refreshUserToken(stored.deviceToken)
-        if (!result) {
-            return null
-        }
-
-        const saved = await writeTokensUnlessDisconnected(generation, {
-            deviceToken: stored.deviceToken,
-            userToken: result.token,
-            userTokenExpiry: result.expiry
-        })
-        return saved ? cachedUserToken : null
+        return renewWith(generation, stored.deviceToken)
     }
 
-    async function refreshAndGetUserToken(): Promise<string | null> {
+    async function forceRefreshUserToken(): Promise<TokenOutcome> {
         const generation = authGeneration
 
         const stored = await tokenStore.read()
         if (!stored || isStale(generation)) {
-            return null
+            return { failure: 'not-connected' }
         }
 
-        const result = await refreshUserToken(stored.deviceToken)
-        if (!result) {
-            return null
+        const outcome = await renewWith(generation, stored.deviceToken)
+        if ('token' in outcome) {
+            log('User token force-refreshed', 'debug')
+        }
+        return outcome
+    }
+
+    async function renewWith(generation: number, deviceToken: string): Promise<TokenOutcome> {
+        const result = await refreshUserToken(deviceToken)
+        if ('failure' in result) {
+            return result
         }
 
         const saved = await writeTokensUnlessDisconnected(generation, {
-            deviceToken: stored.deviceToken,
+            deviceToken,
             userToken: result.token,
             userTokenExpiry: result.expiry
         })
-        if (!saved) {
-            return null
-        }
+        return saved && cachedUserToken ? { token: cachedUserToken } : { failure: 'not-connected' }
+    }
 
-        log('User token force-refreshed', 'debug')
-        return cachedUserToken
+    async function getUserToken(): Promise<string | null> {
+        const outcome = await acquireUserToken()
+        return 'token' in outcome ? outcome.token : null
+    }
+
+    async function refreshAndGetUserToken(): Promise<string | null> {
+        const outcome = await forceRefreshUserToken()
+        return 'token' in outcome ? outcome.token : null
     }
 
     async function isAuthenticated(): Promise<boolean> {
@@ -245,6 +273,8 @@ export function createRemarkableAuthService(
         registerDevice,
         getUserToken,
         refreshAndGetUserToken,
+        acquireUserToken,
+        forceRefreshUserToken,
         isAuthenticated,
         disconnect
     }

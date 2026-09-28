@@ -135,9 +135,24 @@ export class RequestBudget {
         const parent = options.signal
         if (parent?.aborted) {
             this.stop(UNLOADED)
-        } else {
-            parent?.addEventListener('abort', () => this.stop(UNLOADED), { once: true })
+        } else if (parent) {
+            this.detach = (): void => parent.removeEventListener('abort', onParentAbort)
+            const onParentAbort = (): void => this.stop(UNLOADED)
+            parent.addEventListener('abort', onParentAbort, { once: true })
         }
+    }
+
+    /** Removes the listener on the plugin-lifetime signal. */
+    private detach: () => void = () => {}
+
+    /**
+     * Call when the operation ends. The unload signal lives as long as the
+     * plugin, so a listener per listing or download would otherwise pile up
+     * (one per auto-sync tick and per synced notebook).
+     */
+    dispose(): void {
+        this.detach()
+        this.detach = (): void => {}
     }
 
     private now(): number {

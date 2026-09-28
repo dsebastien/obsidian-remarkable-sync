@@ -4,6 +4,7 @@ import type { DocumentListing, NotebookSummary } from '../../domain/notebook'
 import { describeListing, failedListing } from '../../domain/notebook'
 import type { RemarkableDocumentMetadata } from '../../domain/remarkable-types'
 import type { RemarkableSyncPlugin } from '../../plugin'
+import type { TokenFailure } from '../auth/remarkable-auth.service'
 import {
     docIndexFilename,
     fetchBlob,
@@ -24,6 +25,18 @@ export const CLOUD_REQUEST_CONCURRENCY = 6
 
 export const AUTHENTICATION_FAILED =
     'Authentication failed; reconnect to the reMarkable cloud in the settings'
+
+export const SESSION_RENEWAL_FAILED =
+    'Could not reach the reMarkable cloud to renew the session; try again later'
+
+/**
+ * Only a missing connection or a refused device token needs a reconnect. An
+ * unreachable token endpoint (offline, 5xx, 429) passes on its own; asking an
+ * offline user to reconnect would have them re-register every day.
+ */
+export function tokenFailureMessage(failure: TokenFailure): string {
+    return failure === 'unreachable' ? SESSION_RENEWAL_FAILED : AUTHENTICATION_FAILED
+}
 
 /**
  * Resolve a document's folder path from its parent chain.
@@ -59,9 +72,15 @@ export function resolveFolderPath(
     return parts.join('/')
 }
 
+/** Why a download failed, in words the user can act on. */
+export interface DownloadFailure {
+    readonly error: string
+}
+
 export interface RemarkableCloudService {
     listDocuments(): Promise<DocumentListing>
-    downloadDocument(documentId: string): Promise<Map<string, ArrayBuffer> | null>
+    /** Every file of the document, or why not: never a partial set. */
+    downloadDocument(documentId: string): Promise<Map<string, ArrayBuffer> | DownloadFailure>
 }
 
 /** The network calls the service makes; replaced in tests by an in-memory cloud. */
@@ -140,11 +159,12 @@ export function createRemarkableCloudService(
     ): Promise<{ rootHash: string; userToken: string } | { failure: string }> {
         const { syncBaseUrl } = resolveCloudUrls(plugin.settings)
         const unreachable = { failure: 'Could not reach the reMarkable cloud' }
-        let userToken = await plugin.authService.getUserToken()
-        if (!userToken) {
-            log('Not authenticated', 'error')
-            return { failure: AUTHENTICATION_FAILED }
+        const acquired = await plugin.authService.acquireUserToken()
+        if ('failure' in acquired) {
+            log(`No user token: ${acquired.failure}`, 'error')
+            return { failure: tokenFailureMessage(acquired.failure) }
         }
+        let userToken = acquired.token
 
         try {
             const rootHash = await transport.fetchRootHash(userToken, syncBaseUrl, budget)
@@ -154,11 +174,12 @@ export function createRemarkableCloudService(
             log('Token rejected, refreshing...', 'debug')
         }
 
-        userToken = await plugin.authService.refreshAndGetUserToken()
-        if (!userToken) {
-            log('Token refresh failed', 'error')
-            return { failure: AUTHENTICATION_FAILED }
+        const refreshed = await plugin.authService.forceRefreshUserToken()
+        if ('failure' in refreshed) {
+            log(`Token refresh failed: ${refreshed.failure}`, 'error')
+            return { failure: tokenFailureMessage(refreshed.failure) }
         }
+        userToken = refreshed.token
         try {
             const rootHash = await transport.fetchRootHash(userToken, syncBaseUrl, budget)
             return rootHash ? { rootHash, userToken } : unreachable
@@ -185,9 +206,9 @@ export function createRemarkableCloudService(
     }
 
     async function listDocuments(): Promise<DocumentListing> {
+        const budget = newBudget('listing')
         try {
             const { syncBaseUrl } = resolveCloudUrls(plugin.settings)
-            const budget = newBudget('listing')
 
             // Step 1: Get root hash (with token refresh on 401)
             const result = await getRootHashWithRetry(budget)
@@ -335,20 +356,29 @@ export function createRemarkableCloudService(
             log('Failed to list documents', 'error', error)
             const message = error instanceof Error ? error.message : 'Unknown error'
             return listingFailed(message)
+        } finally {
+            budget.dispose()
         }
     }
 
-    async function downloadDocument(documentId: string): Promise<Map<string, ArrayBuffer> | null> {
+    async function downloadDocument(
+        documentId: string
+    ): Promise<Map<string, ArrayBuffer> | DownloadFailure> {
+        const budget = newBudget('download')
+        // A stopped budget's reason (rate limited, unloaded) says more than
+        // the step that noticed it.
+        const fail = (message = 'Download failed'): DownloadFailure => ({
+            error: budget.exhaustedReason ?? message
+        })
         try {
             const { syncBaseUrl } = resolveCloudUrls(plugin.settings)
-            const budget = newBudget('download')
 
             // Look up document's index hash (fetch root if not cached)
             let indexHash = entryHashMap.get(documentId)
             let userToken: string | null = null
             if (!indexHash) {
                 const result = await getRootHashWithRetry(budget)
-                if ('failure' in result) return null
+                if ('failure' in result) return fail(result.failure)
                 userToken = result.userToken
 
                 const rootBlob = await transport.fetchBlob(
@@ -358,7 +388,7 @@ export function createRemarkableCloudService(
                     syncBaseUrl,
                     budget
                 )
-                if (!rootBlob) return null
+                if (!rootBlob) return fail()
 
                 const rootContent = new TextDecoder().decode(rootBlob)
                 const rootEntries = parseIndex(rootContent)
@@ -369,14 +399,15 @@ export function createRemarkableCloudService(
                 indexHash = entryHashMap.get(documentId)
                 if (!indexHash) {
                     log(`Document ${documentId} not found in root index`, 'error')
-                    return null
+                    return fail('The notebook is no longer in the reMarkable cloud')
                 }
             } else {
-                userToken = await plugin.authService.getUserToken()
-                if (!userToken) {
-                    log('Not authenticated', 'error')
-                    return null
+                const acquired = await plugin.authService.acquireUserToken()
+                if ('failure' in acquired) {
+                    log(`No user token: ${acquired.failure}`, 'error')
+                    return fail(tokenFailureMessage(acquired.failure))
                 }
+                userToken = acquired.token
             }
 
             // Download document index
@@ -387,7 +418,7 @@ export function createRemarkableCloudService(
                 syncBaseUrl,
                 budget
             )
-            if (!indexBlob) return null
+            if (!indexBlob) return fail()
 
             const indexContent = new TextDecoder().decode(indexBlob)
             // A line the parser rejects is a file it cannot name: processing
@@ -398,7 +429,7 @@ export function createRemarkableCloudService(
                     `${rejected} unreadable line(s) in the index of document ${documentId}`,
                     'error'
                 )
-                return null
+                return fail()
             }
 
             // Download all files, a bounded number at a time
@@ -432,14 +463,16 @@ export function createRemarkableCloudService(
                     `Downloaded ${files.size} of ${fileEntries.length} files for document ${documentId}`,
                     'error'
                 )
-                return null
+                return fail()
             }
 
             log(`Downloaded ${files.size} files for document ${documentId}`, 'debug')
             return files
         } catch (error) {
             log(`Failed to download document ${documentId}`, 'error', error)
-            return null
+            return fail()
+        } finally {
+            budget.dispose()
         }
     }
 

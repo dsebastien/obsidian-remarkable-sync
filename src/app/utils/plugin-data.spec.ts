@@ -7,7 +7,7 @@ describe('createWriteQueue', () => {
         const events: string[] = []
         const task = (name: string, delayMs: number) => async (): Promise<void> => {
             events.push(`${name}:start`)
-            await new Promise((resolve) => setTimeout(resolve, delayMs))
+            await new Promise((resolve) => window.setTimeout(resolve, delayMs))
             events.push(`${name}:end`)
         }
 

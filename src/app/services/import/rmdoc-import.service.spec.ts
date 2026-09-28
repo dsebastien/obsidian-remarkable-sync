@@ -1,6 +1,5 @@
 import { test, expect, describe } from 'bun:test'
-import { readFileSync } from 'node:fs'
-import { join } from 'node:path'
+import { file } from 'bun'
 import { extractRmdocFiles } from './rmdoc-import.service'
 
 /**
@@ -9,15 +8,14 @@ import { extractRmdocFiles } from './rmdoc-import.service'
  * with a mix of deflated and stored entries plus an explicit directory entry
  * (all shapes a real .rmdoc can contain).
  */
-const FIXTURE = join(import.meta.dir, '__fixtures__', 'sample.rmdoc')
+const FIXTURE = `${import.meta.dir}/__fixtures__/sample.rmdoc`
 
-function readFixture(): ArrayBuffer {
-    const contents = readFileSync(FIXTURE)
-    return contents.buffer.slice(contents.byteOffset, contents.byteOffset + contents.byteLength)
+function readFixture(): Promise<ArrayBuffer> {
+    return file(FIXTURE).arrayBuffer()
 }
 
-function loadFixture(): Map<string, ArrayBuffer> {
-    return extractRmdocFiles(readFixture())
+async function loadFixture(): Promise<Map<string, ArrayBuffer>> {
+    return extractRmdocFiles(await readFixture())
 }
 
 function decode(files: Map<string, ArrayBuffer>, path: string): string {
@@ -29,8 +27,8 @@ function decode(files: Map<string, ArrayBuffer>, path: string): string {
 }
 
 describe('extractRmdocFiles', () => {
-    test('returns every file entry', () => {
-        const files = loadFixture()
+    test('returns every file entry', async () => {
+        const files = await loadFixture()
         expect([...files.keys()].sort()).toEqual([
             'abc123.content',
             'abc123.metadata',
@@ -39,13 +37,13 @@ describe('extractRmdocFiles', () => {
         ])
     })
 
-    test('skips directory entries', () => {
-        const files = loadFixture()
+    test('skips directory entries', async () => {
+        const files = await loadFixture()
         expect(files.has('abc123/')).toBe(false)
     })
 
-    test('inflates deflated entries', () => {
-        const files = loadFixture()
+    test('inflates deflated entries', async () => {
+        const files = await loadFixture()
         expect(JSON.parse(decode(files, 'abc123.metadata'))).toEqual({
             visibleName: 'My Notebook',
             type: 'DocumentType'
@@ -57,18 +55,18 @@ describe('extractRmdocFiles', () => {
         expect([...p1.slice(0, 5)]).toEqual([0, 7, 14, 21, 28])
     })
 
-    test('reads stored (uncompressed) entries', () => {
-        const files = loadFixture()
+    test('reads stored (uncompressed) entries', async () => {
+        const files = await loadFixture()
         const p2 = new Uint8Array(files.get('abc123/p2.rm') ?? new ArrayBuffer(0))
         expect(p2.length).toBe(512)
         expect([...p2.slice(0, 5)]).toEqual([5, 18, 31, 44, 57])
     })
 
-    test('each entry is a standalone buffer, not a view into a shared one', () => {
+    test('each entry is a standalone buffer, not a view into a shared one', async () => {
         // fflate hands back views over one backing buffer; callers treat these
         // as independent ArrayBuffers, so a stale view would leak data across
         // pages.
-        const files = loadFixture()
+        const files = await loadFixture()
         for (const [path, buffer] of files) {
             const expected = 'abc123/p1.rm' === path ? 1024 : 'abc123/p2.rm' === path ? 512 : null
             if (null !== expected) {
@@ -82,7 +80,8 @@ describe('extractRmdocFiles', () => {
         expect(() => extractRmdocFiles(notAZip.buffer)).toThrow()
     })
 
-    test('throws on a truncated archive', () => {
-        expect(() => extractRmdocFiles(readFixture().slice(0, 40))).toThrow()
+    test('throws on a truncated archive', async () => {
+        const truncated = (await readFixture()).slice(0, 40)
+        expect(() => extractRmdocFiles(truncated)).toThrow()
     })
 })

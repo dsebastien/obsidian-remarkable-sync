@@ -12,7 +12,7 @@
 export function generateUuidV4(): string {
     // `in` rather than reading the property: detaching the method trips
     // @typescript-eslint/unbound-method.
-    const webCrypto = globalThis.crypto as Crypto | undefined
+    const webCrypto = window.crypto as Crypto | undefined
     if (webCrypto && 'randomUUID' in webCrypto) {
         return webCrypto.randomUUID()
     }
@@ -37,7 +37,7 @@ export function generateUuidV4(): string {
 
 function randomBytes(length: number): Uint8Array {
     const bytes = new Uint8Array(length)
-    const webCrypto = globalThis.crypto as Crypto | undefined
+    const webCrypto = window.crypto as Crypto | undefined
     if (webCrypto && 'getRandomValues' in webCrypto) {
         webCrypto.getRandomValues(bytes)
         return bytes

@@ -8,8 +8,8 @@ const UUID_V4 = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f
  * that is not a secure context.
  */
 function withCrypto(replacement: unknown, run: () => void): void {
-    const original = Object.getOwnPropertyDescriptor(globalThis, 'crypto')
-    Object.defineProperty(globalThis, 'crypto', {
+    const original = Object.getOwnPropertyDescriptor(self, 'crypto')
+    Object.defineProperty(self, 'crypto', {
         value: replacement,
         configurable: true,
         writable: true
@@ -18,7 +18,7 @@ function withCrypto(replacement: unknown, run: () => void): void {
         run()
     } finally {
         if (original) {
-            Object.defineProperty(globalThis, 'crypto', original)
+            Object.defineProperty(self, 'crypto', original)
         }
     }
 }
@@ -26,7 +26,7 @@ function withCrypto(replacement: unknown, run: () => void): void {
 describe('generateUuidV4', () => {
     afterEach(() => {
         // Guard against a failing test leaving a patched global behind.
-        expect(typeof globalThis.crypto).toBe('object')
+        expect(typeof self.crypto).toBe('object')
     })
 
     test('produces a valid v4 uuid', () => {

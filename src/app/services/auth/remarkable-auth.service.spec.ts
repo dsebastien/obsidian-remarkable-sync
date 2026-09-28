@@ -138,14 +138,17 @@ describe('token outcomes', () => {
         userTokenExpiry: Date.now() - 1000
     }
     const answering = (outcome: { status: number; text?: string } | Error): typeof requestUrl =>
-        (async () => {
-            if (outcome instanceof Error) throw outcome
-            if (outcome.status !== 200) {
-                // requestUrl throws on a non-2xx status, carrying it.
-                throw Object.assign(new Error(`HTTP ${outcome.status}`), { status: outcome.status })
-            }
-            return { status: 200, text: outcome.text ?? '' }
-        }) as unknown as typeof requestUrl
+        (() =>
+            Promise.resolve().then(() => {
+                if (outcome instanceof Error) throw outcome
+                if (outcome.status !== 200) {
+                    // requestUrl throws on a non-2xx status, carrying it.
+                    throw Object.assign(new Error(`HTTP ${outcome.status}`), {
+                        status: outcome.status
+                    })
+                }
+                return { status: 200, text: outcome.text ?? '' }
+            })) as unknown as typeof requestUrl
 
     test.each([400, 401, 403, 404, 422])('%p is a refusal: reconnect', (status) => {
         expect(failureForStatus(status)).toBe('rejected')

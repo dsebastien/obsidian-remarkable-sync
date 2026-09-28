@@ -104,7 +104,7 @@ describe('annotateSourcePdf', () => {
     test('is byte-identical across runs, so re-syncing does not churn', async () => {
         const source = await sourcePdf()
         const a = await annotateSourcePdf(source, [layer(0, 0)])
-        await new Promise((r) => setTimeout(r, 1100))
+        await new Promise((r) => window.setTimeout(r, 1100))
         const b = await annotateSourcePdf(source, [layer(0, 0)])
 
         expect(new Uint8Array(a!.data)).toEqual(new Uint8Array(b!.data))

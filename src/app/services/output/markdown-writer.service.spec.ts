@@ -60,23 +60,27 @@ function createFakeVault(
             ;(file as TFile & { path: string }).path = path
             return file
         },
-        readBinary: async (file: TFile) => {
-            const path = (file as TFile & { path: string }).path
-            const data = store.get(path)
-            if (!data) throw new Error(`missing ${path}`)
-            return data
-        },
-        modifyBinary: async (file: TFile, data: ArrayBuffer) => {
+        readBinary: (file: TFile) =>
+            Promise.resolve().then(() => {
+                const path = (file as TFile & { path: string }).path
+                const data = store.get(path)
+                if (!data) throw new Error(`missing ${path}`)
+                return data
+            }),
+        modifyBinary: (file: TFile, data: ArrayBuffer) => {
             const path = (file as TFile & { path: string }).path
             calls.modified.push(path)
             store.set(path, data)
+            return Promise.resolve()
         },
-        createBinary: async (path: string, data: ArrayBuffer) => {
+        createBinary: (path: string, data: ArrayBuffer) => {
             calls.created.push(path)
             store.set(path, data)
+            return Promise.resolve()
         },
-        createFolder: async (path: string) => {
+        createFolder: (path: string) => {
             calls.foldersCreated.push(path)
+            return Promise.resolve()
         }
     } as unknown as Vault
 

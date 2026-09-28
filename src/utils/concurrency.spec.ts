@@ -10,7 +10,7 @@ describe('mapSettledWithConcurrency', () => {
         await mapSettledWithConcurrency(items, 4, async (item) => {
             inFlight++
             peak = Math.max(peak, inFlight)
-            await new Promise((resolve) => setTimeout(resolve, item % 3))
+            await new Promise((resolve) => window.setTimeout(resolve, item % 3))
             inFlight--
             return item
         })
@@ -20,7 +20,7 @@ describe('mapSettledWithConcurrency', () => {
 
     test('keeps input order and settles rejections without stopping the rest', async () => {
         const results = await mapSettledWithConcurrency([1, 2, 3, 4], 2, async (item) => {
-            await new Promise((resolve) => setTimeout(resolve, 5 - item))
+            await new Promise((resolve) => window.setTimeout(resolve, 5 - item))
             if (item === 2) throw new Error('boom')
             return item * 10
         })
@@ -36,8 +36,8 @@ describe('mapSettledWithConcurrency', () => {
     })
 
     test('handles an empty list and a nonsensical limit', async () => {
-        expect(await mapSettledWithConcurrency([], 4, async () => 1)).toEqual([])
-        const results = await mapSettledWithConcurrency([1, 2], 0, async (x) => x)
+        expect(await mapSettledWithConcurrency([], 4, () => Promise.resolve(1))).toEqual([])
+        const results = await mapSettledWithConcurrency([1, 2], 0, (x) => Promise.resolve(x))
         expect(results).toEqual([
             { status: 'fulfilled', value: 1 },
             { status: 'fulfilled', value: 2 }

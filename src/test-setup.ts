@@ -12,12 +12,22 @@ import { mock } from 'bun:test'
  * "device cannot render" path. Specs that care about the unsupported branch
  * delete this global themselves.
  */
-if ('undefined' === typeof globalThis.OffscreenCanvas) {
-    Object.defineProperty(globalThis, 'OffscreenCanvas', {
+if ('undefined' === typeof self.OffscreenCanvas) {
+    Object.defineProperty(self, 'OffscreenCanvas', {
         value: class OffscreenCanvasStub {},
         configurable: true,
         writable: true
     })
+}
+
+/**
+ * `bun test` has no `window`, but specs (and the obsidianmd/prefer-window-timers
+ * rule) call `window.setTimeout()` / `window.clearTimeout()` for popout window
+ * compatibility. Point `window` at the global scope itself so those calls reach
+ * the real timer functions.
+ */
+if ('undefined' === typeof window) {
+    Reflect.set(self, 'window', self)
 }
 
 /**
@@ -112,7 +122,8 @@ void moduleMocker.module('obsidian', () => ({
     // Tests run outside Obsidian; the desktop-only legacy token file path is
     // exercised through injected deps, never through the real Platform check.
     Platform: { isDesktopApp: false, isMobile: false, isMobileApp: false },
-    requestUrl: async () => ({ status: 200, text: '', json: {}, arrayBuffer: new ArrayBuffer(0) }),
+    requestUrl: () =>
+        Promise.resolve({ status: 200, text: '', json: {}, arrayBuffer: new ArrayBuffer(0) }),
     debounce: (fn: (...args: unknown[]) => unknown) => fn,
     setIcon: () => {}
 }))

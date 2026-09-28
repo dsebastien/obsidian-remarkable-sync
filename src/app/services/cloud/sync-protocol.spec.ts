@@ -29,21 +29,22 @@ type Scripted = { status: number; headers?: Record<string, string> } | Error
 const script: Scripted[] = []
 
 void mock.module('obsidian', () => ({
-    requestUrl: async (options: { url: string; headers?: Record<string, string> }) => {
-        recordedRequests.push({ url: options.url, headers: options.headers })
-        const next = script.shift()
-        if (next instanceof Error) throw next
-        return {
-            status: next?.status ?? 200,
-            headers: next?.headers ?? {},
-            text: '',
-            json: { hash: 'root-hash' },
-            arrayBuffer: new ArrayBuffer(8)
-        }
-    }
+    requestUrl: (options: { url: string; headers?: Record<string, string> }) =>
+        Promise.resolve().then(() => {
+            recordedRequests.push({ url: options.url, headers: options.headers })
+            const next = script.shift()
+            if (next instanceof Error) throw next
+            return {
+                status: next?.status ?? 200,
+                headers: next?.headers ?? {},
+                text: '',
+                json: { hash: 'root-hash' },
+                arrayBuffer: new ArrayBuffer(8)
+            }
+        })
 }))
 
-const noSleep = async (): Promise<void> => {}
+const noSleep = (): Promise<void> => Promise.resolve()
 
 describe('sync-protocol', () => {
     describe('fetchBlob rm-filename header', () => {
@@ -106,8 +107,9 @@ describe('sync-protocol', () => {
             const response = await requestWithRetry(
                 { url: 'https://x/a' },
                 {
-                    sleep: async (ms: number) => {
+                    sleep: (ms: number) => {
                         waits.push(ms)
+                        return Promise.resolve()
                     }
                 }
             )
@@ -239,8 +241,9 @@ describe('sync-protocol', () => {
             const response = await requestWithRetry(
                 { url: 'https://x/a' },
                 {
-                    sleep: async (ms: number) => {
+                    sleep: (ms: number) => {
                         waits.push(ms)
+                        return Promise.resolve()
                     },
                     budget
                 }
@@ -260,10 +263,10 @@ describe('sync-protocol', () => {
         })
 
         test('stopping the budget cuts a real backoff wait short', async () => {
-            const hadWindow = 'window' in globalThis
+            const hadWindow = 'window' in self
             if (!hadWindow)
-                Object.defineProperty(globalThis, 'window', {
-                    value: globalThis,
+                Object.defineProperty(self, 'window', {
+                    value: self,
                     configurable: true
                 })
             try {
@@ -273,13 +276,13 @@ describe('sync-protocol', () => {
                 const pending = requestWithRetry({ url: 'https://x/a' }, { budget }).catch(
                     (e: unknown) => e
                 )
-                setTimeout(() => budget.stop('another worker gave up'), 20)
+                window.setTimeout(() => budget.stop('another worker gave up'), 20)
                 const error = await pending
                 expect(error).toBeInstanceOf(RequestBudgetExhaustedError)
                 expect(Date.now() - started).toBeLessThan(2000)
                 expect(recordedRequests.length).toBe(1)
             } finally {
-                if (!hadWindow) Reflect.deleteProperty(globalThis, 'window')
+                if (!hadWindow) Reflect.deleteProperty(self, 'window')
             }
         })
 
@@ -350,8 +353,9 @@ describe('sync-protocol', () => {
             const error = await requestWithRetry(
                 { url: 'https://x/a' },
                 {
-                    sleep: async () => {
+                    sleep: () => {
                         now = 1000
+                        return Promise.resolve()
                     },
                     budget
                 }
@@ -367,8 +371,9 @@ describe('sync-protocol', () => {
             const error = await requestWithRetry(
                 { url: 'https://x/a' },
                 {
-                    sleep: async () => {
+                    sleep: () => {
                         controller.abort()
+                        return Promise.resolve()
                     },
                     budget
                 }

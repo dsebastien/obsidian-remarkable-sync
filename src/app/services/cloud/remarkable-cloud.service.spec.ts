@@ -123,32 +123,34 @@ class FakeCloud {
 
     transport(): CloudTransport {
         return {
-            fetchRootHash: async (_token, _base, budget) => {
-                // Mirrors the real fetchRootHash: a spent budget makes no request.
-                if (budget?.exhaustedReason) return null
-                if (this.rootScript.shift() === '401') {
-                    throw Object.assign(new Error('HTTP 401'), { status: 401 })
-                }
-                const lines = this.root.map((e) => `${e.indexHash}:80000000:${e.id}:0:0`)
-                this.blobs.set('root', `3\n${lines.join('\n')}\n${this.rootExtraLines}`)
-                return 'root'
-            },
-            fetchBlob: async (_token, hash, _name, _base, budget) => {
-                // Mirrors the real fetchBlob: a spent budget makes no request.
-                if (budget?.exhaustedReason) return null
-                this.fetched.push(hash)
-                this.budgets.push(budget)
-                this.onFetch?.(hash, budget)
-                if (this.throwing.has(hash)) throw new Error(`boom ${hash}`)
-                if (this.exhausting.has(hash)) {
-                    budget?.recordFailedRequest()
-                    return null
-                }
-                budget?.recordAnswered()
-                if (this.failing.has(hash)) return null
-                const text = this.blobs.get(hash)
-                return text === undefined ? null : new TextEncoder().encode(text).buffer
-            }
+            fetchRootHash: (_token, _base, budget) =>
+                Promise.resolve().then(() => {
+                    // Mirrors the real fetchRootHash: a spent budget makes no request.
+                    if (budget?.exhaustedReason) return null
+                    if (this.rootScript.shift() === '401') {
+                        throw Object.assign(new Error('HTTP 401'), { status: 401 })
+                    }
+                    const lines = this.root.map((e) => `${e.indexHash}:80000000:${e.id}:0:0`)
+                    this.blobs.set('root', `3\n${lines.join('\n')}\n${this.rootExtraLines}`)
+                    return 'root'
+                }),
+            fetchBlob: (_token, hash, _name, _base, budget) =>
+                Promise.resolve().then(() => {
+                    // Mirrors the real fetchBlob: a spent budget makes no request.
+                    if (budget?.exhaustedReason) return null
+                    this.fetched.push(hash)
+                    this.budgets.push(budget)
+                    this.onFetch?.(hash, budget)
+                    if (this.throwing.has(hash)) throw new Error(`boom ${hash}`)
+                    if (this.exhausting.has(hash)) {
+                        budget?.recordFailedRequest()
+                        return null
+                    }
+                    budget?.recordAnswered()
+                    if (this.failing.has(hash)) return null
+                    const text = this.blobs.get(hash)
+                    return text === undefined ? null : new TextEncoder().encode(text).buffer
+                })
         }
     }
 
@@ -156,10 +158,10 @@ class FakeCloud {
         const host = {
             settings: DEFAULT_SETTINGS,
             authService: {
-                acquireUserToken: async () => this.initialToken,
-                forceRefreshUserToken: async () => {
+                acquireUserToken: () => Promise.resolve(this.initialToken),
+                forceRefreshUserToken: () => {
                     this.refreshes++
-                    return this.refreshedToken
+                    return Promise.resolve(this.refreshedToken)
                 }
             },
             unloadSignal: this.unloadSignal

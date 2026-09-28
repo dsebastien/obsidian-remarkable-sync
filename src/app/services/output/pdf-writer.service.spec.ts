@@ -1,5 +1,5 @@
 import { test, expect, describe } from 'bun:test'
-import { readFileSync } from 'node:fs'
+import { file } from 'bun'
 import { PDFDocument } from 'pdf-lib'
 import { buildPdf, pixelsToPoints, REMARKABLE_DPI } from './pdf-writer.service'
 import type { PdfPageImage } from './pdf-writer.service'
@@ -13,19 +13,27 @@ import type { PdfPageImage } from './pdf-writer.service'
 const FIXTURE_WIDTH = 12
 const FIXTURE_HEIGHT = 16
 
-function loadFixture(name: string): ArrayBuffer {
-    const data = readFileSync(new URL(`./__fixtures__/${name}`, import.meta.url))
-    const copy = new ArrayBuffer(data.byteLength)
-    new Uint8Array(copy).set(data)
+async function loadFixture(name: string): Promise<ArrayBuffer> {
+    return file(new URL(`./__fixtures__/${name}`, import.meta.url)).arrayBuffer()
+}
+
+function copyBuffer(buffer: ArrayBuffer): ArrayBuffer {
+    const copy = new ArrayBuffer(buffer.byteLength)
+    new Uint8Array(copy).set(new Uint8Array(buffer))
     return copy
 }
 
+// Loaded once; each call site gets its own copy so mutation/consumption in
+// one test can never bleed into another.
+const JPEG_FIXTURE = await loadFixture('page.jpg')
+const PNG_FIXTURE = await loadFixture('page.png')
+
 function jpegPage(): PdfPageImage {
-    return { data: loadFixture('page.jpg'), format: 'jpeg' }
+    return { data: copyBuffer(JPEG_FIXTURE), format: 'jpeg' }
 }
 
 function pngPage(): PdfPageImage {
-    return { data: loadFixture('page.png'), format: 'png' }
+    return { data: copyBuffer(PNG_FIXTURE), format: 'png' }
 }
 
 const sha = async (buffer: ArrayBuffer): Promise<string> => {
@@ -112,7 +120,7 @@ describe('buildPdf', () => {
 
     test('is byte-identical across runs, so re-syncing never churns vault sync', async () => {
         const first = await buildPdf([jpegPage(), pngPage()])
-        await new Promise((resolve) => setTimeout(resolve, 1100)) // cross a second boundary
+        await new Promise((resolve) => window.setTimeout(resolve, 1100)) // cross a second boundary
         const second = await buildPdf([jpegPage(), pngPage()])
 
         expect(await sha(first!)).toBe(await sha(second!))

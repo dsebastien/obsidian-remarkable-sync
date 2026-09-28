@@ -179,7 +179,7 @@ describe('createTokenStore', () => {
         expect(await store.read()).toEqual(tokens)
     })
 
-    test('write throws a friendly error when persisting fails', async () => {
+    test('write throws a friendly error when persisting fails', () => {
         const store = createTokenStore({
             ...createHarness().deps,
             persistTokenState: () => Promise.reject(new Error('disk full'))
@@ -197,7 +197,7 @@ describe('createTokenStore', () => {
         expect(await store.read()).toBeNull()
     })
 
-    test('clear throws when the write fails, so callers do not report success', async () => {
+    test('clear throws when the write fails, so callers do not report success', () => {
         const store = createTokenStore({
             ...createHarness({ stored: tokens }).deps,
             persistTokenState: () => Promise.reject(new Error('disk full'))

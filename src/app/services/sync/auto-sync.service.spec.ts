@@ -327,7 +327,7 @@ describe('runNow', () => {
         service.applySettings()
         harness.timers[0]?.callback()
         // The callback fires runNow without awaiting; flush microtasks
-        await new Promise((resolve) => setTimeout(resolve, 0))
+        await new Promise((resolve) => window.setTimeout(resolve, 0))
 
         expect(harness.processed).toEqual(['a'])
     })

@@ -11,14 +11,13 @@ import type { Page, PageImage, Stroke } from '../../domain/notebook'
 
 /** Run `body` with `OffscreenCanvas` removed from the global scope. */
 function withoutOffscreenCanvas(body: () => void): void {
-    const original = Object.getOwnPropertyDescriptor(globalThis, 'OffscreenCanvas')
-    // @ts-expect-error -- deliberately removing a global to simulate an older webview
-    delete globalThis.OffscreenCanvas
+    const original = Object.getOwnPropertyDescriptor(self, 'OffscreenCanvas')
+    Reflect.deleteProperty(self, 'OffscreenCanvas')
     try {
         body()
     } finally {
         if (original) {
-            Object.defineProperty(globalThis, 'OffscreenCanvas', original)
+            Object.defineProperty(self, 'OffscreenCanvas', original)
         }
     }
 }
@@ -72,8 +71,8 @@ async function withStubbedCanvas(
     body: (canvases: CanvasRecord[]) => Promise<void>
 ): Promise<void> {
     const canvases: CanvasRecord[] = []
-    const originalCanvas = Object.getOwnPropertyDescriptor(globalThis, 'OffscreenCanvas')
-    const originalBitmap = Object.getOwnPropertyDescriptor(globalThis, 'createImageBitmap')
+    const originalCanvas = Object.getOwnPropertyDescriptor(self, 'OffscreenCanvas')
+    const originalBitmap = Object.getOwnPropertyDescriptor(self, 'createImageBitmap')
 
     class CanvasStub {
         width: number
@@ -97,7 +96,7 @@ async function withStubbedCanvas(
         }
     }
 
-    Object.defineProperty(globalThis, 'OffscreenCanvas', {
+    Object.defineProperty(self, 'OffscreenCanvas', {
         value: CanvasStub,
         configurable: true,
         writable: true
@@ -106,9 +105,9 @@ async function withStubbedCanvas(
     if (opts.decode === 'absent') {
         // Reflect rather than `delete`, which needs a ts-expect-error the
         // repo's rule gate refuses.
-        Reflect.deleteProperty(globalThis, 'createImageBitmap')
+        Reflect.deleteProperty(self, 'createImageBitmap')
     } else {
-        Object.defineProperty(globalThis, 'createImageBitmap', {
+        Object.defineProperty(self, 'createImageBitmap', {
             value:
                 opts.decode === 'ok'
                     ? () => Promise.resolve({ close: () => {} })
@@ -121,11 +120,11 @@ async function withStubbedCanvas(
     try {
         await body(canvases)
     } finally {
-        if (originalCanvas) Object.defineProperty(globalThis, 'OffscreenCanvas', originalCanvas)
+        if (originalCanvas) Object.defineProperty(self, 'OffscreenCanvas', originalCanvas)
         if (originalBitmap) {
-            Object.defineProperty(globalThis, 'createImageBitmap', originalBitmap)
+            Object.defineProperty(self, 'createImageBitmap', originalBitmap)
         } else {
-            Reflect.deleteProperty(globalThis, 'createImageBitmap')
+            Reflect.deleteProperty(self, 'createImageBitmap')
         }
     }
 }
@@ -193,8 +192,8 @@ describe('renderPageToCanvas', () => {
     }
 
     function withDrawableCanvas<T>(body: () => T): T {
-        const original = Object.getOwnPropertyDescriptor(globalThis, 'OffscreenCanvas')
-        Object.defineProperty(globalThis, 'OffscreenCanvas', {
+        const original = Object.getOwnPropertyDescriptor(self, 'OffscreenCanvas')
+        Object.defineProperty(self, 'OffscreenCanvas', {
             value: DrawableOffscreenCanvas,
             configurable: true,
             writable: true
@@ -203,7 +202,7 @@ describe('renderPageToCanvas', () => {
             return body()
         } finally {
             if (original) {
-                Object.defineProperty(globalThis, 'OffscreenCanvas', original)
+                Object.defineProperty(self, 'OffscreenCanvas', original)
             }
         }
     }

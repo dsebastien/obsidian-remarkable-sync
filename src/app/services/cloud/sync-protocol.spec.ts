@@ -401,6 +401,28 @@ describe('sync-protocol', () => {
             expect(entries[1]!.size).toBe(512)
         })
 
+        test('skips the schema 4 root info line instead of reading it as an entry', () => {
+            const index = '4\n0:.:2:512\nabc123:80000000:folder-id-1:0:0\ndef456:0:doc-id-1:0:512\n'
+            const { entries, rejected } = parseIndexDetailed(index)
+
+            expect(entries.map((e) => e.id)).toEqual(['folder-id-1', 'doc-id-1'])
+            expect(entries.some((e) => e.hash === '0')).toBe(false)
+            expect(rejected).toBe(0)
+        })
+
+        test('parses a schema 4 document index', () => {
+            // A document index names the document in its info line, not `.`.
+            const index =
+                '4\n0:docid:2:300\nabc:0:docid.metadata:0:100\ndef:0:docid.content:0:200\n'
+            expect(parseIndex(index).map((e) => e.id)).toEqual(['docid.metadata', 'docid.content'])
+        })
+
+        test('reads an info-shaped line past the header as an entry', () => {
+            // Only the line right after the schema version is a header.
+            const index = '4\n0:.:2:0\nabc:0:doc:0:0\n0:.:9:9\n'
+            expect(parseIndex(index).map((e) => e.id)).toEqual(['doc', '9'])
+        })
+
         test('parses legacy format without header lines', () => {
             const index = 'abc123:80000000:folder-id-1\ndef456:0:doc-id-1\n'
             const entries = parseIndex(index)

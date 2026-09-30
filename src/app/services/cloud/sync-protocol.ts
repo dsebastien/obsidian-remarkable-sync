@@ -408,13 +408,23 @@ export async function fetchBlob(
 
 /**
  * Parse an index file (root index or document index).
- * Format with header:
- *   {schemaVersion}
+ * Schema 3:
+ *   3
  *   {numEntries}
+ *   hash:type:id:subfiles:size
+ *   ...
+ * Schema 4 replaces the count with an info line naming no file; its name is
+ * `.` in the root index and the document id in a document index:
+ *   4
+ *   0:{. or docId}:{numEntries}:{totalSize}
  *   hash:type:id:subfiles:size
  *   ...
  * Also handles legacy format without header lines.
  */
+// Schema 4's second header line: `0:{. or docId}:{numEntries}:{totalSize}`.
+// Four fields, where an entry line has five and a 64-hex hash.
+const INDEX_INFO_LINE = /^0:[^:]+:\d+:\d+$/
+
 export function parseIndex(content: string): IndexEntry[] {
     return parseIndexDetailed(content).entries
 }
@@ -433,10 +443,14 @@ export function parseIndexDetailed(content: string): { entries: IndexEntry[]; re
 
     let startLine = 0
 
-    // Skip header lines (schema version and entry count are single numbers)
+    // Skip header lines: the schema version, then the entry count (schema 3)
+    // or the `0:name:count:size` info line (schema 4). Read as an entry, the
+    // info line is a file named by its count with hash `0`, which the cloud
+    // refuses: every listing came out incomplete and every download failed.
     if (lines.length > 0 && /^\d+$/.test(lines[0]!.trim())) {
         startLine = 1
-        if (lines.length > 1 && /^\d+$/.test(lines[1]!.trim())) {
+        const second = lines[1]?.trim()
+        if (second !== undefined && (/^\d+$/.test(second) || INDEX_INFO_LINE.test(second))) {
             startLine = 2
         }
     }

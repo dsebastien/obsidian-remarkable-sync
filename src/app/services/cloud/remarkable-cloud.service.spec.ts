@@ -69,6 +69,8 @@ class FakeCloud {
     readonly fetched: string[] = []
     readonly budgets: (RequestBudget | undefined)[] = []
     rootExtraLines = ''
+    /** Index schema: 4 heads every index with a `0:name:count:size` info line. */
+    schema: 3 | 4 = 3
     /** Scripted root-hash outcomes, consumed in order; empty means success. */
     readonly rootScript: ('401' | 'ok')[] = []
     refreshes = 0
@@ -116,9 +118,15 @@ class FakeCloud {
             lines.push(`${fileHash}:0:${id}/${file}:0:0`)
         }
         const indexHash = `idx-${id}-v${version}`
-        this.blobs.set(indexHash, `3\n${lines.join('\n')}\n`)
+        this.blobs.set(indexHash, this.index(lines, id))
         this.root = [...this.root.filter((e) => e.id !== id), { id, indexHash }]
         return this
+    }
+
+    private index(lines: string[], name: string): string {
+        // Schema 4 as rmapi-js writes it: `.` names the root, a document id its index.
+        const header = this.schema === 4 ? `4\n0:${name}:${lines.length}:0` : '3'
+        return `${header}\n${lines.join('\n')}\n`
     }
 
     transport(): CloudTransport {
@@ -131,7 +139,7 @@ class FakeCloud {
                         throw Object.assign(new Error('HTTP 401'), { status: 401 })
                     }
                     const lines = this.root.map((e) => `${e.indexHash}:80000000:${e.id}:0:0`)
-                    this.blobs.set('root', `3\n${lines.join('\n')}\n${this.rootExtraLines}`)
+                    this.blobs.set('root', `${this.index(lines, '.')}${this.rootExtraLines}`)
                     return 'root'
                 }),
             fetchBlob: (_token, hash, _name, _base, budget) =>
@@ -180,6 +188,18 @@ describe('listDocuments against an in-memory cloud', () => {
             ['d1', 'Work'],
             ['d2', '']
         ])
+    })
+
+    test('a schema 4 cloud lists completely, never fetching the info line', async () => {
+        // #44, #45: the `0:.:count:size` line was read as an entry with hash 0.
+        const cloud = new FakeCloud()
+        cloud.schema = 4
+        cloud.folder('f', 'Work').doc('d1', 'Notes', 'f')
+        const listing = await cloud.service().listDocuments()
+        expect(listing.complete).toBe(true)
+        expect(listing.error).toBeNull()
+        expect(listing.notebooks.map((n) => [n.id, n.folderPath])).toEqual([['d1', 'Work']])
+        expect(cloud.fetched).not.toContain('0')
     })
 
     test('an unreadable folder withholds its notebooks and both count as unreadable', async () => {
@@ -357,6 +377,18 @@ describe('downloadDocument against an in-memory cloud', () => {
             'd1/a.rm',
             'd1/b.rm'
         ])
+    })
+
+    test('downloads a schema 4 document without fetching the info line', async () => {
+        const cloud = new FakeCloud()
+        cloud.schema = 4
+        cloud.doc('d1', 'One', '', ['a.rm'])
+        const files = await cloud.service().downloadDocument('d1')
+        expect(files instanceof Map ? [...files.keys()].sort() : files).toEqual([
+            'd1.metadata',
+            'd1/a.rm'
+        ])
+        expect(cloud.fetched).not.toContain('0')
     })
 
     test('every file fetch of one download shares one budget, without a deadline', async () => {

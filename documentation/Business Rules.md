@@ -56,6 +56,7 @@ When a new business rule is mentioned:
 - A root index with any line the parser rejects yields an incomplete listing: the rejected line is an entry that cannot be named, and pruning would read it as deleted
 - After a partial refresh the panel keeps the last known entry of every notebook the listing could not read (its `unreadableIds`; every absent one when those are unknown). Kept entries are STALE: shown greyed out, never synced (row, Sync all, Sync selected), since their folder or trash state may be out of date. After a failed refresh every shown entry is stale
 - A document index with any line the parser rejects fails the download: the line is a file that cannot be named
+- Index headers are the schema version line, then a count line (schema 3) or an info line `0:{. or docId}:{count}:{size}` (schema 4). The info line names no file and is never an entry: read as one, it is a blob with hash `0` the cloud refuses (HTTP 400), which made every listing incomplete and every download fail in 2.2.0 (#44, #45)
 - A sync (row, Sync all, Sync selected) resolves each notebook's CURRENT entry from the panel list when its turn comes, by id; a notebook gone or stale by then is skipped. A summary captured before a refresh is never synced
 - "Reconnect" is asked only when there is no connection or the token endpoint refuses the device token (401/403). An unreachable token endpoint (offline, 5xx, 429) reports a transient failure, never a reconnect
 - A failed download says why (authentication, budget stop reason, notebook gone), not a bare failure

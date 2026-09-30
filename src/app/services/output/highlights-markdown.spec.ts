@@ -1,13 +1,12 @@
 import { test, expect, describe } from 'bun:test'
 import { buildHighlightsNote, hasHighlights, normaliseHighlightText } from './highlights-markdown'
 import type { Highlight, Page } from '../../domain/notebook'
-import { StrokeColor } from '../../domain/notebook'
 
 const rect = (width: number) => ({ x: 0, y: 0, width, height: 34 })
 
 const highlight = (text: string, widths: number[] = [100]): Highlight => ({
     text,
-    color: 9 as StrokeColor,
+    color: 9,
     rects: widths.map(rect)
 })
 

@@ -152,7 +152,7 @@ describe('annotateSourcePdf', () => {
         const source = await sourcePdf()
         const ballpoint = await annotateSourcePdf(source, [layer(0, 0, [stroke()])])
         const highlighter = await annotateSourcePdf(source, [
-            layer(0, 0, [stroke(PenType.HighlighterV2, 9 as StrokeColor)])
+            layer(0, 0, [stroke(PenType.HighlighterV2, 9)])
         ])
 
         expect(new Uint8Array(ballpoint!.data)).not.toEqual(new Uint8Array(highlighter!.data))

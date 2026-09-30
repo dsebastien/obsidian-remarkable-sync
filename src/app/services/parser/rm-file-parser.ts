@@ -23,7 +23,7 @@ import type {
     StrokeArgb
 } from '../../domain/notebook'
 import { END_MARKER } from '../../domain/text'
-import type { CrdtId, PageText, TextItem, TextStyle, ParagraphStyle } from '../../domain/text'
+import type { CrdtId, PageText, TextItem, TextStyle } from '../../domain/text'
 import { hasText } from './text-sequence'
 import { log } from '../../../utils/log'
 
@@ -589,7 +589,7 @@ function parseGlyphValue(reader: BinaryReader, subEnd: number): Highlight | null
         const tag = readTag(reader)
 
         if (tag.index === 4 && tag.type === TagType.Byte4) {
-            color = reader.readInt32() as StrokeColor
+            color = reader.readInt32()
             continue
         }
 
@@ -829,7 +829,7 @@ function readTextStyle(reader: BinaryReader): TextStyle | null {
     if (null === end) return null
 
     reader.readUint8() // marker, always 17
-    const style = reader.readUint8() as ParagraphStyle
+    const style = reader.readUint8()
     reader.seek(end)
 
     return { startId, style }

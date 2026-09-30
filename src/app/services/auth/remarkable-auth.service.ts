@@ -192,7 +192,7 @@ export function createRemarkableAuthService(
             log('User token refresh failed', 'error', error)
             const status =
                 error && typeof error === 'object' && 'status' in error
-                    ? Number((error as { status: unknown }).status)
+                    ? Number(error.status)
                     : undefined
             return { failure: status === undefined ? 'unreachable' : failureForStatus(status) }
         }

@@ -406,7 +406,7 @@ const highlightedPage = (pageIndex: number, sourcePageIndex = 0): Page => ({
     pageIndex,
     strokes: [],
     sourcePageIndex,
-    highlights: [{ text: 'Some highlighted words', color: 9 as never, rects: [] }]
+    highlights: [{ text: 'Some highlighted words', color: 9, rects: [] }]
 })
 
 describe('highlights note toggle', () => {

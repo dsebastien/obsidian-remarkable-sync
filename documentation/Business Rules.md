@@ -62,7 +62,7 @@ When a new business rule is mentioned:
 - A failed download says why (authentication, budget stop reason, notebook gone), not a bare failure
 - Entry metadata is cached in memory by the entry's index hash, which changes whenever the entry changes; an unchanged entry is never re-fetched within a session
 - A write path is never derived from an incomplete parent chain. If a folder in a notebook's chain is in the index but its metadata could not be read, the notebook is withheld from the listing (which is then incomplete) rather than written to a shortened path in the wrong vault folder. A parent genuinely absent from the index (or deleted) still ends the chain early
-- A document download with any blob missing after retries fails as a whole. Processing the rest would mark the notebook synced with pages silently absent, and nothing would retry them
+- A document download with any blob missing after retries fails as a whole. Processing the rest would mark the notebook synced with pages silently absent, and nothing would retry them. Files are counted by id (an id listed twice in the index is one file, not a missing one)
 - Automatic background sync is opt-in (default off); the interval is clamped to 5–240 minutes (default 30); runs are skipped while disconnected or when a previous run is still in progress; timers are registered via `registerInterval` so they are cleaned up on unload
 
 ## Local Import

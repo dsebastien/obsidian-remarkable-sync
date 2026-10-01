@@ -457,10 +457,12 @@ export function createRemarkableCloudService(
 
             // A missing blob after retries means missing pages. Processing the
             // rest would mark the notebook synced with pages silently absent,
-            // and nothing would ever retry them.
-            if (files.size === 0 || files.size < fileEntries.length) {
+            // and nothing would ever retry them. Counted by file id, as the map
+            // is: an id listed twice is one file, not a missing one.
+            const expected = new Set(fileEntries.map((entry) => entry.id)).size
+            if (files.size === 0 || files.size < expected) {
                 log(
-                    `Downloaded ${files.size} of ${fileEntries.length} files for document ${documentId}`,
+                    `Downloaded ${files.size} of ${expected} files for document ${documentId}`,
                     'error'
                 )
                 return fail()

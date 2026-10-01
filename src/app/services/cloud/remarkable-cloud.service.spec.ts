@@ -90,8 +90,12 @@ class FakeCloud {
     }
 
     corruptIndex(id: string, version = 1): this {
+        return this.appendToIndex(id, 'garbled', version)
+    }
+
+    appendToIndex(id: string, line: string, version = 1): this {
         const key = `idx-${id}-v${version}`
-        this.blobs.set(key, `${this.blobs.get(key)}garbled\n`)
+        this.blobs.set(key, `${this.blobs.get(key)}${line}\n`)
         return this
     }
 
@@ -402,6 +406,19 @@ describe('downloadDocument against an in-memory cloud', () => {
         const budget = cloud.budgets[0]!
         expect(budget).toBeInstanceOf(RequestBudget)
         expect(Reflect.get(budget, 'deadline')).toBeNull()
+    })
+
+    test('a file listed twice in the index is downloaded, not counted as missing', async () => {
+        // The map keys by file id, so comparing its size to the line count
+        // failed this notebook on every sync, forever.
+        const cloud = new FakeCloud()
+            .doc('d1', 'One', '', ['a.rm'])
+            .appendToIndex('d1', 'file-d1-a.rm-v1:0:d1/a.rm:0:0')
+        const files = await cloud.service().downloadDocument('d1')
+        expect(files instanceof Map ? [...files.keys()].sort() : files).toEqual([
+            'd1.metadata',
+            'd1/a.rm'
+        ])
     })
 
     test('fails when the document index has a line it cannot parse', async () => {

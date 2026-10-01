@@ -2,7 +2,7 @@ import { ItemView, setIcon } from 'obsidian'
 import type { WorkspaceLeaf } from 'obsidian'
 import type { RemarkableSyncPlugin } from '../plugin'
 import type { ListingOutcome, NotebookSummary } from '../domain/notebook'
-import { currentSyncTarget, mergeListing, syncCandidates } from '../domain/notebook'
+import { currentSyncTarget, mergeListing, syncCandidates, syncIdsToKeep } from '../domain/notebook'
 import type {
     PipelineProgress,
     PipelineStatus
@@ -589,14 +589,13 @@ export class RemarkablePanelView extends ItemView {
             this.listOutcome = merged.outcome
 
             // Drop sync state for notebooks deleted on the device/cloud, but
-            // ONLY from a listing known to be complete: an unreachable cloud
-            // returns nothing, and treating that as "everything was deleted"
-            // erased the whole sync store and forced a full re-download.
-            // Vault files are intentionally left untouched either way.
-            if (listing.complete) {
-                await this.plugin.syncStoreService.pruneMissing(
-                    listing.notebooks.map((nb) => nb.id)
-                )
+            // ONLY ids known to be absent from the cloud index: an unreachable
+            // cloud returns nothing, and treating that as "everything was
+            // deleted" erased the whole sync store and forced a full
+            // re-download. Vault files are intentionally left untouched.
+            const keep = syncIdsToKeep(listing)
+            if (null !== keep) {
+                await this.plugin.syncStoreService.pruneMissing(keep)
             }
         } catch (error) {
             log('Failed to refresh notebooks', 'error', error)

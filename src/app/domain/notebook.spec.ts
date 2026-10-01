@@ -5,7 +5,8 @@ import {
     failedListing,
     mergeListing,
     notebookDisplayPath,
-    syncCandidates
+    syncCandidates,
+    syncIdsToKeep
 } from './notebook'
 import type { NotebookSummary } from './notebook'
 
@@ -73,6 +74,31 @@ describe('failedListing', () => {
     test('is distinguishable from a genuinely empty account', () => {
         expect(failedListing('offline').complete).toBe(false)
         expect(describeListing([], 0).complete).toBe(true)
+    })
+})
+
+describe('syncIdsToKeep', () => {
+    test('a complete listing keeps exactly what it listed', () => {
+        expect(syncIdsToKeep(describeListing([notebook('a'), notebook('b')], 0))).toEqual([
+            'a',
+            'b'
+        ])
+        // A genuinely empty account prunes everything.
+        expect(syncIdsToKeep(describeListing([], 0))).toEqual([])
+    })
+
+    test('a partial listing keeps what it listed and what it could not read', () => {
+        // A notebook the cloud never serves must not block pruning forever,
+        // nor be pruned itself: it is still in the index.
+        const listing = describeListing([notebook('a')], 1, ['broken'])
+        expect(syncIdsToKeep(listing)).toEqual(['a', 'broken'])
+    })
+
+    test('a listing that cannot name its unreadable entries prunes nothing', () => {
+        // Rejected index lines: an absent id may be one of them.
+        expect(syncIdsToKeep(describeListing([notebook('a')], 1, null))).toBeNull()
+        // The cloud was unreachable: nothing was named at all.
+        expect(syncIdsToKeep(failedListing('offline'))).toBeNull()
     })
 })
 

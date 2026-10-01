@@ -290,9 +290,27 @@ describe('runNow', () => {
         expect(harness.pruneCalls).toEqual([])
     })
 
-    test('never prunes from a partial listing', async () => {
-        // One document's metadata failing is not evidence that every other
-        // notebook was deleted.
+    test('prunes around the entries a partial listing could not read', async () => {
+        // One notebook the cloud never serves used to block pruning forever.
+        const harness = createHarness({
+            listDocuments: () =>
+                Promise.resolve({
+                    notebooks: [notebook('a')],
+                    complete: false,
+                    error: '1 item(s) could not be read',
+                    unreadableIds: ['broken']
+                })
+        })
+        const service = createAutoSyncService(harness.deps)
+
+        await service.runNow()
+
+        expect(harness.pruneCalls).toEqual([['a', 'broken']])
+    })
+
+    test('never prunes from a partial listing that cannot name what it missed', async () => {
+        // Rejected index lines: one document's metadata failing is not
+        // evidence that every other notebook was deleted.
         const harness = createHarness({
             listDocuments: () =>
                 Promise.resolve(incomplete([notebook('a')], '1 item(s) could not be read'))

@@ -239,8 +239,8 @@ export interface NotebookSummary {
  * deleted" and erased the entire sync store, and the next run re-downloaded
  * the whole library. Shipped in 1.10.0, found in 2.1.0.
  *
- * So the outcome is now explicit, and `complete` is the flag that gates
- * anything destructive.
+ * So the outcome is now explicit, and `syncIdsToKeep` decides what pruning
+ * may touch.
  */
 export interface DocumentListing {
     /** What was successfully listed. Safe to display and to sync from. */
@@ -249,9 +249,8 @@ export interface DocumentListing {
     /**
      * True only when EVERY entry in the cloud index was read successfully.
      *
-     * Required before pruning sync state: only a complete listing lets an
-     * absent notebook be read as a deleted one. A partial listing is still
-     * perfectly good for display and for syncing what it did return.
+     * A partial listing is still perfectly good for display and for syncing
+     * what it did return; whether it may prune is `syncIdsToKeep`'s call.
      */
     readonly complete: boolean
 
@@ -299,6 +298,25 @@ export function describeListing(
  */
 export function failedListing(message: string): DocumentListing {
     return { notebooks: [], complete: false, error: message, unreadableIds: null }
+}
+
+/**
+ * The notebook ids whose sync state a prune must keep, or null when this
+ * listing must not prune at all.
+ *
+ * A notebook is deleted only when it is absent from the cloud index. A
+ * complete listing names everything the index holds. A partial one names what
+ * it read plus the ids it could not read, which are still in the index; so
+ * anything outside both is gone, and one notebook the cloud never serves no
+ * longer blocks pruning forever. When the unreadable ids are unknown (the
+ * listing failed, or index lines could not be parsed), an absent id may be one
+ * of them, so nothing is pruned.
+ */
+export function syncIdsToKeep(listing: DocumentListing): string[] | null {
+    const listed = listing.notebooks.map((nb) => nb.id)
+    if (listing.complete) return listed
+    if (null === listing.unreadableIds) return null
+    return [...listed, ...listing.unreadableIds]
 }
 
 /** How a refresh went, for the panel's wording. */

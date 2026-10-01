@@ -1,5 +1,6 @@
 import { Notice } from 'obsidian'
 import type { DocumentListing, NotebookSummary } from '../../domain/notebook'
+import { syncIdsToKeep } from '../../domain/notebook'
 import type { NotebookSyncState } from '../../domain/sync-state'
 import { deriveSyncStatus } from '../../domain/sync-state'
 import {
@@ -143,16 +144,15 @@ export function createAutoSyncService(deps: AutoSyncDeps): AutoSyncService {
             const listing = await deps.listDocuments()
             const notebooks = listing.notebooks
 
-            // Prune ONLY from a listing known to be complete. An absent
-            // notebook means "deleted on the device" only if we are certain we
-            // saw everything; otherwise a network failure erases sync state
-            // and the next run re-downloads a library that never changed.
-            const prunedCount = listing.complete
-                ? await deps.pruneMissing(notebooks.map((nb) => nb.id))
-                : 0
+            // Prune ONLY ids known to be absent from the cloud index (see
+            // syncIdsToKeep). A failed listing names nothing, and reading that
+            // as "everything was deleted" erased the sync store and made the
+            // next run re-download a library that never changed.
+            const keep = syncIdsToKeep(listing)
+            const prunedCount = null === keep ? 0 : await deps.pruneMissing(keep)
 
-            if (!listing.complete) {
-                log('Skipped pruning: the cloud listing was incomplete', 'debug', {
+            if (null === keep) {
+                log('Skipped pruning: the cloud listing could not name every entry', 'debug', {
                     error: listing.error
                 })
             }

@@ -2,6 +2,16 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.2.1](https://github.com/dsebastien/obsidian-remarkable-sync/compare/2.2.0...2.2.1) (2026-10-01)
+
+### Fixed
+
+- Syncing works again for accounts on the newer reMarkable cloud format. Since 2.2.0, these accounts saw "1 item(s) could not be read from the reMarkable cloud", and every notebook failed to download. The plugin read a header line of the cloud's index as if it were a file. (#44, #45)
+
+### Maintenance
+
+- Updated dependencies and build tooling.
+
 ## [2.2.0](https://github.com/dsebastien/obsidian-remarkable-sync/compare/2.1.0...2.2.0) (2026-09-28)
 
 ### Sync you can trust
@@ -331,6 +341,7 @@ advisory from the previous commit is now satisfied.
 - Inline progress indicators per notebook in panel
 - Settings for target folder, image format
 - Token storage outside vault for security
+
 
 
 

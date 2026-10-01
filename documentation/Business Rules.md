@@ -89,6 +89,7 @@ When a new business rule is mentioned:
 ## Output
 
 - reMarkable folder hierarchy is preserved under the target folder
+- A stored target folder is contained on load (`containVaultFolderPath`): `\` is a separator on every platform, since a vault synced to Windows would otherwise read `..\..` as an escape. A literal `\` in a Linux/macOS folder name therefore becomes nested folders; the settings field refuses `\`, so only a pre-2.2.0 or hand-edited value is affected
 - Images are saved when `saveImages` is enabled
 - PDF export is opt-in via `savePdf` (default false) and is independent of `saveImages`: either, both, or neither may be enabled
 - A notebook PDF is written to `<targetFolder>/<folderPath>/<notebookName>.pdf`, beside the per-notebook image folder rather than inside it, so both outputs can be produced without colliding

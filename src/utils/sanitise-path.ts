@@ -302,7 +302,11 @@ export function validateVaultFolderPath(value: string): string | null {
  * been writing to such a folder keeps writing there. Replacing those
  * characters moves existing output and is deferred to the next major.
  *
- * - `\` is treated as a separator, since it is one on Windows.
+ * - `\` is treated as a separator on every platform, since it is one on
+ *   Windows: a vault synced there would otherwise read `..\..` as an escape.
+ *   A folder with a literal `\` on Linux or macOS therefore becomes nested
+ *   folders. The settings field refuses `\`, so only a value stored before
+ *   2.2.0 or edited by hand can be affected.
  * - Empty (or whitespace-only), `.` and `..` segments are dropped, which also removes a leading
  *   `/` (an absolute path becomes vault-relative).
  * - A drive letter prefix (`C:\\` or `C:/`) is dropped; `a:b` is left alone.

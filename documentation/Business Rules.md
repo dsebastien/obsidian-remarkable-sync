@@ -64,6 +64,7 @@ When a new business rule is mentioned:
 - A write path is never derived from an incomplete parent chain. If a folder in a notebook's chain is in the index but its metadata could not be read, the notebook is withheld from the listing (which is then incomplete) rather than written to a shortened path in the wrong vault folder. A parent genuinely absent from the index (or deleted) still ends the chain early
 - A document download with any blob missing after retries fails as a whole. Processing the rest would mark the notebook synced with pages silently absent, and nothing would retry them. Files are counted by id (an id listed twice in the index is one file, not a missing one)
 - Automatic background sync is opt-in (default off); the interval is clamped to 5–240 minutes (default 30); runs are skipped while disconnected or when a previous run is still in progress; timers are registered via `registerInterval` so they are cleaned up on unload
+- Automatic sync backs off per notebook: after its k-th consecutive failure a notebook is skipped for 2^(k-1) runs, capped at `MAX_AUTO_SYNC_BACKOFF_RUNS` (16). A success or a new cloud `lastModified` resets it. The second consecutive failure shows one notice per notebook per session, with the reason. In memory only; manual syncs (row, Sync all, Sync selected) ignore it
 
 ## Local Import
 

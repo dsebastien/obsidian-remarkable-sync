@@ -1,3 +1,4 @@
+import { Notice } from 'obsidian'
 import type { DocumentListing, NotebookSummary } from '../../domain/notebook'
 import type { NotebookSyncState } from '../../domain/sync-state'
 import { deriveSyncStatus } from '../../domain/sync-state'
@@ -23,12 +24,26 @@ export function clampAutoSyncIntervalMinutes(minutes: number): number {
     return rounded
 }
 
+/** Most runs a failing notebook is skipped for (8 hours at the default interval). */
+export const MAX_AUTO_SYNC_BACKOFF_RUNS = 16
+
+/** Consecutive failures of one notebook before the user is told, once a session. */
+export const AUTO_SYNC_FAILURES_BEFORE_NOTICE = 2
+
+/** Runs to skip after the given number of consecutive failures: 1, 2, 4, … capped. */
+export function autoSyncBackoffRuns(consecutiveFailures: number): number {
+    return Math.min(2 ** Math.max(0, consecutiveFailures - 1), MAX_AUTO_SYNC_BACKOFF_RUNS)
+}
+
 export type AutoSyncSkipReason = 'disabled' | 'disconnected' | 'already-running'
 
 export interface AutoSyncRunResult {
     readonly skipped: AutoSyncSkipReason | null
     readonly prunedCount: number
+    /** Notebooks this run tried to sync. */
     readonly syncedCount: number
+    /** Notebooks due for a sync but skipped because they keep failing. */
+    readonly deferredCount: number
 }
 
 /**
@@ -41,7 +56,9 @@ export interface AutoSyncDeps {
     intervalMinutes(): number
     listDocuments(): Promise<DocumentListing>
     getSyncState(remarkableId: string): NotebookSyncState | undefined
-    processNotebook(notebook: NotebookSummary): Promise<void>
+    /** Sync one notebook; resolves with why it failed, or null on success. */
+    processNotebook(notebook: NotebookSummary): Promise<string | null>
+    notify(message: string): void
     pruneMissing(presentIds: readonly string[]): Promise<number>
     setIntervalFn(callback: () => void, milliseconds: number): number
     clearIntervalFn(handle: number): void
@@ -56,19 +73,70 @@ export interface AutoSyncService {
     isRunning(): boolean
 }
 
+interface NotebookFailure {
+    /** The cloud version that failed; a new version is retried at once. */
+    readonly lastModified: string
+    readonly consecutive: number
+    skipRuns: number
+}
+
 export function createAutoSyncService(deps: AutoSyncDeps): AutoSyncService {
     let timerHandle: number | null = null
     let running = false
+    // Per session. A notebook that fails every time (a blob the cloud never
+    // serves) would otherwise be downloaded again on every run, silently.
+    const failures = new Map<string, NotebookFailure>()
+    const notified = new Set<string>()
+
+    const notRun = (skipped: AutoSyncSkipReason): AutoSyncRunResult => ({
+        skipped,
+        prunedCount: 0,
+        syncedCount: 0,
+        deferredCount: 0
+    })
+
+    /** Whether the backoff lets this notebook sync now; spends one skipped run if not. */
+    function isDue(notebook: NotebookSummary): boolean {
+        const failure = failures.get(notebook.id)
+        if (!failure) return true
+        if (failure.lastModified !== notebook.lastModified) {
+            failures.delete(notebook.id)
+            return true
+        }
+        if (failure.skipRuns <= 0) return true
+        failure.skipRuns--
+        return false
+    }
+
+    function recordOutcome(notebook: NotebookSummary, error: string | null): void {
+        if (null === error) {
+            failures.delete(notebook.id)
+            return
+        }
+        const consecutive = (failures.get(notebook.id)?.consecutive ?? 0) + 1
+        failures.set(notebook.id, {
+            lastModified: notebook.lastModified,
+            consecutive,
+            skipRuns: autoSyncBackoffRuns(consecutive)
+        })
+        log(`Automatic sync failed for ${notebook.visibleName}`, 'warn', { error, consecutive })
+        if (consecutive >= AUTO_SYNC_FAILURES_BEFORE_NOTICE && !notified.has(notebook.id)) {
+            notified.add(notebook.id)
+            deps.notify(
+                `Automatic sync could not sync "${notebook.visibleName}": ${error}. It will retry less often; sync it from the reMarkable panel to retry now.`
+            )
+        }
+    }
 
     async function runNow(): Promise<AutoSyncRunResult> {
         if (!deps.isEnabled()) {
-            return { skipped: 'disabled', prunedCount: 0, syncedCount: 0 }
+            return notRun('disabled')
         }
         if (!deps.isConnected()) {
-            return { skipped: 'disconnected', prunedCount: 0, syncedCount: 0 }
+            return notRun('disconnected')
         }
         if (running) {
-            return { skipped: 'already-running', prunedCount: 0, syncedCount: 0 }
+            return notRun('already-running')
         }
         running = true
         try {
@@ -89,23 +157,26 @@ export function createAutoSyncService(deps: AutoSyncDeps): AutoSyncService {
                 })
             }
 
-            const toSync = notebooks.filter((nb) => {
+            const pending = notebooks.filter((nb) => {
                 const status = deriveSyncStatus(deps.getSyncState(nb.id), nb.lastModified)
                 return status === 'needs-sync' || status === 'never-synced'
             })
+            const toSync = pending.filter(isDue)
+            const deferredCount = pending.length - toSync.length
             for (const notebook of toSync) {
-                await deps.processNotebook(notebook)
+                recordOutcome(notebook, await deps.processNotebook(notebook))
             }
-            if (toSync.length > 0 || prunedCount > 0) {
+            if (toSync.length > 0 || prunedCount > 0 || deferredCount > 0) {
                 log('Automatic sync completed', 'debug', {
                     synced: toSync.length,
+                    deferred: deferredCount,
                     pruned: prunedCount
                 })
             }
-            return { skipped: null, prunedCount, syncedCount: toSync.length }
+            return { skipped: null, prunedCount, syncedCount: toSync.length, deferredCount }
         } catch (error) {
             log('Automatic sync failed', 'error', error)
-            return { skipped: null, prunedCount: 0, syncedCount: 0 }
+            return { skipped: null, prunedCount: 0, syncedCount: 0, deferredCount: 0 }
         } finally {
             running = false
         }
@@ -144,10 +215,18 @@ export function createAutoSyncServiceForPlugin(plugin: RemarkableSyncPlugin): Au
         intervalMinutes: () => plugin.settings.autoSyncIntervalMinutes,
         listDocuments: () => plugin.cloudService.listDocuments(),
         getSyncState: (remarkableId) => plugin.syncStoreService.getState(remarkableId),
-        processNotebook: async (notebook): Promise<void> => {
-            await plugin.pipelineService.processNotebook(notebook, () => {
-                // Background sync has no progress UI
+        processNotebook: async (notebook): Promise<string | null> => {
+            // Background sync has no progress UI; only the failure reason is kept.
+            const failure = { error: 'Sync failed' }
+            const ok = await plugin.pipelineService.processNotebook(notebook, (progress) => {
+                if ('error' === progress.status && progress.error) {
+                    failure.error = progress.error
+                }
             })
+            return ok ? null : failure.error
+        },
+        notify: (message) => {
+            new Notice(message)
         },
         pruneMissing: (presentIds) => plugin.syncStoreService.pruneMissing(presentIds),
         setIntervalFn: (callback, milliseconds) => window.setInterval(callback, milliseconds),

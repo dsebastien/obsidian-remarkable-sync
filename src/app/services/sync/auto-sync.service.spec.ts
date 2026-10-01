@@ -1,5 +1,10 @@
 import { test, expect, describe } from 'bun:test'
-import { clampAutoSyncIntervalMinutes, createAutoSyncService } from './auto-sync.service'
+import {
+    autoSyncBackoffRuns,
+    clampAutoSyncIntervalMinutes,
+    createAutoSyncService,
+    MAX_AUTO_SYNC_BACKOFF_RUNS
+} from './auto-sync.service'
 import type { AutoSyncDeps } from './auto-sync.service'
 import type { DocumentListing, NotebookSummary } from '../../domain/notebook'
 import type { NotebookSyncState } from '../../domain/sync-state'
@@ -41,6 +46,8 @@ interface HarnessConfig {
     notebooks?: NotebookSummary[]
     syncStates?: Record<string, NotebookSyncState>
     listDocuments?: () => Promise<DocumentListing>
+    /** Ids whose sync fails, with the reason the pipeline reports. */
+    failing?: Map<string, string>
 }
 
 interface Harness {
@@ -50,6 +57,7 @@ interface Harness {
     registered: number[]
     processed: string[]
     pruneCalls: (readonly string[])[]
+    notices: string[]
 }
 
 function createHarness(config: HarnessConfig = {}): Harness {
@@ -58,6 +66,7 @@ function createHarness(config: HarnessConfig = {}): Harness {
     const registered: number[] = []
     const processed: string[] = []
     const pruneCalls: (readonly string[])[] = []
+    const notices: string[] = []
     let nextHandle = 1
 
     const deps: AutoSyncDeps = {
@@ -69,7 +78,10 @@ function createHarness(config: HarnessConfig = {}): Harness {
         getSyncState: (id) => config.syncStates?.[id],
         processNotebook: (nb) => {
             processed.push(nb.id)
-            return Promise.resolve()
+            return Promise.resolve(config.failing?.get(nb.id) ?? null)
+        },
+        notify: (message) => {
+            notices.push(message)
         },
         pruneMissing: (ids) => {
             pruneCalls.push(ids)
@@ -88,7 +100,7 @@ function createHarness(config: HarnessConfig = {}): Harness {
         }
     }
 
-    return { deps, timers, cleared, registered, processed, pruneCalls }
+    return { deps, timers, cleared, registered, processed, pruneCalls, notices }
 }
 
 describe('clampAutoSyncIntervalMinutes', () => {
@@ -330,5 +342,84 @@ describe('runNow', () => {
         await new Promise((resolve) => window.setTimeout(resolve, 0))
 
         expect(harness.processed).toEqual(['a'])
+    })
+})
+
+describe('autoSyncBackoffRuns', () => {
+    test('doubles with each consecutive failure, up to the cap', () => {
+        expect([1, 2, 3, 4, 5, 6, 20].map(autoSyncBackoffRuns)).toEqual([
+            1,
+            2,
+            4,
+            8,
+            16,
+            MAX_AUTO_SYNC_BACKOFF_RUNS,
+            MAX_AUTO_SYNC_BACKOFF_RUNS
+        ])
+    })
+})
+
+describe('a notebook that keeps failing', () => {
+    async function runs(
+        service: ReturnType<typeof createAutoSyncService>,
+        n: number
+    ): Promise<number[]> {
+        const deferred: number[] = []
+        for (let i = 0; i < n; i++) deferred.push((await service.runNow()).deferredCount)
+        return deferred
+    }
+
+    test('is retried less and less often, while the others still sync', async () => {
+        const harness = createHarness({
+            notebooks: [notebook('bad'), notebook('good')],
+            failing: new Map([['bad', 'Download failed']])
+        })
+        const service = createAutoSyncService(harness.deps)
+
+        // Fails on run 1, skips 1, fails on run 3, skips 2, fails on run 6.
+        expect(await runs(service, 6)).toEqual([0, 1, 0, 1, 1, 0])
+        expect(harness.processed.filter((id) => 'bad' === id)).toHaveLength(3)
+        expect(harness.processed.filter((id) => 'good' === id)).toHaveLength(6)
+    })
+
+    test('tells the user once, on the second failure in a row', async () => {
+        const harness = createHarness({
+            notebooks: [notebook('bad')],
+            failing: new Map([['bad', 'Download failed']])
+        })
+        const service = createAutoSyncService(harness.deps)
+
+        await runs(service, 1)
+        expect(harness.notices).toEqual([])
+        await runs(service, 10)
+        expect(harness.notices).toHaveLength(1)
+        expect(harness.notices[0]).toContain('"bad": Download failed')
+    })
+
+    test('is retried at once when its cloud version changes', async () => {
+        const listing = [notebook('bad', '1')]
+        const harness = createHarness({
+            listDocuments: () => Promise.resolve(complete(listing)),
+            failing: new Map([['bad', 'Download failed']])
+        })
+        const service = createAutoSyncService(harness.deps)
+
+        await runs(service, 1)
+        listing[0] = notebook('bad', '2')
+        expect(await runs(service, 1)).toEqual([0])
+        expect(harness.processed).toEqual(['bad', 'bad'])
+    })
+
+    test('backs off from scratch after a success', async () => {
+        const failing = new Map([['nb', 'Download failed']])
+        const harness = createHarness({ notebooks: [notebook('nb')], failing })
+        const service = createAutoSyncService(harness.deps)
+
+        await runs(service, 3) // fail, skip, fail
+        failing.clear()
+        await runs(service, 3) // skip, skip, succeed
+        failing.set('nb', 'Download failed')
+        // Never-synced in this harness, so it is due again; one failure skips one run.
+        expect(await runs(service, 3)).toEqual([0, 1, 0])
     })
 })

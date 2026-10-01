@@ -319,6 +319,17 @@ export function syncIdsToKeep(listing: DocumentListing): string[] | null {
     return [...listed, ...listing.unreadableIds]
 }
 
+/**
+ * A key naming the entries a partial listing could not read, so a refresh can
+ * tell it is reporting the same ones again. Null when there is nothing to
+ * compare: a complete listing, or unreadable ids that are unknown.
+ */
+export function unreadableKey(listing: DocumentListing): string | null {
+    if (listing.complete || null === listing.unreadableIds) return null
+    if (0 === listing.unreadableIds.length) return null
+    return [...listing.unreadableIds].sort().join('\n')
+}
+
 /** How a refresh went, for the panel's wording. */
 export type ListingOutcome = 'complete' | 'partial' | 'failed'
 

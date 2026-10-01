@@ -236,6 +236,11 @@
     @apply m-0;
 }
 
+.remarkable-list-error-quiet {
+    @apply mb-2 text-xs;
+    color: var(--text-muted);
+}
+
 .remarkable-list-error-detail {
     @apply mt-1 text-xs;
     color: var(--text-muted);

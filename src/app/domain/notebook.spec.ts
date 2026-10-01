@@ -6,7 +6,8 @@ import {
     mergeListing,
     notebookDisplayPath,
     syncCandidates,
-    syncIdsToKeep
+    syncIdsToKeep,
+    unreadableKey
 } from './notebook'
 import type { NotebookSummary } from './notebook'
 
@@ -99,6 +100,27 @@ describe('syncIdsToKeep', () => {
         expect(syncIdsToKeep(describeListing([notebook('a')], 1, null))).toBeNull()
         // The cloud was unreachable: nothing was named at all.
         expect(syncIdsToKeep(failedListing('offline'))).toBeNull()
+    })
+})
+
+describe('unreadableKey', () => {
+    test('names the same unreadable entries the same way, in any order', () => {
+        const first = describeListing([notebook('a')], 2, ['y', 'x'])
+        const again = describeListing([notebook('a')], 2, ['x', 'y'])
+        expect(unreadableKey(first)).not.toBeNull()
+        expect(unreadableKey(first)).toBe(unreadableKey(again))
+    })
+
+    test('tells different unreadable entries apart', () => {
+        expect(unreadableKey(describeListing([], 1, ['x']))).not.toBe(
+            unreadableKey(describeListing([], 1, ['y']))
+        )
+    })
+
+    test('has nothing to compare when complete or when the ids are unknown', () => {
+        expect(unreadableKey(describeListing([notebook('a')], 0))).toBeNull()
+        expect(unreadableKey(describeListing([notebook('a')], 1, null))).toBeNull()
+        expect(unreadableKey(failedListing('offline'))).toBeNull()
     })
 })
 

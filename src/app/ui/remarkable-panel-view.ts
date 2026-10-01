@@ -2,7 +2,13 @@ import { ItemView, setIcon } from 'obsidian'
 import type { WorkspaceLeaf } from 'obsidian'
 import type { RemarkableSyncPlugin } from '../plugin'
 import type { ListingOutcome, NotebookSummary } from '../domain/notebook'
-import { currentSyncTarget, mergeListing, syncCandidates, syncIdsToKeep } from '../domain/notebook'
+import {
+    currentSyncTarget,
+    mergeListing,
+    syncCandidates,
+    syncIdsToKeep,
+    unreadableKey
+} from '../domain/notebook'
 import type {
     PipelineProgress,
     PipelineStatus
@@ -54,6 +60,11 @@ export class RemarkablePanelView extends ItemView {
      */
     private listError: string | null = null
     private listOutcome: ListingOutcome = 'complete'
+    // The entries the last refresh could not read, and whether this refresh
+    // reported the same ones: a repeat is shown quietly, since one notebook
+    // the cloud never serves would otherwise keep an alarm up for good.
+    private lastUnreadableKey: string | null = null
+    private listErrorRepeated = false
     /**
      * Entries carried over from an earlier listing because this one could not
      * read them. Shown, never synced: their folder or trash state may be out
@@ -110,7 +121,12 @@ export class RemarkablePanelView extends ItemView {
             return
         }
 
-        if (this.listError) {
+        if (this.listError && this.listErrorRepeated) {
+            root.createDiv({
+                cls: 'remarkable-list-error-quiet',
+                text: `${this.listError} (unchanged since the last refresh).`
+            })
+        } else if (this.listError) {
             const banner = root.createDiv({ cls: 'remarkable-list-error' })
             banner.createEl('p', { text: this.listError })
             banner.createEl('p', {
@@ -580,6 +596,10 @@ export class RemarkablePanelView extends ItemView {
         try {
             const listing = await this.plugin.cloudService.listDocuments()
             this.listError = listing.error
+            const unreadable = unreadableKey(listing)
+            const key = null === unreadable ? null : `${listing.error}\n${unreadable}`
+            this.listErrorRepeated = null !== key && key === this.lastUnreadableKey
+            this.lastUnreadableKey = key
 
             // Keep what the listing could not read rather than dropping it,
             // which would look like a deletion on the device.
@@ -600,6 +620,8 @@ export class RemarkablePanelView extends ItemView {
         } catch (error) {
             log('Failed to refresh notebooks', 'error', error)
             this.listError = error instanceof Error ? error.message : 'Unknown error'
+            this.listErrorRepeated = false
+            this.lastUnreadableKey = null
             this.listOutcome = 'failed'
             this.staleIds = new Set(this.notebooks.map((nb) => nb.id))
         }

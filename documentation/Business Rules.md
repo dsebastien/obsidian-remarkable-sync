@@ -44,7 +44,7 @@ When a new business rule is mentioned:
 
 - Sync state persists across sessions (stored in plugin data alongside settings)
 - A notebook needs syncing when the cloud's CURRENT `lastModified` is greater than the `lastModifiedCloud` recorded at its last sync. Both sides are cloud timestamps: the local clock never takes part, so clock skew cannot affect the decision. `lastSyncedAt` is display only
-- A cloud `lastModified` that is not a plain integer is treated as unknown, and an already-synced notebook is left alone rather than re-downloaded on every pass
+- A cloud `lastModified` that is not a plain integer is treated as unknown, and an already-synced notebook is left alone rather than re-downloaded on every pass. The listing logs a warning the first time it meets one in a session
 - "Sync all" only processes notebooks with `needs-sync` or `never-synced` status
 - Sync state is cleared when user disconnects from reMarkable cloud
 - Users can sync individual notebooks, multiple selected notebooks, or all notebooks at once

@@ -3,6 +3,7 @@ import { log } from '../../../utils/log'
 import type { DocumentListing, NotebookSummary } from '../../domain/notebook'
 import { describeListing, failedListing } from '../../domain/notebook'
 import type { RemarkableDocumentMetadata } from '../../domain/remarkable-types'
+import { parseCloudTimestamp } from '../../domain/sync-state'
 import type { RemarkableSyncPlugin } from '../../plugin'
 import type { TokenFailure } from '../auth/remarkable-auth.service'
 import {
@@ -105,6 +106,11 @@ export function createRemarkableCloudService(
     // whenever anything in the entry changes, so an unchanged entry is never
     // fetched twice and a steady-state listing costs one request (the root).
     let metadataCache = new Map<string, RemarkableDocumentMetadata>()
+
+    // A notebook whose `lastModified` is not a plain integer counts as synced
+    // forever (see `deriveSyncStatus`). Say so once a session, so a format
+    // change in the cloud leaves a trace instead of silently stopping syncs.
+    let warnedUnreadableTimestamp = false
 
     /**
      * Fetch metadata for a single entry (document or folder) by downloading
@@ -321,6 +327,18 @@ export function createRemarkableCloudService(
                     )
                     withheld++
                     continue
+                }
+
+                if (
+                    !warnedUnreadableTimestamp &&
+                    null === parseCloudTimestamp(metadata.lastModified)
+                ) {
+                    warnedUnreadableTimestamp = true
+                    log(
+                        `Unreadable lastModified timestamp on ${metadata.visibleName}; a notebook with one always counts as synced`,
+                        'warn',
+                        { lastModified: metadata.lastModified }
+                    )
                 }
 
                 notebooks.push({

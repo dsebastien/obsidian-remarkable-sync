@@ -1,4 +1,4 @@
-import { describe, expect, test } from 'bun:test'
+import { describe, expect, spyOn, test } from 'bun:test'
 import type { TokenOutcome } from '../auth/remarkable-auth.service'
 import {
     AUTHENTICATION_FAILED,
@@ -69,6 +69,8 @@ class FakeCloud {
     readonly fetched: string[] = []
     readonly budgets: (RequestBudget | undefined)[] = []
     rootExtraLines = ''
+    /** `lastModified` written into the metadata of entries added from now on. */
+    lastModified = '1700000000000'
     /** Index schema: 4 heads every index with a `0:name:count:size` info line. */
     schema: 3 | 4 = 3
     /** Scripted root-hash outcomes, consumed in order; empty means success. */
@@ -113,7 +115,7 @@ class FakeCloud {
         const metaHash = `meta-${id}-v${version}`
         this.blobs.set(
             metaHash,
-            JSON.stringify({ deleted: false, lastModified: '1700000000000', ...meta })
+            JSON.stringify({ deleted: false, lastModified: this.lastModified, ...meta })
         )
         const lines = [`${metaHash}:0:${id}.metadata:0:0`]
         for (const file of files) {
@@ -204,6 +206,37 @@ describe('listDocuments against an in-memory cloud', () => {
         expect(listing.error).toBeNull()
         expect(listing.notebooks.map((n) => [n.id, n.folderPath])).toEqual([['d1', 'Work']])
         expect(cloud.fetched).not.toContain('0')
+    })
+
+    test('warns once a session about a timestamp the sync decision cannot read', async () => {
+        // Such a notebook counts as synced forever (see deriveSyncStatus), so
+        // a format change in the cloud must leave a trace.
+        const cloud = new FakeCloud()
+        cloud.lastModified = '2026-10-01T10:00:00Z'
+        cloud.doc('d1', 'One').doc('d2', 'Two')
+        const warn = spyOn(console, 'warn').mockImplementation(() => {})
+        try {
+            const service = cloud.service()
+            await service.listDocuments()
+            await service.listDocuments()
+            const timestampWarnings = warn.mock.calls.filter((call) =>
+                String(call[0]).includes('timestamp')
+            )
+            expect(timestampWarnings).toHaveLength(1)
+        } finally {
+            warn.mockRestore()
+        }
+    })
+
+    test('says nothing about plain integer timestamps', async () => {
+        const cloud = new FakeCloud().doc('d1', 'One')
+        const warn = spyOn(console, 'warn').mockImplementation(() => {})
+        try {
+            await cloud.service().listDocuments()
+            expect(warn).not.toHaveBeenCalled()
+        } finally {
+            warn.mockRestore()
+        }
     })
 
     test('an unreadable folder withholds its notebooks and both count as unreadable', async () => {

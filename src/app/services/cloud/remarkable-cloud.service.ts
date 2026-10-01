@@ -107,6 +107,13 @@ export function createRemarkableCloudService(
     // fetched twice and a steady-state listing costs one request (the root).
     let metadataCache = new Map<string, RemarkableDocumentMetadata>()
 
+    // Cache: entry index hashes whose content can never be read (no .metadata
+    // in the index, or metadata that is not JSON). Content is addressed by
+    // hash, so the same hash fails the same way every time; refetching it on
+    // every listing only spends requests. A failed REQUEST is never cached:
+    // it may succeed next time.
+    let unreadableHashes = new Set<string>()
+
     // A notebook whose `lastModified` is not a plain integer counts as synced
     // forever (see `deriveSyncStatus`). Say so once a session, so a format
     // change in the cloud leaves a trace instead of silently stopping syncs.
@@ -115,6 +122,9 @@ export function createRemarkableCloudService(
     /**
      * Fetch metadata for a single entry (document or folder) by downloading
      * its index blob, finding the .metadata file hash, and parsing it.
+     *
+     * 'unreadable' when the content itself is unusable, which no retry of
+     * the same hash can change; null when a request failed.
      */
     async function fetchEntryMetadata(
         userToken: string,
@@ -122,7 +132,7 @@ export function createRemarkableCloudService(
         entryId: string,
         syncBaseUrl: string,
         budget: RequestBudget
-    ): Promise<RemarkableDocumentMetadata | null> {
+    ): Promise<RemarkableDocumentMetadata | 'unreadable' | null> {
         const indexBlob = await transport.fetchBlob(
             userToken,
             indexHash,
@@ -136,7 +146,10 @@ export function createRemarkableCloudService(
         const fileEntries = parseIndex(indexContent)
 
         const metadataEntry = fileEntries.find((e) => e.id.endsWith('.metadata'))
-        if (!metadataEntry) return null
+        if (!metadataEntry) {
+            log(`No metadata in the index of ${entryId}`, 'error')
+            return 'unreadable'
+        }
 
         const metadataBlob = await transport.fetchBlob(
             userToken,
@@ -152,7 +165,7 @@ export function createRemarkableCloudService(
             return JSON.parse(text) as RemarkableDocumentMetadata
         } catch {
             log(`Failed to parse metadata for ${entryId}`, 'error')
-            return null
+            return 'unreadable'
         }
     }
 
@@ -254,13 +267,17 @@ export function createRemarkableCloudService(
 
             // Step 3: Fetch metadata, reusing anything whose hash is unchanged
             const nextCache = new Map<string, RemarkableDocumentMetadata>()
+            const nextUnreadable = new Set<string>()
             const metadataResults = await mapSettledWithConcurrency(
                 rootEntries,
                 CLOUD_REQUEST_CONCURRENCY,
                 async (entry) => {
-                    const cached = metadataCache.get(entry.hash)
-                    const metadata =
-                        cached ??
+                    if (unreadableHashes.has(entry.hash)) {
+                        nextUnreadable.add(entry.hash)
+                        return { entry, metadata: null }
+                    }
+                    const read =
+                        metadataCache.get(entry.hash) ??
                         (await fetchEntryMetadata(
                             userToken,
                             entry.hash,
@@ -268,13 +285,18 @@ export function createRemarkableCloudService(
                             syncBaseUrl,
                             budget
                         ))
-                    if (metadata) {
-                        nextCache.set(entry.hash, metadata)
+                    if ('unreadable' === read) {
+                        nextUnreadable.add(entry.hash)
+                        return { entry, metadata: null }
                     }
-                    return { entry, metadata }
+                    if (read) {
+                        nextCache.set(entry.hash, read)
+                    }
+                    return { entry, metadata: read }
                 }
             )
             metadataCache = nextCache
+            unreadableHashes = nextUnreadable
 
             // An entry we could not read is NOT an entry that was deleted, and
             // the difference decides whether pruning is allowed to run.

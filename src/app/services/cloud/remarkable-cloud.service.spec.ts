@@ -274,6 +274,47 @@ describe('listDocuments against an in-memory cloud', () => {
         expect(cloud.fetched).toEqual(['root'])
     })
 
+    test('an entry whose content is unusable is not fetched again while unchanged', async () => {
+        const cloud = new FakeCloud().doc('d1', 'One').doc('d2', 'Two')
+        cloud.blobs.set('meta-d2-v1', 'not json')
+        const service = cloud.service()
+        expect((await service.listDocuments()).unreadableIds).toEqual(['d2'])
+
+        cloud.fetched.length = 0
+        const second = await service.listDocuments()
+        expect(second.unreadableIds).toEqual(['d2'])
+        expect(cloud.fetched).toEqual(['root'])
+
+        // A new version of it is read again.
+        cloud.doc('d2', 'Two', '', [], 2)
+        cloud.fetched.length = 0
+        const third = await service.listDocuments()
+        expect(third.complete).toBe(true)
+        expect(cloud.fetched).toEqual(['root', 'idx-d2-v2', 'meta-d2-v2'])
+    })
+
+    test('an index without metadata is remembered as unusable too', async () => {
+        const cloud = new FakeCloud().doc('d1', 'One')
+        cloud.blobs.set('idx-d1-v1', '3\nfile-x:0:d1/a.rm:0:0\n')
+        const service = cloud.service()
+        await service.listDocuments()
+        cloud.fetched.length = 0
+        await service.listDocuments()
+        expect(cloud.fetched).toEqual(['root'])
+    })
+
+    test('a failed request is retried on the next listing, not remembered', async () => {
+        const cloud = new FakeCloud().doc('d1', 'One')
+        cloud.failing.add('meta-d1-v1')
+        const service = cloud.service()
+        await service.listDocuments()
+        cloud.failing.clear()
+        cloud.fetched.length = 0
+        const second = await service.listDocuments()
+        expect(second.complete).toBe(true)
+        expect(cloud.fetched).toEqual(['root', 'idx-d1-v1', 'meta-d1-v1'])
+    })
+
     test('a changed entry is fetched again, and one that left the root is forgotten', async () => {
         const cloud = new FakeCloud().doc('d1', 'One').doc('d2', 'Two')
         const service = cloud.service()

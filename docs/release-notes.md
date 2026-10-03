@@ -1,5 +1,13 @@
 # Release Notes
 
+## 2.4.0 (2026-10-03)
+
+### Improved
+
+- **Your reMarkable credentials no longer travel with your vault.** The device token now lives in Obsidian's secret storage, on each device, instead of in the plugin's data file, which is synced along with your vault by Obsidian Sync, Git, Syncthing or a cloud folder. The data file only keeps the name of the secret.
+- **Nothing to do when you update.** Every device moves the token into its own secret storage the next time it starts, so you stay connected on all of them. The old plain-text copy is kept in the data file for 60 days so the devices you open less often can migrate too, and is then removed automatically. Once all your devices run this version, you can remove it right away with **Settings → Remarkable Synchronizer → Remove plain-text copy now**.
+- **A clear message on a device that has no token.** If a device starts after the plain-text copy is gone and has never migrated, the plugin says the vault is paired, but not on this device, instead of failing. Connect once on that device; your other devices stay connected.
+
 ## 2.3.0 (2026-10-01)
 
 ### Improved

@@ -1,7 +1,7 @@
 import { test, expect, describe } from 'bun:test'
 import { createRemarkableAuthService, failureForStatus } from './remarkable-auth.service'
 import type { requestUrl } from 'obsidian'
-import type { StoredTokens, TokenStore } from './token-store'
+import type { TokenStore } from './token-store'
 import type { RemarkableSyncPlugin } from '../../plugin'
 import { DEFAULT_SETTINGS } from '../../types/plugin-settings.intf'
 
@@ -14,12 +14,12 @@ function createFakePlugin(): RemarkableSyncPlugin {
 }
 
 interface FakeStore extends TokenStore {
-    writes: StoredTokens[]
+    writes: string[]
     clears: number
 }
 
-function createFakeStore(tokens: StoredTokens | null, onRead?: () => Promise<void>): FakeStore {
-    let current = tokens
+function createFakeStore(deviceToken: string | null, onRead?: () => Promise<void>): FakeStore {
+    let current = deviceToken
     const store: FakeStore = {
         writes: [],
         clears: 0,
@@ -39,30 +39,36 @@ function createFakeStore(tokens: StoredTokens | null, onRead?: () => Promise<voi
             current = null
             await Promise.resolve()
         },
-        hasValid: async () => Promise.resolve(null !== current)
+        hasValid: async () => Promise.resolve(null !== current),
+        state: async () => Promise.resolve(null !== current ? 'connected' : 'not-connected'),
+        hasLegacyCopy: () => false,
+        removeLegacyCopy: async () => Promise.resolve(),
+        changeSecretName: async () => Promise.resolve()
     }
     return store
 }
 
 describe('createRemarkableAuthService', () => {
-    const validTokens: StoredTokens = {
-        deviceToken: 'device-abc',
-        userToken: 'user-xyz',
-        // Far future, so no network refresh is attempted.
-        userTokenExpiry: Date.now() + 60 * 60 * 1000
-    }
+    const validTokens = 'device-abc'
+    /** The token endpoint: every user token is derived from the device token. */
+    let tokenRequests = 0
+    const tokenEndpoint = (() => {
+        tokenRequests++
+        return Promise.resolve({ status: 200, text: 'user-xyz' })
+    }) as unknown as typeof requestUrl
 
     test('returns the stored user token while it is still valid', async () => {
         const service = createRemarkableAuthService(
             createFakePlugin(),
-            createFakeStore(validTokens)
+            createFakeStore(validTokens),
+            tokenEndpoint
         )
         expect(await service.getUserToken()).toBe('user-xyz')
     })
 
     test('returns null once disconnected', async () => {
         const store = createFakeStore(validTokens)
-        const service = createRemarkableAuthService(createFakePlugin(), store)
+        const service = createRemarkableAuthService(createFakePlugin(), store, tokenEndpoint)
 
         await service.disconnect()
 
@@ -79,7 +85,7 @@ describe('createRemarkableAuthService', () => {
             releaseRead = resolve
         })
         const store = createFakeStore(validTokens, () => readBlocked)
-        const service = createRemarkableAuthService(createFakePlugin(), store)
+        const service = createRemarkableAuthService(createFakePlugin(), store, tokenEndpoint)
 
         const pending = service.getUserToken()
         await service.disconnect()
@@ -94,7 +100,7 @@ describe('createRemarkableAuthService', () => {
             releaseRead = resolve
         })
         const store = createFakeStore(validTokens, () => readBlocked)
-        const service = createRemarkableAuthService(createFakePlugin(), store)
+        const service = createRemarkableAuthService(createFakePlugin(), store, tokenEndpoint)
 
         const pending = service.refreshAndGetUserToken()
         await service.disconnect()
@@ -108,20 +114,45 @@ describe('createRemarkableAuthService', () => {
         expect(
             await createRemarkableAuthService(
                 createFakePlugin(),
-                createFakeStore(null)
+                createFakeStore(null),
+                tokenEndpoint
             ).isAuthenticated()
         ).toBe(false)
         expect(
             await createRemarkableAuthService(
                 createFakePlugin(),
-                createFakeStore(validTokens)
+                createFakeStore(validTokens),
+                tokenEndpoint
             ).isAuthenticated()
         ).toBe(true)
     })
 
+    test('the user token lives in memory only, derived once from the device token', async () => {
+        const store = createFakeStore(validTokens)
+        const service = createRemarkableAuthService(createFakePlugin(), store, tokenEndpoint)
+        const before = tokenRequests
+
+        expect(await service.getUserToken()).toBe('user-xyz')
+        expect(await service.getUserToken()).toBe('user-xyz')
+        expect(tokenRequests - before).toBe(1)
+        // Never persisted.
+        expect(store.writes).toEqual([])
+    })
+
+    test('changing the secret drops the cached user token', async () => {
+        const store = createFakeStore(validTokens)
+        const service = createRemarkableAuthService(createFakePlugin(), store, tokenEndpoint)
+        await service.getUserToken()
+        const before = tokenRequests
+
+        await service.useDeviceTokenSecret('other')
+        await service.getUserToken()
+        expect(tokenRequests - before).toBe(1)
+    })
+
     test('disconnect clears the cached token as well as the store', async () => {
         const store = createFakeStore(validTokens)
-        const service = createRemarkableAuthService(createFakePlugin(), store)
+        const service = createRemarkableAuthService(createFakePlugin(), store, tokenEndpoint)
 
         // Populate the in-memory cache first.
         expect(await service.getUserToken()).toBe('user-xyz')
@@ -132,11 +163,7 @@ describe('createRemarkableAuthService', () => {
 })
 
 describe('token outcomes', () => {
-    const expired: StoredTokens = {
-        deviceToken: 'device-abc',
-        userToken: 'old',
-        userTokenExpiry: Date.now() - 1000
-    }
+    const expired = 'device-abc'
     const answering = (outcome: { status: number; text?: string } | Error): typeof requestUrl =>
         (() =>
             Promise.resolve().then(() => {

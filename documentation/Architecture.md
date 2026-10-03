@@ -33,7 +33,7 @@ Domain Types (domain/)
 | Service                              | Responsibility                                                          |
 | ------------------------------------ | ----------------------------------------------------------------------- |
 | `auth/remarkable-auth.service`       | Device registration, token management, auto-refresh                     |
-| `auth/token-store`                   | Read/write tokens to `~/.remarkable-sync/token.json`                    |
+| `auth/token-store`                   | Device token in SecretStorage; legacy data.json/file migration          |
 | `cloud/cloud-urls`                   | Resolve auth/sync base URLs based on settings (official vs rmfakecloud) |
 | `cloud/remarkable-cloud.service`     | List documents, download files via sync v1.5 protocol                   |
 | `cloud/sync-protocol`                | Root hash, signed URL blob fetching, index parsing                      |

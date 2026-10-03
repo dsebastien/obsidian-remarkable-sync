@@ -29,7 +29,7 @@ nav_order: 2
 4. Open your rmfakecloud web interface and generate a one-time code
 5. Enter the code in the plugin modal and click **Connect**
 
-Your device token is stored in the plugin's `data.json` and persists across sessions. See [Configuration](configuration.md#authentication) for where it lives and what that means if you sync your vault.
+Your device token is stored in Obsidian's secret storage on each device (not in the vault) and persists across sessions. See [Configuration](configuration.md#authentication) for where it lives and what that means if you sync your vault.
 
 ## Commands
 

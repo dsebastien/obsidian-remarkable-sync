@@ -17,10 +17,14 @@ When a new business rule is mentioned:
 
 ## Authentication
 
-- Tokens are stored in the plugin's `data.json` under the `tokens` key, so the same code path works on desktop and mobile (nothing outside the vault is writable on mobile)
-- Tokens MUST NOT be part of `PluginSettings`: the settings object is written to the debug log on every load and save, and users paste it into bug reports
-- Every `data.json` write goes through `plugin.persistData()`, which merges into the last known contents and serializes writes — `saveData` replaces the whole file, so a plain settings save would otherwise erase the tokens
-- Desktop installs that predate this change keep their tokens in `~/.remarkable-sync/token.json`; that file is imported once per vault on first read and is deliberately never deleted automatically (it is machine-global and shared by every vault on the machine). Users remove it explicitly from the settings tab
+- The device token is stored in Obsidian's SecretStorage (device-local, works on desktop and mobile). `PluginSettings` holds only the secret NAME (`deviceTokenSecretName`, `''` = not paired). Token values MUST NEVER be written to `data.json` or `PluginSettings` (the settings object is written to the debug log and pasted into bug reports)
+- The user token is memory-only, regenerated from the device token
+- Legacy plaintext `tokens` in `data.json` (≤ 2.3) is a read-only bootstrap source: on load, any device whose secret storage lacks the token copies it in (idempotent), so every synced device stays connected with zero action. It is removed 60 days after the first migration (`legacySecretMigratedAt`), when the device re-pairs, when the secret name changes, on disconnect, or via the settings button. Deleting it on the first device to migrate would log out every other device (user requirement, 2026-10-03)
+- A first pairing/migration never overwrites a different secret already using the default name; it picks a suffixed name
+- Paired (name set) but no token in this device's secret storage and no plaintext copy: shown as "paired, but not on this device" (status row, panel, one Notice on load), never an error; the user connects once on that device. Nothing is regenerated silently
+- Disconnect clears this device's secret (set to `''`, no delete API), the plaintext copy and the name: every synced device is signed out, as before
+- Every `data.json` write goes through `plugin.persistData()` / `updateSettings()`, which merge into the last known contents and serialize writes — `saveData` replaces the whole file
+- Desktop installs that predate `data.json` storage keep their tokens in `~/.remarkable-sync/token.json`; that file is imported into secret storage once per vault on first read and is deliberately never deleted automatically (it is machine-global and shared by every vault on the machine). Users remove it explicitly from the settings tab
 - The legacy file is consulted at most once per vault, tracked via the `legacyTokensImported` key in `data.json` — otherwise disconnecting would be undone by a re-import on the next read
 - Device tokens are long-lived; user tokens expire after 24h and auto-refresh using the device token
 - All HTTP requests use Obsidian's `requestUrl` for plugin compliance and CORS handling
@@ -132,8 +136,7 @@ When a new business rule is mentioned:
 
 - No telemetry or analytics
 - No data sent to third-party services other than reMarkable cloud (or rmfakecloud when enabled)
-- Tokens live in the plugin's `data.json` inside the vault. Consequence users must be told about: enabling Obsidian Sync's community-plugin-settings option, or syncing `.obsidian` via Git/Dropbox, propagates the credentials too
-- Tokens are per-vault, not per-machine
+- Credentials live in device-local SecretStorage, not in the vault; only the secret name syncs with `data.json`. During the 60-day grace period the legacy plaintext copy still syncs; users must be told how to remove it early
 - Node builtins (`fs`/`os`/`path`) must never be imported at the top level of any module under `src/`: the bundler hoists them into a top-level `require`, which throws on mobile and prevents the plugin from loading. Require them lazily inside a `Platform.isDesktopApp` guard
 - Dependencies that ship a browser entry point must be imported through it (e.g. `fflate/browser`, not `fflate`). `scripts/build.ts` uses `target: 'node'`, so Bun otherwise resolves the Node entry and can pull top-level Node builtins into the bundle. Do not switch the build to `target: 'browser'` to fix this: Bun then silently rewrites `require('node:fs')` to an empty-object stub, which would break the legacy token import without any error
 - After changing or adding a bundled dependency, check `dist/main.js` for unexpected `require(...)` calls and for `createElement("script")` / `new Worker` / `createObjectURL`, all of which the community-plugin reviewer flags

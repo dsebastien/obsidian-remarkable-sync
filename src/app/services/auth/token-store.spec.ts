@@ -1,249 +1,395 @@
 import { afterEach, test, expect, describe } from 'bun:test'
 import { Platform } from 'obsidian'
 import {
+    chooseSecretName,
     createTokenStore,
+    DEFAULT_DEVICE_TOKEN_SECRET_NAME,
+    isValidSecretName,
+    LEGACY_TOKENS_GRACE_PERIOD_MS,
     legacyTokenFileExists,
-    parseStoredTokens,
+    parseLegacyDeviceToken,
     readLegacyTokenFile,
-    toStoredTokens
+    toLegacyDeviceToken
 } from './token-store'
-import type { StoredTokens, TokenStatePatch, TokenStoreDeps } from './token-store'
+import type { SecretStore, TokenStatePatch, TokenStoreDeps } from './token-store'
 
-describe('parseStoredTokens', () => {
-    const validTokens = {
-        deviceToken: 'device-abc',
-        userToken: 'user-xyz',
-        userTokenExpiry: 1750000000000
-    }
+const NAME = DEFAULT_DEVICE_TOKEN_SECRET_NAME
+const legacyTokens = {
+    deviceToken: 'device-abc',
+    userToken: 'user-xyz',
+    userTokenExpiry: 1750000000000
+}
 
-    test('returns tokens for a valid file', () => {
-        expect(parseStoredTokens(JSON.stringify(validTokens))).toEqual(validTokens)
+describe('toLegacyDeviceToken / parseLegacyDeviceToken', () => {
+    test('extracts the device token, ignoring the rest', () => {
+        expect(toLegacyDeviceToken(legacyTokens)).toBe('device-abc')
+        expect(toLegacyDeviceToken({ deviceToken: 'd' })).toBe('d')
+        expect(parseLegacyDeviceToken(JSON.stringify(legacyTokens))).toBe('device-abc')
     })
 
-    test('ignores extra properties', () => {
-        const content = JSON.stringify({ ...validTokens, legacyField: true })
-        expect(parseStoredTokens(content)).toEqual(validTokens)
-    })
-
-    test('returns null for invalid JSON', () => {
-        expect(parseStoredTokens('')).toBeNull()
-        expect(parseStoredTokens('{"deviceToken": "abc"')).toBeNull()
-        expect(parseStoredTokens('not json at all')).toBeNull()
-    })
-
-    test('returns null for non-object JSON', () => {
-        expect(parseStoredTokens('null')).toBeNull()
-        expect(parseStoredTokens('"a string"')).toBeNull()
-        expect(parseStoredTokens('42')).toBeNull()
-        expect(parseStoredTokens('[1, 2, 3]')).toBeNull()
-    })
-
-    test('returns null for an empty object', () => {
-        expect(parseStoredTokens('{}')).toBeNull()
-    })
-
-    test('returns null when a field is missing', () => {
-        const { deviceToken: _deviceToken, ...noDevice } = validTokens
-        expect(parseStoredTokens(JSON.stringify(noDevice))).toBeNull()
-
-        const { userToken: _userToken, ...noUser } = validTokens
-        expect(parseStoredTokens(JSON.stringify(noUser))).toBeNull()
-
-        const { userTokenExpiry: _expiry, ...noExpiry } = validTokens
-        expect(parseStoredTokens(JSON.stringify(noExpiry))).toBeNull()
-    })
-
-    test('returns null when a field has the wrong type', () => {
-        expect(parseStoredTokens(JSON.stringify({ ...validTokens, deviceToken: null }))).toBeNull()
-        expect(parseStoredTokens(JSON.stringify({ ...validTokens, deviceToken: 42 }))).toBeNull()
-        expect(parseStoredTokens(JSON.stringify({ ...validTokens, userToken: false }))).toBeNull()
-        expect(
-            parseStoredTokens(JSON.stringify({ ...validTokens, userTokenExpiry: '123' }))
-        ).toBeNull()
-    })
-})
-
-describe('toStoredTokens', () => {
-    test('validates an already-parsed value', () => {
-        const tokens = {
-            deviceToken: 'device-abc',
-            userToken: 'user-xyz',
-            userTokenExpiry: 1750000000000
+    test('returns null for anything without a non-empty string device token', () => {
+        for (const value of [
+            undefined,
+            null,
+            'nope',
+            42,
+            {},
+            { deviceToken: '' },
+            { deviceToken: 42 }
+        ]) {
+            expect(toLegacyDeviceToken(value)).toBeNull()
         }
-        expect(toStoredTokens(tokens)).toEqual(tokens)
-        expect(toStoredTokens({ ...tokens, extra: 1 })).toEqual(tokens)
-        expect(toStoredTokens(undefined)).toBeNull()
-        expect(toStoredTokens(null)).toBeNull()
-        expect(toStoredTokens('nope')).toBeNull()
-        expect(toStoredTokens({})).toBeNull()
+        expect(parseLegacyDeviceToken('')).toBeNull()
+        expect(parseLegacyDeviceToken('not json')).toBeNull()
+        expect(parseLegacyDeviceToken('[1, 2]')).toBeNull()
     })
 })
 
-describe('createTokenStore', () => {
-    const tokens: StoredTokens = {
-        deviceToken: 'device-abc',
-        userToken: 'user-xyz',
-        userTokenExpiry: 1750000000000
-    }
+describe('secret names', () => {
+    test('validates the secret storage id format', () => {
+        expect(isValidSecretName(NAME)).toBe(true)
+        expect(isValidSecretName('a1-b2')).toBe(true)
+        for (const name of ['', 'Upper', 'with space', '-lead', 'trail-', 'a--b', 'a_b']) {
+            expect(isValidSecretName(name)).toBe(false)
+        }
+    })
 
-    interface Harness {
-        deps: TokenStoreDeps
-        patches: TokenStatePatch[]
-        legacyReads: number
-    }
+    test('chooseSecretName never clobbers a different secret', () => {
+        const secrets = createSecrets({ [NAME]: 'other', [`${NAME}-2`]: 'other-2' })
+        expect(chooseSecretName(secrets, NAME, 'mine')).toBe(`${NAME}-3`)
+        expect(chooseSecretName(secrets, NAME, 'other')).toBe(NAME)
+        expect(chooseSecretName(createSecrets({ [NAME]: '' }), NAME, 'mine')).toBe(NAME)
+    })
+})
 
-    function createHarness(options: { stored?: unknown; legacy?: string | null } = {}): Harness {
-        let stored: unknown = options.stored
-        let legacyImportDone = false
-        const harness: Harness = {
-            patches: [],
-            legacyReads: 0,
-            deps: {
-                loadStoredTokens: () => stored,
-                persistTokenState: async (patch) => {
-                    harness.patches.push(patch)
-                    if (undefined !== patch.tokens) {
-                        stored = patch.tokens ?? undefined
-                    }
-                    if (undefined !== patch.legacyImportDone) {
-                        legacyImportDone = patch.legacyImportDone
-                    }
-                    await Promise.resolve()
-                },
-                readLegacyTokenFile: () => {
-                    harness.legacyReads++
-                    return options.legacy ?? null
-                },
-                isLegacyImportDone: () => legacyImportDone
+function createSecrets(initial: Record<string, string> = {}): SecretStore & {
+    values: Record<string, string>
+} {
+    const values: Record<string, string> = { ...initial }
+    return {
+        values,
+        getSecret: (id) => values[id] ?? null,
+        setSecret: (id, secret) => {
+            values[id] = secret
+        }
+    }
+}
+
+const DAY = 24 * 60 * 60 * 1000
+
+interface Harness {
+    deps: TokenStoreDeps
+    patches: TokenStatePatch[]
+    secrets: ReturnType<typeof createSecrets>
+    /** Simulated synced data.json. */
+    data: { secretName: string; migratedAt: string; tokens: unknown; legacyImportDone: boolean }
+    legacyReads: number
+    clock: { now: number }
+}
+
+function createHarness(
+    options: {
+        tokens?: unknown
+        secretName?: string
+        migratedAt?: string
+        secrets?: Record<string, string>
+        legacy?: string | null
+        failPersist?: () => boolean
+    } = {}
+): Harness {
+    const harness: Harness = {
+        patches: [],
+        legacyReads: 0,
+        secrets: createSecrets(options.secrets),
+        clock: { now: Date.parse('2026-10-03T00:00:00.000Z') },
+        data: {
+            secretName: options.secretName ?? '',
+            migratedAt: options.migratedAt ?? '',
+            tokens: options.tokens,
+            legacyImportDone: false
+        },
+        deps: undefined as unknown as TokenStoreDeps
+    }
+    harness.deps = {
+        secrets: harness.secrets,
+        getSecretName: () => harness.data.secretName,
+        getMigratedAt: () => harness.data.migratedAt,
+        loadLegacyTokens: () => harness.data.tokens,
+        persistTokenState: async (patch) => {
+            await Promise.resolve()
+            if (options.failPersist?.()) {
+                throw new Error('disk full')
             }
-        }
-        return harness
+            harness.patches.push(patch)
+            if (undefined !== patch.secretName) harness.data.secretName = patch.secretName
+            if (undefined !== patch.migratedAt) harness.data.migratedAt = patch.migratedAt
+            if (patch.removeLegacyTokens) harness.data.tokens = undefined
+            if (undefined !== patch.legacyImportDone) {
+                harness.data.legacyImportDone = patch.legacyImportDone
+            }
+        },
+        readLegacyTokenFile: () => {
+            harness.legacyReads++
+            return options.legacy ?? null
+        },
+        isLegacyImportDone: () => harness.data.legacyImportDone,
+        now: () => harness.clock.now
     }
+    return harness
+}
 
-    test('reads tokens from plugin data without touching the legacy file', async () => {
-        const harness = createHarness({ stored: tokens })
+/** A second device: same synced data.json, its own (empty) secret storage. */
+function otherDevice(from: Harness): Harness {
+    const device = createHarness({
+        tokens: from.data.tokens,
+        secretName: from.data.secretName,
+        migratedAt: from.data.migratedAt
+    })
+    device.clock.now = from.clock.now
+    return device
+}
+
+describe('createTokenStore: migration from plaintext data.json tokens', () => {
+    test('first device: copies the token into secret storage and keeps the plaintext copy', async () => {
+        const harness = createHarness({ tokens: legacyTokens })
         const store = createTokenStore(harness.deps)
 
-        expect(await store.read()).toEqual(tokens)
+        expect(await store.read()).toBe('device-abc')
+        expect(harness.secrets.values[NAME]).toBe('device-abc')
+        expect(harness.data.secretName).toBe(NAME)
+        expect(harness.data.migratedAt).toBe('2026-10-03T00:00:00.000Z')
+        // Kept for the other synced devices.
+        expect(harness.data.tokens).toEqual(legacyTokens)
+        expect(store.hasLegacyCopy()).toBe(true)
+    })
+
+    test('is idempotent', async () => {
+        const harness = createHarness({ tokens: legacyTokens })
+        const store = createTokenStore(harness.deps)
+
+        await store.read()
+        const patches = harness.patches.length
+        expect(await store.read()).toBe('device-abc')
+        expect(await store.state()).toBe('connected')
+        expect(harness.patches.length).toBe(patches)
+    })
+
+    test('device B (synced data.json, empty secret storage) bootstraps and stays connected', async () => {
+        const deviceA = createHarness({ tokens: legacyTokens })
+        await createTokenStore(deviceA.deps).read()
+
+        const deviceB = otherDevice(deviceA)
+        const storeB = createTokenStore(deviceB.deps)
+        expect(await storeB.state()).toBe('connected')
+        expect(deviceB.secrets.values[NAME]).toBe('device-abc')
+        // Name and first-migration date already set: no data.json write.
+        expect(deviceB.patches).toEqual([])
+    })
+
+    test('does not overwrite a different secret already using the default name', async () => {
+        const harness = createHarness({ tokens: legacyTokens, secrets: { [NAME]: 'other-vault' } })
+        expect(await createTokenStore(harness.deps).read()).toBe('device-abc')
+        expect(harness.secrets.values[NAME]).toBe('other-vault')
+        expect(harness.secrets.values[`${NAME}-2`]).toBe('device-abc')
+        expect(harness.data.secretName).toBe(`${NAME}-2`)
+    })
+
+    test('prefers secret storage over the plaintext copy', async () => {
+        const harness = createHarness({
+            tokens: legacyTokens,
+            secretName: NAME,
+            migratedAt: '2026-10-01T00:00:00.000Z',
+            secrets: { [NAME]: 'rotated' }
+        })
+        expect(await createTokenStore(harness.deps).read()).toBe('rotated')
+    })
+
+    test('works for the session when secret storage refuses the value', async () => {
+        const harness = createHarness({ tokens: legacyTokens })
+        harness.deps.secrets = {
+            getSecret: () => null,
+            setSecret: () => {
+                throw new Error('nope')
+            }
+        }
+        expect(await createTokenStore(harness.deps).read()).toBe('device-abc')
+        expect(harness.data.tokens).toEqual(legacyTokens)
+        expect(harness.patches).toEqual([])
+    })
+
+    test('removes malformed plaintext tokens', async () => {
+        const harness = createHarness({ tokens: { deviceToken: 42 } })
+        const store = createTokenStore(harness.deps)
+        expect(await store.read()).toBeNull()
+        expect(harness.data.tokens).toBeUndefined()
+    })
+})
+
+describe('createTokenStore: plaintext copy removal', () => {
+    test('purges the plaintext copy once the 60-day grace period is over', async () => {
+        const harness = createHarness({ tokens: legacyTokens })
+        const store = createTokenStore(harness.deps)
+        await store.read()
+
+        harness.clock.now += LEGACY_TOKENS_GRACE_PERIOD_MS - DAY
+        await store.read()
+        expect(store.hasLegacyCopy()).toBe(true)
+
+        harness.clock.now += 2 * DAY
+        expect(await store.read()).toBe('device-abc')
+        expect(store.hasLegacyCopy()).toBe(false)
+        // Still connected from secret storage.
+        expect(await store.state()).toBe('connected')
+    })
+
+    test('a device bootstrapping after the grace period still migrates before purging', async () => {
+        const harness = createHarness({
+            tokens: legacyTokens,
+            secretName: NAME,
+            migratedAt: '2026-01-01T00:00:00.000Z'
+        })
+        const store = createTokenStore(harness.deps)
+        expect(await store.read()).toBe('device-abc')
+        expect(harness.secrets.values[NAME]).toBe('device-abc')
+        expect(store.hasLegacyCopy()).toBe(false)
+    })
+
+    test('the settings button removes the plaintext copy now, keeping this device connected', async () => {
+        const harness = createHarness({
+            tokens: legacyTokens,
+            secretName: NAME,
+            migratedAt: '2026-10-01T00:00:00.000Z'
+        })
+        const store = createTokenStore(harness.deps)
+
+        await store.removeLegacyCopy()
+        expect(harness.data.tokens).toBeUndefined()
+        expect(harness.secrets.values[NAME]).toBe('device-abc')
+        expect(await store.state()).toBe('connected')
+    })
+
+    test('a new pairing (rotation) writes secret storage only and drops the stale copy', async () => {
+        const harness = createHarness({ tokens: legacyTokens })
+        const store = createTokenStore(harness.deps)
+        await store.read()
+
+        await store.write('device-new')
+        expect(harness.secrets.values[NAME]).toBe('device-new')
+        expect(harness.data.tokens).toBeUndefined()
+        expect(await store.read()).toBe('device-new')
+        expect(JSON.stringify(harness.patches)).not.toContain('device-new')
+    })
+
+    test('changing the secret name drops the stale copy', async () => {
+        const harness = createHarness({ tokens: legacyTokens })
+        const store = createTokenStore(harness.deps)
+        await store.read()
+        harness.secrets.values['picked'] = 'device-picked'
+
+        await store.changeSecretName('picked')
+        expect(harness.data.tokens).toBeUndefined()
+        expect(await store.read()).toBe('device-picked')
+        expect(store.changeSecretName('Not Valid')).rejects.toThrow()
+    })
+
+    test('disconnect clears this device secret, the plaintext copy and the name', async () => {
+        const harness = createHarness({ tokens: legacyTokens })
+        const store = createTokenStore(harness.deps)
+        await store.read()
+
+        await store.clear()
+        expect(harness.secrets.values[NAME]).toBe('')
+        expect(harness.data.tokens).toBeUndefined()
+        expect(harness.data.secretName).toBe('')
+        expect(await store.state()).toBe('not-connected')
+        // And the other devices are logged out too, as before.
+        expect(await createTokenStore(otherDevice(harness).deps).state()).toBe('not-connected')
+    })
+})
+
+describe('createTokenStore: missing on this device', () => {
+    test('paired elsewhere, no secret here, no plaintext copy: missing-on-device', async () => {
+        const harness = createHarness({ secretName: NAME })
+        const store = createTokenStore(harness.deps)
+        expect(await store.read()).toBeNull()
+        expect(await store.state()).toBe('missing-on-device')
+        expect(harness.patches).toEqual([])
         expect(harness.legacyReads).toBe(0)
     })
 
-    test('ignores malformed plugin data', async () => {
-        const store = createTokenStore(createHarness({ stored: { deviceToken: 42 } }).deps)
-        expect(await store.read()).toBeNull()
+    test('never paired: not-connected', async () => {
+        expect(await createTokenStore(createHarness().deps).state()).toBe('not-connected')
     })
 
-    test('imports the legacy token file when plugin data has no tokens', async () => {
-        const harness = createHarness({ legacy: JSON.stringify(tokens) })
+    test('a fresh pairing stores the token in secret storage only', async () => {
+        const harness = createHarness()
+        const store = createTokenStore(harness.deps)
+        await store.write('device-abc')
+        expect(harness.secrets.values[NAME]).toBe('device-abc')
+        expect(harness.patches).toEqual([{ secretName: NAME }])
+        expect(await store.hasValid()).toBe(true)
+    })
+
+    test('write throws a friendly error when persisting fails', () => {
+        const store = createTokenStore(createHarness({ failPersist: () => true }).deps)
+        expect(store.write('device-abc')).rejects.toThrow('Failed to save authentication tokens')
+    })
+
+    test('clear throws when the write fails, so callers do not report success', () => {
+        const store = createTokenStore(
+            createHarness({ secretName: NAME, failPersist: () => true }).deps
+        )
+        expect(store.clear()).rejects.toThrow('Failed to clear authentication tokens')
+    })
+})
+
+describe('createTokenStore: legacy desktop token file', () => {
+    test('imports it into secret storage when the vault is not paired', async () => {
+        const harness = createHarness({ legacy: JSON.stringify(legacyTokens) })
         const store = createTokenStore(harness.deps)
 
-        expect(await store.read()).toEqual(tokens)
-        // Tokens and the marker land in a single write...
-        expect(harness.patches).toEqual([{ tokens, legacyImportDone: true }])
+        expect(await store.read()).toBe('device-abc')
+        expect(harness.secrets.values[NAME]).toBe('device-abc')
+        // Name and marker land in a single write...
+        expect(harness.patches).toEqual([{ secretName: NAME, legacyImportDone: true }])
         // ...so the next read no longer consults the legacy file.
-        expect(await store.read()).toEqual(tokens)
+        expect(await store.read()).toBe('device-abc')
         expect(harness.legacyReads).toBe(1)
     })
 
     test('treats a malformed legacy token file as disconnected', async () => {
         const harness = createHarness({ legacy: 'not json' })
-        const store = createTokenStore(harness.deps)
-
-        expect(await store.read()).toBeNull()
-        // Marked consulted (it will never parse) but no tokens written.
+        expect(await createTokenStore(harness.deps).read()).toBeNull()
         expect(harness.patches).toEqual([{ legacyImportDone: true }])
     })
 
-    test('retries the legacy import when the write failed', async () => {
-        // Recording the import without saving the tokens would lock the user
-        // out of a still-valid legacy file forever.
-        const harness = createHarness({ legacy: JSON.stringify(tokens) })
+    test('retries the import when the write failed', async () => {
         let failNext = true
-        const store = createTokenStore({
-            ...harness.deps,
-            persistTokenState: async (patch) => {
-                if (failNext) {
-                    failNext = false
-                    throw new Error('disk full')
-                }
-                await harness.deps.persistTokenState(patch)
+        const harness = createHarness({
+            legacy: JSON.stringify(legacyTokens),
+            failPersist: () => {
+                const fail = failNext
+                failNext = false
+                return fail
             }
         })
+        const store = createTokenStore(harness.deps)
 
         // Usable for this session despite the failed write...
-        expect(await store.read()).toEqual(tokens)
+        expect(await store.read()).toBe('device-abc')
         // ...and the import is retried, not skipped.
-        expect(await store.read()).toEqual(tokens)
-        expect(harness.patches).toEqual([{ tokens, legacyImportDone: true }])
+        expect(await store.read()).toBe('device-abc')
+        expect(harness.patches).toEqual([{ secretName: NAME, legacyImportDone: true }])
     })
 
-    test('write persists tokens', async () => {
-        const harness = createHarness()
-        const store = createTokenStore(harness.deps)
-
-        await store.write(tokens)
-        expect(harness.patches).toEqual([{ tokens }])
-        expect(await store.read()).toEqual(tokens)
-    })
-
-    test('write throws a friendly error when persisting fails', () => {
-        const store = createTokenStore({
-            ...createHarness().deps,
-            persistTokenState: () => Promise.reject(new Error('disk full'))
-        })
-
-        expect(store.write(tokens)).rejects.toThrow('Failed to save authentication tokens')
-    })
-
-    test('clear removes the tokens and marks the legacy file consulted at once', async () => {
-        const harness = createHarness({ stored: tokens })
-        const store = createTokenStore(harness.deps)
-
-        await store.clear()
-        expect(harness.patches).toEqual([{ tokens: null, legacyImportDone: true }])
-        expect(await store.read()).toBeNull()
-    })
-
-    test('clear throws when the write fails, so callers do not report success', () => {
-        const store = createTokenStore({
-            ...createHarness({ stored: tokens }).deps,
-            persistTokenState: () => Promise.reject(new Error('disk full'))
-        })
-
-        expect(store.clear()).rejects.toThrow('Failed to clear authentication tokens')
-    })
-
-    test('clear stops a never-imported legacy file from reconnecting the user', async () => {
-        // Disconnecting a vault that still has the legacy file on disk but has
-        // not read it yet must not be undone on the next read.
-        const harness = createHarness({ stored: tokens, legacy: JSON.stringify(tokens) })
-        const store = createTokenStore(harness.deps)
-
-        await store.clear()
-        expect(await store.read()).toBeNull()
-        expect(harness.legacyReads).toBe(0)
-    })
-
-    test('clear does not re-import the legacy file it already imported', async () => {
-        const harness = createHarness({ legacy: JSON.stringify(tokens) })
+    test('clear stops the legacy file from reconnecting the user', async () => {
+        const harness = createHarness({ legacy: JSON.stringify(legacyTokens) })
         const store = createTokenStore(harness.deps)
 
         await store.read()
         await store.clear()
-
-        // Disconnect must stick: the legacy file is never deleted, so a second
-        // read would otherwise silently reconnect the user.
         expect(await store.read()).toBeNull()
-    })
-
-    test('hasValid reflects the presence of a device token', async () => {
-        expect(await createTokenStore(createHarness().deps).hasValid()).toBe(false)
-        expect(await createTokenStore(createHarness({ stored: tokens }).deps).hasValid()).toBe(true)
-        expect(
-            await createTokenStore(
-                createHarness({ stored: { ...tokens, deviceToken: '' } }).deps
-            ).hasValid()
-        ).toBe(false)
+        expect(harness.legacyReads).toBe(1)
     })
 })
 

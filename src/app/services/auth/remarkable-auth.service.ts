@@ -1,7 +1,7 @@
 import { requestUrl } from 'obsidian'
 import { log } from '../../../utils/log'
 import { createTokenStoreForPlugin } from './token-store'
-import type { TokenStore } from './token-store'
+import type { CredentialState, TokenStore } from './token-store'
 import { resolveCloudUrls } from '../cloud/cloud-urls'
 import { generateUuidV4 } from '../../../utils/uuid'
 import type { RemarkableSyncPlugin } from '../../plugin'
@@ -38,6 +38,10 @@ export interface RemarkableAuthService {
     /** `refreshAndGetUserToken`, saying why when there is none. */
     forceRefreshUserToken(): Promise<TokenOutcome>
     isAuthenticated(): Promise<boolean>
+    /** Whether a device token is available here, or why not. */
+    credentialState(): Promise<CredentialState>
+    /** Read the device token from another secret (picked in the settings). */
+    useDeviceTokenSecret(name: string): Promise<void>
     disconnect(): Promise<void>
 }
 
@@ -85,25 +89,40 @@ export function createRemarkableAuthService(
     }
 
     /**
-     * Persist tokens unless a disconnect landed first. The store write and a
-     * concurrent `clear()` are both queued on the same `data.json` writer, so a
-     * disconnect that lands mid-write is undone here rather than resurrecting
-     * the credentials.
+     * Persist the device token unless a disconnect landed first. The store
+     * write and a concurrent `clear()` both go through the same `data.json`
+     * writer, so a disconnect that lands mid-write is undone here rather than
+     * resurrecting the credentials.
      */
     async function writeTokensUnlessDisconnected(
         generation: number,
-        tokens: { deviceToken: string; userToken: string; userTokenExpiry: number }
+        deviceToken: string
     ): Promise<boolean> {
         if (isStale(generation)) {
             return false
         }
-        await tokenStore.write(tokens)
+        await tokenStore.write(deviceToken)
         if (isStale(generation)) {
             await tokenStore.clear()
             return false
         }
-        cachedUserToken = tokens.userToken
-        tokenExpiryTime = tokens.userTokenExpiry
+        return true
+    }
+
+    /**
+     * Cache a user token in memory, unless a disconnect landed first. User
+     * tokens are never persisted: they are short-lived and regenerated from
+     * the device token.
+     */
+    function cacheUnlessDisconnected(
+        generation: number,
+        result: { token: string; expiry: number }
+    ): boolean {
+        if (isStale(generation)) {
+            return false
+        }
+        cachedUserToken = result.token
+        tokenExpiryTime = result.expiry
         return true
     }
 
@@ -143,12 +162,8 @@ export function createRemarkableAuthService(
                 return false
             }
 
-            const saved = await writeTokensUnlessDisconnected(generation, {
-                deviceToken,
-                userToken: userTokenResult.token,
-                userTokenExpiry: userTokenResult.expiry
-            })
-            if (!saved) {
+            const saved = await writeTokensUnlessDisconnected(generation, deviceToken)
+            if (!saved || !cacheUnlessDisconnected(generation, userTokenResult)) {
                 return false
             }
 
@@ -206,32 +221,24 @@ export function createRemarkableAuthService(
 
         const generation = authGeneration
 
-        // Try to load from stored tokens
-        const stored = await tokenStore.read()
-        if (!stored || isStale(generation)) {
+        // No valid user token in memory: derive one from the device token
+        const deviceToken = await tokenStore.read()
+        if (!deviceToken || isStale(generation)) {
             return { failure: 'not-connected' }
         }
 
-        // Check if user token is still valid
-        if (Date.now() < stored.userTokenExpiry) {
-            cachedUserToken = stored.userToken
-            tokenExpiryTime = stored.userTokenExpiry
-            return { token: cachedUserToken }
-        }
-
-        // Token expired, refresh using device token
-        return renewWith(generation, stored.deviceToken)
+        return renewWith(generation, deviceToken)
     }
 
     async function forceRefreshUserToken(): Promise<TokenOutcome> {
         const generation = authGeneration
 
-        const stored = await tokenStore.read()
-        if (!stored || isStale(generation)) {
+        const deviceToken = await tokenStore.read()
+        if (!deviceToken || isStale(generation)) {
             return { failure: 'not-connected' }
         }
 
-        const outcome = await renewWith(generation, stored.deviceToken)
+        const outcome = await renewWith(generation, deviceToken)
         if ('token' in outcome) {
             log('User token force-refreshed', 'debug')
         }
@@ -244,12 +251,9 @@ export function createRemarkableAuthService(
             return result
         }
 
-        const saved = await writeTokensUnlessDisconnected(generation, {
-            deviceToken,
-            userToken: result.token,
-            userTokenExpiry: result.expiry
-        })
-        return saved && cachedUserToken ? { token: cachedUserToken } : { failure: 'not-connected' }
+        return cacheUnlessDisconnected(generation, result)
+            ? { token: result.token }
+            : { failure: 'not-connected' }
     }
 
     async function getUserToken(): Promise<string | null> {
@@ -264,6 +268,19 @@ export function createRemarkableAuthService(
 
     async function isAuthenticated(): Promise<boolean> {
         return tokenStore.hasValid()
+    }
+
+    async function credentialState(): Promise<CredentialState> {
+        return tokenStore.state()
+    }
+
+    async function useDeviceTokenSecret(name: string): Promise<void> {
+        // A user token derived from the previous secret must not outlive it,
+        // nor may a refresh in flight write it back.
+        authGeneration++
+        cachedUserToken = null
+        tokenExpiryTime = 0
+        await tokenStore.changeSecretName(name)
     }
 
     async function disconnect(): Promise<void> {
@@ -281,6 +298,8 @@ export function createRemarkableAuthService(
         acquireUserToken,
         forceRefreshUserToken,
         isAuthenticated,
+        credentialState,
+        useDeviceTokenSecret,
         disconnect
     }
 }

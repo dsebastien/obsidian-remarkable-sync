@@ -6,6 +6,7 @@ import {
 import type { PluginSettings } from '../types/plugin-settings.intf'
 import { log } from '../../utils/log'
 import { containVaultFolderPath, validateVaultFolderPath } from '../../utils/sanitise-path'
+import { isValidSecretName } from '../services/auth/token-store'
 
 const IMAGE_FORMATS: ReadonlySet<string> = new Set(['png', 'jpeg', 'webp'])
 
@@ -102,6 +103,19 @@ export function mergeLoadedSettings(loaded: unknown): PluginSettings {
         )
     }
     merged.targetFolder = loadTargetFolder(merged.targetFolder)
+
+    // Secret storage throws on an invalid id; a hand-edited name degrades to
+    // "not paired" rather than an error on every read.
+    if ('' !== merged.deviceTokenSecretName && !isValidSecretName(merged.deviceTokenSecretName)) {
+        log(`Ignoring invalid device token secret name "${merged.deviceTokenSecretName}"`, 'warn')
+        merged.deviceTokenSecretName = DEFAULT_SETTINGS.deviceTokenSecretName
+    }
+    if (
+        '' !== merged.legacySecretMigratedAt &&
+        !Number.isFinite(Date.parse(merged.legacySecretMigratedAt))
+    ) {
+        merged.legacySecretMigratedAt = DEFAULT_SETTINGS.legacySecretMigratedAt
+    }
 
     // Everything downstream iterates `syncStore.notebooks`; an array or a
     // missing map would throw far from here.

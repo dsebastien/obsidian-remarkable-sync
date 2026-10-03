@@ -1,4 +1,4 @@
-import { Plugin } from 'obsidian'
+import { Notice, Plugin } from 'obsidian'
 import { DEFAULT_SETTINGS } from './types/plugin-settings.intf'
 import type { PluginSettings } from './types/plugin-settings.intf'
 import { RemarkableSyncSettingTab } from './settings/settings-tab'
@@ -10,6 +10,8 @@ import { registerCommands } from './commands'
 import { REMARKABLE_PANEL_VIEW_TYPE, RemarkablePanelView } from './ui/remarkable-panel-view'
 import type { RemarkableAuthService } from './services/auth/remarkable-auth.service'
 import { createRemarkableAuthService } from './services/auth/remarkable-auth.service'
+import type { TokenStore } from './services/auth/token-store'
+import { createTokenStoreForPlugin } from './services/auth/token-store'
 import type { RemarkableCloudService } from './services/cloud/remarkable-cloud.service'
 import { createRemarkableCloudService } from './services/cloud/remarkable-cloud.service'
 import type { NotebookPipelineService } from './services/pipeline/notebook-pipeline.service'
@@ -23,9 +25,18 @@ import { createAutoSyncServiceForPlugin } from './services/sync/auto-sync.servic
 import { registerWhatsNewView } from './whats-new'
 import { createWriteQueue, mergePluginData } from './utils/plugin-data'
 
+export const DEVICE_TOKEN_MISSING_NOTICE =
+    'reMarkable: this vault is paired, but not on this device. Connect once here (Settings → Remarkable Synchronizer) to sync from this device.'
+
 export class RemarkableSyncPlugin extends Plugin {
     override settings: PluginSettings = { ...DEFAULT_SETTINGS }
     isConnected = false
+    /**
+     * The vault is paired, but secret storage on THIS device holds no device
+     * token (secret storage is device-local; `data.json` syncs only the
+     * secret's name). Shown as "not paired on this device", never as an error.
+     */
+    deviceTokenMissing = false
 
     /**
      * Kept so the connect/disconnect commands can refresh the (possibly open)
@@ -33,6 +44,7 @@ export class RemarkableSyncPlugin extends Plugin {
      */
     settingTab!: RemarkableSyncSettingTab
     authService!: RemarkableAuthService
+    tokenStore!: TokenStore
     cloudService!: RemarkableCloudService
     pipelineService!: NotebookPipelineService
     syncStoreService!: SyncStoreService
@@ -59,19 +71,20 @@ export class RemarkableSyncPlugin extends Plugin {
         log('Initializing', 'debug')
         await this.loadSettings()
 
-        this.authService = createRemarkableAuthService(this)
+        this.tokenStore = createTokenStoreForPlugin(this)
+        this.authService = createRemarkableAuthService(this, this.tokenStore)
         this.cloudService = createRemarkableCloudService(this)
         this.syncStoreService = createSyncStoreService(this)
         this.pipelineService = createNotebookPipelineService(this)
         this.importService = createRmdocImportService(this)
         this.autoSyncService = createAutoSyncServiceForPlugin(this)
 
-        // Check auth status on load — must never prevent the plugin from loading
-        try {
-            this.isConnected = await this.authService.isAuthenticated()
-        } catch (error) {
-            log('Failed to check authentication status, treating as disconnected', 'error', error)
-            this.isConnected = false
+        // Check auth status on load (this also bootstraps this device's secret
+        // storage from the plaintext tokens) — must never prevent the plugin
+        // from loading
+        await this.refreshConnectionState()
+        if (this.deviceTokenMissing) {
+            new Notice(DEVICE_TOKEN_MISSING_NOTICE, 10000)
         }
 
         // Register the panel view
@@ -96,6 +109,19 @@ export class RemarkableSyncPlugin extends Plugin {
     override onunload(): void {
         log('Unloading', 'debug')
         this.unloadController.abort()
+    }
+
+    /** Re-read the stored credentials into `isConnected` / `deviceTokenMissing`. */
+    async refreshConnectionState(): Promise<void> {
+        try {
+            const state = await this.authService.credentialState()
+            this.isConnected = 'connected' === state
+            this.deviceTokenMissing = 'missing-on-device' === state
+        } catch (error) {
+            log('Failed to check authentication status, treating as disconnected', 'error', error)
+            this.isConnected = false
+            this.deviceTokenMissing = false
+        }
     }
 
     async activatePanelView(): Promise<void> {
@@ -174,11 +200,19 @@ export class RemarkableSyncPlugin extends Plugin {
      * await, the second commit silently dropping the first edit. The body
      * mirrors persistData() rather than calling it: enqueueing from inside a
      * queued task would deadlock the chain.
+     *
+     * `extraData` is merged into `data.json` in the same write (a `null`
+     * entry removes the key), for changes that span settings and sibling
+     * entries — e.g. the token migration sets the secret name and drops the
+     * plaintext tokens atomically.
      */
-    async updateSettings(recipe: (draft: WritableDraft<PluginSettings>) => void): Promise<void> {
+    async updateSettings(
+        recipe: (draft: WritableDraft<PluginSettings>) => void,
+        extraData: Record<string, unknown> = {}
+    ): Promise<void> {
         await this.enqueueWrite(async (): Promise<void> => {
             const next = produce(this.settings, recipe)
-            const merged = mergePluginData(this.rawData, { ...next })
+            const merged = mergePluginData(this.rawData, { ...extraData, ...next })
             await this.saveData(merged)
             this.rawData = merged
             this.settings = next

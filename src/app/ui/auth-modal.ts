@@ -109,6 +109,7 @@ export class AuthModal extends Modal {
 
             if (success) {
                 this.plugin.isConnected = true
+                this.plugin.deviceTokenMissing = false
 
                 // Show success state
                 instructions.addClass('remarkable-auth-hidden')

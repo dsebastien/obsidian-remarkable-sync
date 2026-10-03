@@ -39,6 +39,19 @@ export interface PluginSettings {
      */
     panelSortOrder: string
     syncStore: SyncStore
+    /**
+     * Name of the Obsidian secret-storage entry holding the reMarkable device
+     * token. Only the NAME is stored here, never the token: secret storage is
+     * device-local, while `data.json` travels with the vault. `''` means the
+     * vault is not paired.
+     */
+    deviceTokenSecretName: string
+    /**
+     * ISO date of the first migration of the plaintext device token out of
+     * `data.json`; `''` when none happened. The plaintext copy is removed
+     * 60 days later.
+     */
+    legacySecretMigratedAt: string
 }
 
 export const DEFAULT_SETTINGS: PluginSettings = {
@@ -54,5 +67,7 @@ export const DEFAULT_SETTINGS: PluginSettings = {
     autoSyncEnabled: false,
     autoSyncIntervalMinutes: DEFAULT_AUTO_SYNC_INTERVAL_MINUTES,
     panelSortOrder: DEFAULT_SORT_VALUE,
-    syncStore: DEFAULT_SYNC_STORE
+    syncStore: DEFAULT_SYNC_STORE,
+    deviceTokenSecretName: '',
+    legacySecretMigratedAt: ''
 }

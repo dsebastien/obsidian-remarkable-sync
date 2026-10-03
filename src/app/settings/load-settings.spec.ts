@@ -12,6 +12,8 @@ function differentValue(key: keyof PluginSettings): unknown {
     if ('imageFormat' === key) return 'png'
     if ('imageQuality' === key) return 0.5
     if ('syncStore' === key) return { notebooks: { doc: { lastSyncedVersion: 2 } } }
+    if ('deviceTokenSecretName' === key) return 'my-device-token'
+    if ('legacySecretMigratedAt' === key) return '2026-10-03T00:00:00.000Z'
 
     const current = DEFAULT_SETTINGS[key]
     if ('boolean' === typeof current) return !current
@@ -73,6 +75,15 @@ describe('mergeLoadedSettings', () => {
         expect(merged).not.toHaveProperty('tokens')
         expect(merged).not.toHaveProperty('legacyTokensImported')
         expect(merged.savePdf).toBe(true)
+    })
+
+    test('an invalid secret name or migration date falls back to the default', () => {
+        const merged = mergeLoadedSettings({
+            deviceTokenSecretName: 'Not A Valid Id',
+            legacySecretMigratedAt: 'yesterday'
+        })
+        expect(merged.deviceTokenSecretName).toBe('')
+        expect(merged.legacySecretMigratedAt).toBe('')
     })
 
     test('values of the wrong type fall back to the default', () => {

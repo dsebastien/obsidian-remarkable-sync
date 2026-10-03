@@ -17,15 +17,16 @@ All settings are configured via **Settings → Community plugins → Remarkable 
 
 ## Authentication
 
-Tokens are stored in the plugin's `data.json` under the `tokens` key — deliberately outside `PluginSettings`, which is written to the debug log on every load/save.
+The device token is stored in Obsidian's `app.secretStorage` (device-local). `PluginSettings` holds only:
 
-The entry contains:
+- `deviceTokenSecretName`: secret id (`''` = not paired; default name on first pairing `remarkable-synchronizer-device-token`, suffixed `-2`, `-3`... if taken by a different value)
+- `legacySecretMigratedAt`: ISO date of the first migration out of plaintext (`''` = none)
 
-- `deviceToken`: Long-lived device registration token
-- `userToken`: Short-lived API token (24h expiry, auto-refreshed)
-- `userTokenExpiry`: Timestamp for token refresh
+The user token is memory-only, regenerated from the device token (one request per session).
 
-Desktop installs predating this change kept the same fields in `~/.remarkable-sync/token.json`. That file is imported once per vault on first read (tracked by the `legacyTokensImported` key in `data.json`) and is never deleted automatically — it is machine-global and shared by every vault. The settings tab offers explicit removal.
+Legacy (≤ 2.3): `data.json` `tokens` key (`deviceToken`, `userToken`, `userTokenExpiry`). Never written anymore. Read-only bootstrap: any device whose secret storage lacks the token copies it from there on load. Removed 60 days after `legacySecretMigratedAt`, on re-pairing, on secret name change, on disconnect, or via the **Remove plain-text copy now** button.
+
+Desktop installs predating `data.json` storage kept the same fields in `~/.remarkable-sync/token.json`. That file is imported into secret storage once per vault on first read (tracked by the `legacyTokensImported` key in `data.json`) and is never deleted automatically — it is machine-global and shared by every vault. The settings tab offers explicit removal.
 
 ## Environment Variables
 

@@ -86,6 +86,7 @@ void moduleMocker.module('obsidian', () => ({
     TFolder: class TFolder {},
     AbstractInputSuggest: class AbstractInputSuggest {},
     SearchComponent: class SearchComponent {},
+    SecretComponent: class SecretComponent {},
     ItemView: class ItemView {
         contentEl = {
             empty: () => {},

@@ -116,9 +116,10 @@ If something does not work, please open an issue and include your device, OS ver
 
 ## Privacy
 
-- Authentication tokens are stored in the plugin's own `data.json`, inside `.obsidian/plugins/remarkable-synchronizer/`. They are **not** part of the plugin settings, so they never appear in the debug log or in a settings export.
-- Because they live in the vault, anything that syncs `.obsidian` syncs them too — Obsidian Sync's _community plugin settings_ option, or a vault tracked in Git or a cloud folder. Exclude `.obsidian/plugins/remarkable-synchronizer/data.json` if you do not want your reMarkable credentials to travel with your vault.
-- Tokens are per-vault. Earlier desktop versions stored a single machine-wide `~/.remarkable-sync/token.json`; that file is imported automatically on first run and then left untouched. Remove it from **Settings → Remarkable Synchronizer → Legacy token file** once all your vaults are on this version.
+- The reMarkable device token is stored in Obsidian's secret storage, on each device, never in the vault. The plugin's `data.json` only records the secret's name, so syncing `.obsidian` (Obsidian Sync, Git, Syncthing, a cloud folder) no longer carries your credentials. The short-lived user token is kept in memory only.
+- Versions before 2.4 kept the tokens in `data.json`. Each device moves them into its own secret storage on its next start, with no action needed; the plain-text copy is removed from `data.json` 60 days later, or right away with **Settings → Remarkable Synchronizer → Remove plain-text copy now** once all your devices run this version.
+- On a device whose secret storage has no token (for example a new device after the plain-text copy is gone), the plugin shows "paired, but not on this device": connect once there. Your other devices stay connected.
+- Earlier desktop versions stored a single machine-wide `~/.remarkable-sync/token.json`; Earlier desktop versions stored a single machine-wide `~/.remarkable-sync/token.json`; that file is imported into secret storage automatically on first run and then left untouched. Remove it from **Settings → Remarkable Synchronizer → Legacy token file** once all your vaults are on this version.
 - No telemetry or third-party analytics
 - Network requests only to reMarkable cloud (or your rmfakecloud server when enabled)
 

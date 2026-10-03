@@ -1,4 +1,4 @@
-import { Notice, PluginSettingTab } from 'obsidian'
+import { Notice, PluginSettingTab, SecretComponent } from 'obsidian'
 import type { App, SettingDefinitionItem } from 'obsidian'
 import type { RemarkableSyncPlugin } from '../plugin'
 import {
@@ -110,7 +110,23 @@ export class RemarkableSyncSettingTab extends PluginSettingTab {
                             const cloudName = urls.isRmfakecloud
                                 ? 'rmfakecloud'
                                 : 'reMarkable cloud'
-                            if (this.plugin.isConnected) {
+                            if (this.plugin.deviceTokenMissing) {
+                                // Secret storage is device-local: the vault is
+                                // paired, just not on this device. Never an error.
+                                setting.setDesc(
+                                    `Paired with ${cloudName}, but not on this device: its secret storage has no device token. Connect once here; your other devices stay connected.`
+                                )
+                                setting.addButton((button) => {
+                                    button
+                                        .setCta()
+                                        .setButtonText('Connect')
+                                        .onClick(() => {
+                                            connectDevice(this.plugin, () => {
+                                                this.update()
+                                            })
+                                        })
+                                })
+                            } else if (this.plugin.isConnected) {
                                 setting.setDesc(`Connected to ${cloudName}`)
                                 setting.addButton((button) => {
                                     button.setButtonText('Disconnect').onClick(async () => {
@@ -131,6 +147,45 @@ export class RemarkableSyncSettingTab extends PluginSettingTab {
                                         })
                                 })
                             }
+                        }
+                    },
+                    {
+                        name: 'Device token secret',
+                        desc: "The device token is kept in this device's secret storage, never in the plugin's data file. Pick another secret only if you stored the token under a different name.",
+                        visible: (): boolean =>
+                            this.plugin.isConnected || this.plugin.deviceTokenMissing,
+                        render: (setting): void => {
+                            setting.addComponent((el) =>
+                                new SecretComponent(this.app, el)
+                                    .setValue(this.plugin.settings.deviceTokenSecretName)
+                                    .onChange(async (name: string) => {
+                                        await this.changeDeviceTokenSecret(name)
+                                    })
+                            )
+                        }
+                    },
+                    {
+                        name: 'Plain-text copy of the device token',
+                        desc: "Versions before 2.4 kept the device token in the plugin's data file, which syncs with your vault. Each device copies it into its own secret storage on start; the copy is removed automatically 60 days after the first migration. Remove it now once all your devices run this version.",
+                        visible: (): boolean =>
+                            this.plugin.isConnected && this.plugin.tokenStore.hasLegacyCopy(),
+                        render: (setting): void => {
+                            setting.addButton((button) => {
+                                button
+                                    .setDestructive()
+                                    .setButtonText('Remove plain-text copy now')
+                                    .onClick(async () => {
+                                        try {
+                                            await this.plugin.tokenStore.removeLegacyCopy()
+                                            new Notice('Plain-text device token removed.')
+                                        } catch {
+                                            new Notice(
+                                                'Could not remove the plain-text device token.'
+                                            )
+                                        }
+                                        this.update()
+                                    })
+                            })
                         }
                     },
                     {
@@ -520,6 +575,22 @@ export class RemarkableSyncSettingTab extends PluginSettingTab {
         if (VISIBILITY_KEYS.has(key)) {
             this.update()
         }
+    }
+
+    /** Point the plugin at the secret the user picked, then re-check the connection. */
+    private async changeDeviceTokenSecret(name: string): Promise<void> {
+        if (name === this.plugin.settings.deviceTokenSecretName) {
+            return
+        }
+        try {
+            await this.plugin.authService.useDeviceTokenSecret(name)
+        } catch (error) {
+            new Notice(error instanceof Error ? error.message : 'Could not change the secret.')
+            this.update()
+            return
+        }
+        await this.plugin.refreshConnectionState()
+        this.update()
     }
 
     private expectBoolean(key: string, value: unknown): boolean {

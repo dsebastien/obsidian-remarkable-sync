@@ -19,6 +19,7 @@ export async function disconnectDevice(plugin: RemarkableSyncPlugin): Promise<vo
 
     await plugin.syncStoreService.clearAll()
     plugin.isConnected = false
+    plugin.deviceTokenMissing = false
     new Notice(
         urls.isRmfakecloud ? 'Disconnected from rmfakecloud' : 'Disconnected from reMarkable cloud'
     )

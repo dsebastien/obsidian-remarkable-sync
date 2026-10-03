@@ -223,6 +223,14 @@ export class RemarkablePanelView extends ItemView {
     private renderDisconnected(container: HTMLElement): void {
         const urls = resolveCloudUrls(this.plugin.settings)
         const disconnected = container.createDiv({ cls: 'remarkable-disconnected' })
+        if (this.plugin.deviceTokenMissing) {
+            // Secret storage is device-local: the vault is paired elsewhere.
+            disconnected.createEl('p', { text: 'This vault is paired, but not on this device.' })
+            disconnected.createEl('p', {
+                text: 'Connect once on this device, from the settings or the command palette; your other devices stay connected.'
+            })
+            return
+        }
         disconnected.createEl('p', {
             text: urls.isRmfakecloud
                 ? 'Not connected to rmfakecloud.'

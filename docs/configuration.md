@@ -130,11 +130,13 @@ Each run also cleans up sync state for notebooks that were deleted on your reMar
 
 The authentication section shows your connection status and provides connect/disconnect buttons.
 
-Tokens are stored in the plugin's `data.json`, inside `.obsidian/plugins/remarkable-synchronizer/`. The user token auto-refreshes every 23 hours.
+The device token is stored in Obsidian's secret storage, which is local to each device and never part of the vault. The plugin's `data.json` only holds the secret's name (**Device token secret**; you can point it at another secret if you stored the token under a different name). The short-lived user token is kept in memory and renewed from the device token when needed.
 
-They are kept separate from your plugin settings, so they never show up in the debug log. They do live inside the vault, though: if you sync `.obsidian` (Obsidian Sync's _community plugin settings_ option, Git, Dropbox, ...), your reMarkable credentials sync with it.
+**Upgrading from 2.3 or earlier:** the tokens used to be in `data.json`, which syncs with your vault. Every device moves the device token into its own secret storage on its next start, so you stay connected everywhere without doing anything. The plain-text copy stays in `data.json` for 60 days so devices you open less often can migrate too, then it is removed. Once all your devices run this version, you can remove it immediately with **Remove plain-text copy now**.
 
-If you used an earlier desktop version, your tokens were in `~/.remarkable-sync/token.json`. They are imported automatically the first time each vault runs this version. The old file is left in place because it is shared by all your vaults — once they have all been updated, remove it with the **Legacy token file → Remove** button in the settings tab.
+**Paired, but not on this device:** if a device starts with no token in its secret storage and no plain-text copy left, the status reads "Paired with reMarkable cloud, but not on this device". Select **Connect** once on that device. Your other devices are not affected. **Disconnect** signs out every device that shares the vault, as before.
+
+If you used an earlier desktop version, your tokens were in `~/.remarkable-sync/token.json`. They are imported into secret storage automatically the first time each vault runs this version. The old file is left in place because it is shared by all your vaults — once they have all been updated, remove it with the **Legacy token file → Remove** button in the settings tab.
 
 ## rmfakecloud
 

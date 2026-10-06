@@ -153,6 +153,34 @@ describe('document-parser', () => {
         expect(result!.pages[0]!.pageId).toBe('page-bbb-222')
         expect(result!.pages[1]!.pageId).toBe('page-aaa-111')
     })
+
+    /**
+     * Issue #47, the shape of a real format 1 PDF: no cPages, a layer only on
+     * the pages that were written on, and the mapping in redirectionPageMap.
+     */
+    test('gives a format 1 PDF layer its source page', () => {
+        const content = JSON.stringify({
+            ...JSON.parse(CONTENT_WITH_PAGES),
+            fileType: 'pdf',
+            formatVersion: 1,
+            pageCount: 3,
+            pages: ['page-aaa-111', 'page-bbb-222', 'page-ccc-333'],
+            redirectionPageMap: [0, 1, 2]
+        })
+
+        const files = new Map<string, ArrayBuffer>()
+        files.set('docid.metadata', toBuffer(METADATA))
+        files.set('docid.content', toBuffer(content))
+        files.set('docid.pdf', toBuffer('%PDF-1.4'))
+        files.set('docid/page-bbb-222.rm', createRmHeader())
+
+        const result = parseDocument(files, 'test-doc-id')
+
+        expect(result!.sourceDocument?.kind).toBe('pdf')
+        expect(result!.pages.length).toBe(1)
+        expect(result!.pages[0]!.pageId).toBe('page-bbb-222')
+        expect(result!.pages[0]!.sourcePageIndex).toBe(1)
+    })
 })
 
 describe('extractPageOrder', () => {
@@ -239,8 +267,49 @@ describe('extractSourcePageMap', () => {
         expect(map.size).toBe(1)
     })
 
+    /**
+     * Issue #47. A format 1 `.content` has no cPages; the mapping is the flat
+     * `pages` array paired with `redirectionPageMap` by position. Reading only
+     * cPages left every layer unmapped and no annotated copy was written.
+     */
+    test('maps a format 1 document through redirectionPageMap', () => {
+        const map = extractSourcePageMap({
+            pages: ['a', 'b', 'c'],
+            redirectionPageMap: [0, 1, 2]
+        })
+        expect(map.get('a')).toBe(0)
+        expect(map.get('b')).toBe(1)
+        expect(map.get('c')).toBe(2)
+    })
+
+    test('a negative redirection is an inserted page with no source page', () => {
+        const map = extractSourcePageMap({
+            pages: ['original', 'inserted', 'later'],
+            redirectionPageMap: [0, -1, 1]
+        })
+        expect(map.get('original')).toBe(0)
+        expect(map.has('inserted')).toBe(false)
+        expect(map.get('later')).toBe(1)
+    })
+
+    test('a page beyond the end of redirectionPageMap gets no source page', () => {
+        const map = extractSourcePageMap({ pages: ['a', 'b'], redirectionPageMap: [0] })
+        expect(map.get('a')).toBe(0)
+        expect(map.has('b')).toBe(false)
+    })
+
+    test('cPages wins over redirectionPageMap when both are present', () => {
+        const map = extractSourcePageMap({
+            pages: ['a'],
+            redirectionPageMap: [5],
+            cPages: { pages: [{ id: 'a', redir: { value: 0 } }] }
+        })
+        expect(map.get('a')).toBe(0)
+    })
+
     test('a notebook has no mapping at all', () => {
         expect(extractSourcePageMap(content([{ id: 'a' }, { id: 'b' }])).size).toBe(0)
+        expect(extractSourcePageMap({ pages: ['a', 'b'] }).size).toBe(0)
         expect(extractSourcePageMap(null).size).toBe(0)
     })
 })

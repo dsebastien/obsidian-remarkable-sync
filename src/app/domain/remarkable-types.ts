@@ -54,6 +54,12 @@ export interface RemarkableDocumentContent {
     readonly pageCount: number
     readonly pages: readonly string[]
     readonly cPages?: RemarkableCPages
+    /**
+     * `.content` format 1 only: the source page each entry of `pages` annotates,
+     * by position. Format 2 carries the same mapping as `cPages[i].redir` and
+     * drops this array. A negative value is a page with no source page.
+     */
+    readonly redirectionPageMap?: readonly number[]
     readonly textAlignment: string
     readonly textScale: number
     readonly customZoomCenterX?: number

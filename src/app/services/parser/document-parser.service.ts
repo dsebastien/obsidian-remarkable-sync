@@ -14,17 +14,41 @@ import type {
  * carry no `redir` and are deliberately absent from the result, so callers can
  * tell "annotates source page 0" from "has no source page" rather than
  * defaulting the latter to 0 and drawing on the wrong page.
+ *
+ * `.content` format 1 has no `cPages`: it pairs the flat `pages` array with
+ * `redirectionPageMap` by position instead. Reading only `cPages` gave every
+ * layer of such a document no source page, so no annotated copy was written
+ * at all (issue #47).
  */
 export function extractSourcePageMap(
-    content: RemarkableDocumentContent | null
+    content: Pick<RemarkableDocumentContent, 'cPages' | 'pages' | 'redirectionPageMap'> | null
 ): Map<string, number> {
     const map = new Map<string, number>()
-    for (const page of content?.cPages?.pages ?? []) {
-        if (page.redir && 'number' === typeof page.redir.value) {
-            map.set(page.id, page.redir.value)
+    const cPages = content?.cPages?.pages ?? []
+    if (cPages.length > 0) {
+        for (const page of cPages) {
+            if (page.redir && isSourcePageIndex(page.redir.value)) {
+                map.set(page.id, page.redir.value)
+            }
+        }
+        return map
+    }
+
+    const redirections = content?.redirectionPageMap ?? []
+    const pageIds = content?.pages ?? []
+    for (let i = 0; i < pageIds.length; i++) {
+        const pageId = pageIds[i]
+        const sourceIndex = redirections[i]
+        if (pageId && isSourcePageIndex(sourceIndex)) {
+            map.set(pageId, sourceIndex)
         }
     }
     return map
+}
+
+/** A usable index into the source file's pages; a negative one marks an inserted page. */
+function isSourcePageIndex(value: unknown): value is number {
+    return 'number' === typeof value && Number.isInteger(value) && value >= 0
 }
 
 /**

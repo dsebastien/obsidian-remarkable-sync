@@ -71,6 +71,12 @@ export interface RenderAndWriteResult {
     sourceWritten: boolean
     /** An annotated copy of the source was written */
     annotatedWritten: boolean
+    /**
+     * The source had ink to draw but no layer matched a source page, so no
+     * annotated copy exists. Reported, since the original alone looks like a
+     * successful sync of an untouched file.
+     */
+    annotationsUnplaced: boolean
     /** A markdown note holding the typed text was written */
     typedTextNoteWritten: boolean
     /** A markdown note listing the text highlights was written */
@@ -190,6 +196,7 @@ export async function renderAndWritePages(
     let pdfWritten = false
     let sourceWritten = false
     let annotatedWritten = false
+    let annotationsUnplaced = false
     let highlightsNoteWritten = false
     let typedTextNoteWritten = false
 
@@ -232,6 +239,17 @@ export async function renderAndWritePages(
                             'warn'
                         )
                     }
+                } else if (annotated && pages.length > 0) {
+                    // Every layer was skipped. Before #47 this is what a
+                    // format 1 document did, and it went unreported.
+                    annotationsUnplaced = true
+                    new Notice(
+                        `${notebookName}: no annotated page could be matched to the source PDF; only the original was saved`
+                    )
+                    log(
+                        `${notebookName}: ${annotated.skippedPages} layer(s) had no source page; no annotated copy written`,
+                        'warn'
+                    )
                 } else if (!annotated) {
                     // The user asked for this output; a debug-only log line
                     // would let the failure masquerade as success.
@@ -302,6 +320,7 @@ export async function renderAndWritePages(
         pdfWritten,
         sourceWritten,
         annotatedWritten,
+        annotationsUnplaced,
         highlightsNoteWritten,
         typedTextNoteWritten
     }

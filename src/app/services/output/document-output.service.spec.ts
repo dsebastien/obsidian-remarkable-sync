@@ -291,6 +291,7 @@ describe('source-backed documents', () => {
         expect(h.pdfWrites.map((w) => w.name)).toEqual(['Book (annotated)'])
         expect(result.sourceWritten).toBe(true)
         expect(result.annotatedWritten).toBe(true)
+        expect(result.annotationsUnplaced).toBe(false)
     })
 
     /**
@@ -329,6 +330,9 @@ describe('source-backed documents', () => {
         expect(h.pdfWrites).toHaveLength(0)
         expect(result.sourceWritten).toBe(true)
         expect(result.annotatedWritten).toBe(false)
+        // Issue #47: ink that lands nowhere is reported, not left looking
+        // like a clean sync of an untouched original.
+        expect(result.annotationsUnplaced).toBe(true)
     })
 
     test('a failed annotation still leaves the source in the vault', async () => {
@@ -341,6 +345,8 @@ describe('source-backed documents', () => {
         expect(h.pdfWrites).toHaveLength(0)
         expect(result.sourceWritten).toBe(true)
         expect(result.annotatedWritten).toBe(false)
+        // Its own Notice already covers it
+        expect(result.annotationsUnplaced).toBe(false)
     })
 
     test('an EPUB source is written through but never annotated', async () => {
@@ -372,6 +378,8 @@ describe('source-backed documents', () => {
         expect(h.fileWrites).toEqual([{ name: 'Book', extension: 'pdf' }])
         expect(result.sourceWritten).toBe(true)
         expect(result.annotatedWritten).toBe(false)
+        // Nothing was drawn, so nothing went missing
+        expect(result.annotationsUnplaced).toBe(false)
     })
 
     test('a source-backed document never renders pages it will not write', async () => {

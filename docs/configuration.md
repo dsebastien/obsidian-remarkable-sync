@@ -65,6 +65,8 @@ The annotated copy keeps the original's text layer, so it stays selectable and s
 
 Pages you inserted on the device have no counterpart in the original and are left out of the annotated copy. An encrypted PDF cannot be annotated, and in that case the original is still written to your vault.
 
+If none of your ink can be matched to a page of the original (for example, you only wrote on pages you inserted), no annotated copy is written and a notice says so. The original is still written to your vault.
+
 Very large source documents (over 80 MB) are not annotated: the original, the parsed copy and the output would all be in memory at once, which is a real risk on phones. The original is still written to your vault.
 
 EPUBs are written through unchanged (as `.epub`) but not annotated, because the device lays them out itself and there are no fixed pages to draw on.

@@ -77,6 +77,8 @@ Generated PDFs deliberately carry no creation or modification date. Re-syncing a
 
 If you highlight text on the device (selecting words rather than drawing over them with the highlighter pen), those become **real PDF highlight annotations** in the annotated copy. You can select them, see the text in a reader's comment pane, and extract them like any other annotation.
 
+Highlights are drawn in the colour the device recorded. A highlight is never dark, so if a file records a dark colour for one (seen on a reMarkable 2, where yellow highlights came out as black bars), the plugin draws it in the default yellow instead.
+
 Enable **Save highlights note** to also get a markdown note listing them:
 
 ```

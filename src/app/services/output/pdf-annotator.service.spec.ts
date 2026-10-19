@@ -1,6 +1,8 @@
 import { test, expect, describe } from 'bun:test'
-import { PDFDict, PDFDocument, PDFHexString, PDFName } from 'pdf-lib'
+import { PDFDict, PDFDocument, PDFHexString, PDFName } from '@cantoo/pdf-lib'
 import { annotateSourcePdf, MAX_SOURCE_PDF_BYTES } from './pdf-annotator.service'
+import type { AnnotateFailure, AnnotateResult } from './pdf-annotator.service'
+import { LOCKED_PDF_FIXTURES } from './fixtures/locked-pdfs'
 import type { Page, Stroke } from '../../domain/notebook'
 import { PenType, StrokeColor } from '../../domain/notebook'
 
@@ -35,6 +37,22 @@ const layer = (pageIndex: number, sourcePageIndex?: number, strokes = [stroke()]
     ...(undefined === sourcePageIndex ? {} : { sourcePageIndex })
 })
 
+/** Narrow an outcome to a success, failing the test with the reason otherwise. */
+function ok(outcome: AnnotateResult | AnnotateFailure): AnnotateResult {
+    if ('failure' in outcome) throw new Error(`annotation failed: ${outcome.failure}`)
+    return outcome
+}
+
+/** A PDF locked once with qpdf; see `fixtures/locked-pdfs.ts`. */
+function fixture(name: string): ArrayBuffer {
+    const encoded = LOCKED_PDF_FIXTURES[name]
+    if (!encoded) throw new Error(`no fixture named ${name}`)
+    const binary = atob(encoded)
+    const bytes = new Uint8Array(binary.length)
+    for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i)
+    return bytes.buffer
+}
+
 describe('annotateSourcePdf', () => {
     /**
      * Regression: highlight text used to be embedded with `PDFString.of`,
@@ -59,13 +77,12 @@ describe('annotateSourcePdf', () => {
         }
 
         const result = await annotateSourcePdf(await sourcePdf(), [highlighted])
-        expect(result).not.toBeNull()
-        expect(result!.highlights).toBe(1)
+        expect(ok(result).highlights).toBe(1)
 
         // The output must still be a readable PDF, and the text must survive
         // exactly. Under the old encoding the parser only recovered a
         // truncated, mangled string.
-        const doc = await PDFDocument.load(result!.data)
+        const doc = await PDFDocument.load(ok(result).data)
         expect(doc.getPageCount()).toBe(3)
         const annots = doc.getPage(0).node.Annots()
         expect(annots?.size()).toBe(1)
@@ -78,11 +95,10 @@ describe('annotateSourcePdf', () => {
     test('draws onto the mapped source page and keeps every page', async () => {
         const result = await annotateSourcePdf(await sourcePdf(), [layer(0, 0)])
 
-        expect(result).not.toBeNull()
-        expect(result!.annotatedPages).toBe(1)
-        expect(result!.skippedPages).toBe(0)
+        expect(ok(result).annotatedPages).toBe(1)
+        expect(ok(result).skippedPages).toBe(0)
 
-        const doc = await PDFDocument.load(result!.data)
+        const doc = await PDFDocument.load(ok(result).data)
         expect(doc.getPageCount()).toBe(3)
     })
 
@@ -91,7 +107,7 @@ describe('annotateSourcePdf', () => {
         const before = await PDFDocument.load(source)
 
         const result = await annotateSourcePdf(source, [layer(0, 0)])
-        const after = await PDFDocument.load(result!.data)
+        const after = await PDFDocument.load(ok(result).data)
 
         expect(after.getTitle()).toBe('Original title')
         // Whatever the source carried is carried through untouched. pdf-lib's
@@ -107,7 +123,7 @@ describe('annotateSourcePdf', () => {
         await new Promise((r) => window.setTimeout(r, 1100))
         const b = await annotateSourcePdf(source, [layer(0, 0)])
 
-        expect(new Uint8Array(a!.data)).toEqual(new Uint8Array(b!.data))
+        expect(new Uint8Array(ok(a).data)).toEqual(new Uint8Array(ok(b).data))
     })
 
     /**
@@ -117,15 +133,15 @@ describe('annotateSourcePdf', () => {
     test('skips layers with no source page instead of guessing page 0', async () => {
         const result = await annotateSourcePdf(await sourcePdf(), [layer(0), layer(1)])
 
-        expect(result!.annotatedPages).toBe(0)
-        expect(result!.skippedPages).toBe(2)
+        expect(ok(result).annotatedPages).toBe(0)
+        expect(ok(result).skippedPages).toBe(2)
     })
 
     test('skips a source page index beyond the end of the document', async () => {
         const result = await annotateSourcePdf(await sourcePdf(2), [layer(0, 0), layer(1, 99)])
 
-        expect(result!.annotatedPages).toBe(1)
-        expect(result!.skippedPages).toBe(1)
+        expect(ok(result).annotatedPages).toBe(1)
+        expect(ok(result).skippedPages).toBe(1)
     })
 
     test('annotates several pages of one document', async () => {
@@ -135,7 +151,7 @@ describe('annotateSourcePdf', () => {
             layer(2, 2)
         ])
 
-        expect(result!.annotatedPages).toBe(3)
+        expect(ok(result).annotatedPages).toBe(3)
     })
 
     test('eraser strokes are skipped, matching the raster renderer', async () => {
@@ -145,7 +161,7 @@ describe('annotateSourcePdf', () => {
         ])
         const withoutEraser = await annotateSourcePdf(source, [layer(0, 0, [stroke()])])
 
-        expect(new Uint8Array(withEraser!.data)).toEqual(new Uint8Array(withoutEraser!.data))
+        expect(new Uint8Array(ok(withEraser).data)).toEqual(new Uint8Array(ok(withoutEraser).data))
     })
 
     test('a highlighter produces different output from a ballpoint', async () => {
@@ -155,7 +171,7 @@ describe('annotateSourcePdf', () => {
             layer(0, 0, [stroke(PenType.HighlighterV2, 9)])
         ])
 
-        expect(new Uint8Array(ballpoint!.data)).not.toEqual(new Uint8Array(highlighter!.data))
+        expect(new Uint8Array(ok(ballpoint).data)).not.toEqual(new Uint8Array(ok(highlighter).data))
     })
 
     test('a single-point stroke draws a dot, matching the raster renderer', async () => {
@@ -167,27 +183,59 @@ describe('annotateSourcePdf', () => {
         const withDot = await annotateSourcePdf(source, [layer(0, 0, [single])])
         const withNothing = await annotateSourcePdf(source, [layer(0, 0, [])])
 
-        expect(withDot).not.toBeNull()
-        expect(withDot!.annotatedPages).toBe(1)
+        expect(ok(withDot).annotatedPages).toBe(1)
         // The tap must leave a mark: pen taps silently vanished before.
-        expect(new Uint8Array(withDot!.data)).not.toEqual(new Uint8Array(withNothing!.data))
+        expect(new Uint8Array(ok(withDot).data)).not.toEqual(new Uint8Array(ok(withNothing).data))
     })
 
-    test('returns null for an unreadable or encrypted source', async () => {
+    test('an unreadable source reports why', async () => {
         const garbage = new Uint8Array([1, 2, 3, 4, 5]).buffer
-        expect(await annotateSourcePdf(garbage, [layer(0, 0)])).toBeNull()
+        expect(await annotateSourcePdf(garbage, [layer(0, 0)])).toEqual({ failure: 'unreadable' })
     })
 
     test('refuses a source above the size guard instead of exhausting memory', async () => {
         const huge = new ArrayBuffer(MAX_SOURCE_PDF_BYTES + 1)
-        expect(await annotateSourcePdf(huge, [layer(0, 0)])).toBeNull()
+        expect(await annotateSourcePdf(huge, [layer(0, 0)])).toEqual({ failure: 'too-large' })
+    })
+
+    /**
+     * Issue #47. Library databases lock their PDFs with an owner password to
+     * restrict copying and printing. Such a file opens in any reader without
+     * a prompt and the device annotates it normally, but upstream pdf-lib
+     * refused it, so the original was written and the annotated copy never
+     * appeared. The fixtures cover every revision of the standard security
+     * handler a PDF without vendor DRM can use.
+     */
+    for (const name of [
+        'owner-locked-rc4-40.pdf',
+        'owner-locked-rc4-128.pdf',
+        'owner-locked-aes-128.pdf',
+        'owner-locked-aes-256.pdf'
+    ]) {
+        test(`annotates a source locked with an owner password only (${name})`, async () => {
+            const result = ok(await annotateSourcePdf(fixture(name), [layer(0, 1)]))
+            expect(result.annotatedPages).toBe(1)
+
+            // The output is unlocked and still a complete, readable document.
+            // Checked through the trailer, which is what a reader consults:
+            // the source's old cross-reference stream survives as a dead
+            // object and still names its `/Encrypt` dictionary.
+            const doc = await PDFDocument.load(result.data, { ignoreEncryption: true })
+            expect(doc.isEncrypted).toBe(false)
+            expect(doc.getPageCount()).toBe(3)
+        })
+    }
+
+    test('a source that needs a real password reports it, rather than guessing', async () => {
+        const outcome = await annotateSourcePdf(fixture('user-locked-aes-256.pdf'), [layer(0, 0)])
+        expect(outcome).toEqual({ failure: 'needs-password' })
     })
 
     test('no layers at all still returns a valid untouched document', async () => {
         const result = await annotateSourcePdf(await sourcePdf(), [])
 
-        expect(result!.annotatedPages).toBe(0)
-        const doc = await PDFDocument.load(result!.data)
+        expect(ok(result).annotatedPages).toBe(0)
+        const doc = await PDFDocument.load(ok(result).data)
         expect(doc.getPageCount()).toBe(3)
     })
 })

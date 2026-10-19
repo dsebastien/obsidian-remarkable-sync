@@ -63,7 +63,9 @@ reMarkable/
 
 The annotated copy keeps the original's text layer, so it stays selectable and searchable, and every page survives even if you only annotated one. Your handwriting is drawn as vector paths, not flattened into an image, so it stays sharp at any zoom.
 
-Pages you inserted on the device have no counterpart in the original and are left out of the annotated copy. An encrypted PDF cannot be annotated, and in that case the original is still written to your vault.
+Pages you inserted on the device have no counterpart in the original and are left out of the annotated copy.
+
+PDFs from library databases and publishers are often locked to restrict copying and printing. They open without a password, and the plugin annotates them like any other file. A PDF that asks for a password when you open it cannot be annotated (the tablet cannot open it either), and in that case the original is still written to your vault with a notice saying why.
 
 If none of your ink can be matched to a page of the original (for example, you only wrote on pages you inserted), no annotated copy is written and a notice says so. The original is still written to your vault.
 

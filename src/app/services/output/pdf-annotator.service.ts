@@ -2,15 +2,17 @@ import {
     BlendMode,
     LineCapStyle,
     LineJoinStyle,
+    PDFDict,
     PDFDocument,
     PDFHexString,
+    PDFName,
     PDFNumber,
     popGraphicsState,
     pushGraphicsState,
     rgb,
     setLineJoin
-} from 'pdf-lib'
-import type { PDFPage, PDFRef } from 'pdf-lib'
+} from '@cantoo/pdf-lib'
+import type { PDFPage, PDFRef } from '@cantoo/pdf-lib'
 import { log } from '../../../utils/log'
 import { PenType } from '../../domain/notebook'
 import type { Highlight, Page, Stroke } from '../../domain/notebook'
@@ -56,6 +58,23 @@ export interface AnnotateResult {
     skippedPages: number
     /** Text highlights embedded as real PDF annotations */
     highlights: number
+}
+
+/**
+ * Why a source PDF could not be annotated. Each reason gets its own notice:
+ * "may be encrypted or too large" sent a user with a library PDF looking in
+ * the wrong place (issue #47).
+ */
+export type AnnotateFailureReason = 'needs-password' | 'too-large' | 'unreadable' | 'save-failed'
+
+export interface AnnotateFailure {
+    readonly failure: AnnotateFailureReason
+}
+
+export function isAnnotateFailure(
+    result: AnnotateResult | AnnotateFailure
+): result is AnnotateFailure {
+    return 'failure' in result
 }
 
 function hexToRgb(hex: string): ReturnType<typeof rgb> {
@@ -350,29 +369,40 @@ function highlightAppearance(
  * `updateMetadata: false` keeps the source document's own title, author and
  * dates intact and stops pdf-lib restamping them, which also makes the output
  * byte-identical across runs.
+ *
+ * `password: ''` decrypts a PDF locked with an owner password only, which is
+ * how library databases restrict copying and printing (issue #47). Such a
+ * file opens in any reader without a prompt, and the device annotates it
+ * normally, but the upstream pdf-lib refused it outright. A file that needs a
+ * real password to open fails here with `needs-password`; the device cannot
+ * open one of those either, so it never carries ink.
  */
 export async function annotateSourcePdf(
     sourceData: ArrayBuffer,
     pages: readonly Page[],
     screen?: DeviceScreen
-): Promise<AnnotateResult | null> {
+): Promise<AnnotateResult | AnnotateFailure> {
     if (sourceData.byteLength > MAX_SOURCE_PDF_BYTES) {
         log(
             `Source PDF is ${Math.round(sourceData.byteLength / 1024 / 1024)} MB, above the ${MAX_SOURCE_PDF_BYTES / 1024 / 1024} MB limit; annotations not burned in`,
             'warn'
         )
-        return null
+        return { failure: 'too-large' }
     }
 
     let doc: PDFDocument
     try {
-        doc = await PDFDocument.load(sourceData, { updateMetadata: false })
+        doc = await PDFDocument.load(sourceData, { updateMetadata: false, password: '' })
     } catch (error) {
-        // Encrypted documents land here. `ignoreEncryption` would "succeed" and
-        // then produce garbage, so it is deliberately not used.
-        log('Could not read the source PDF; it may be encrypted', 'error', error)
-        return null
+        if (needsPassword(error)) {
+            log('The source PDF needs a password to open; annotations not burned in', 'warn')
+            return { failure: 'needs-password' }
+        }
+        log('Could not read the source PDF', 'error', error)
+        return { failure: 'unreadable' }
     }
+
+    dropEncryptionDictionary(doc)
 
     const pageCount = doc.getPageCount()
     let annotatedPages = 0
@@ -415,6 +445,39 @@ export async function annotateSourcePdf(
         return { data, annotatedPages, skippedPages, highlights }
     } catch (error) {
         log('Failed to write the annotated PDF', 'error', error)
-        return null
+        return { failure: 'save-failed' }
     }
+}
+
+/**
+ * Remove the source's encryption dictionary from a decrypted document.
+ *
+ * Decryption drops `/Encrypt` from the trailer, which is what a reader
+ * consults, but the dictionary itself stays in the object graph and is
+ * written out as a dead object. pdf-lib's own parser then reads the saved
+ * file as encrypted again, and any pdf-lib-based tool downstream would refuse
+ * it the way this plugin used to. Matched by shape: the standard security
+ * handler's dictionary is the only one with `/Filter /Standard` and `/O`.
+ */
+function dropEncryptionDictionary(doc: PDFDocument): void {
+    for (const [ref, object] of doc.context.enumerateIndirectObjects()) {
+        if (
+            object instanceof PDFDict &&
+            object.get(PDFName.of('Filter')) === PDFName.of('Standard') &&
+            object.has(PDFName.of('O'))
+        ) {
+            doc.context.delete(ref)
+        }
+    }
+}
+
+/**
+ * Whether a load error means the file wants a password we do not have.
+ *
+ * The library throws a plain `Error` whose message is `NEEDS PASSWORD` when
+ * the empty user password does not open the file. Matched on the message, as
+ * no error class is exported for it.
+ */
+function needsPassword(error: unknown): boolean {
+    return error instanceof Error && /NEEDS PASSWORD/i.test(error.message)
 }

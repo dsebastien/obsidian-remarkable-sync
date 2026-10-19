@@ -1,10 +1,12 @@
 import { afterEach, describe, expect, test } from 'bun:test'
-import { rm } from 'node:fs/promises'
+import { readFile, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import {
     ASSETS_SRC,
     BANNER,
+    BROWSER_ENTRY_PACKAGES,
     DIST,
     EXTERNAL_MODULES,
     PLUGIN_ID,
@@ -120,5 +122,28 @@ describe('sourcemapFor', () => {
 
     test('development keeps inline source maps', () => {
         expect(sourcemapFor(false)).toBe('inline')
+    })
+})
+
+/**
+ * `target: 'node'` resolves a package's Node entry. fflate's probes
+ * `worker_threads` through `require('module')` at load time, which throws on
+ * mobile and stops the plugin loading, and `@cantoo/pdf-lib` imports bare
+ * `fflate`. The build redirects it to the browser entry; this pins that the
+ * redirect target is a browser build.
+ */
+describe('browser entry redirects', () => {
+    const sourceOf = (specifier: string): Promise<string> =>
+        readFile(fileURLToPath(import.meta.resolve(specifier)), 'utf8')
+
+    test('bare fflate is redirected to a browser build', async () => {
+        expect(BROWSER_ENTRY_PACKAGES['fflate']).toBe('fflate/browser')
+        const source = await sourceOf(BROWSER_ENTRY_PACKAGES['fflate']!)
+        expect(source).not.toContain('worker_threads')
+        expect(source).not.toContain("require('module')")
+    })
+
+    test('the Node entry is the one that would have pulled in worker_threads', async () => {
+        expect(await sourceOf('fflate')).toContain('worker_threads')
     })
 })

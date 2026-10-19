@@ -97,6 +97,31 @@ export function sourcemapFor(prod: boolean): 'none' | 'inline' {
     return prod ? 'none' : 'inline'
 }
 
+/**
+ * Packages whose bare import must resolve to their browser entry.
+ *
+ * `target: 'node'` makes Bun pick a package's Node entry, and fflate's Node
+ * entry probes `worker_threads` through `require('module')` at load time,
+ * which throws on mobile and stops the plugin loading. Our own code imports
+ * `fflate/browser`, but `@cantoo/pdf-lib` imports bare `fflate`, so the
+ * redirect has to happen at bundle time. Switching the target to `browser`
+ * is not an option: Bun would then stub `require('node:fs')` to an empty
+ * object and silently break the legacy token import.
+ */
+export const BROWSER_ENTRY_PACKAGES: Record<string, string> = {
+    fflate: 'fflate/browser'
+}
+
+const browserEntryPlugin: import('bun').BunPlugin = {
+    name: 'browser-entry',
+    setup(build): void {
+        const pattern = new RegExp(`^(${Object.keys(BROWSER_ENTRY_PACKAGES).join('|')})$`)
+        build.onResolve({ filter: pattern }, (args) => ({
+            path: Bun.resolveSync(BROWSER_ENTRY_PACKAGES[args.path]!, process.cwd())
+        }))
+    }
+}
+
 async function buildJs(): Promise<void> {
     console.log(`Building plugin in ${isProd ? 'production' : 'development'} mode...`)
     const { success, logs } = await Bun.build({
@@ -106,6 +131,7 @@ async function buildJs(): Promise<void> {
         external: EXTERNAL_MODULES,
         format: 'cjs',
         target: 'node',
+        plugins: [browserEntryPlugin],
         define: await readChangelogDefine(),
         minify: isProd,
         sourcemap: sourcemapFor(isProd),

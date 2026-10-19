@@ -7,7 +7,8 @@ import type { PluginSettings } from '../../types/plugin-settings.intf'
 import { renderPage } from '../renderer/page-renderer.service'
 import { buildPdf } from './pdf-writer.service'
 import type { PdfPageImage } from './pdf-writer.service'
-import { annotateSourcePdf } from './pdf-annotator.service'
+import { annotateSourcePdf, isAnnotateFailure } from './pdf-annotator.service'
+import type { AnnotateFailureReason } from './pdf-annotator.service'
 import {
     ANNOTATED_SUFFIX,
     documentFileName,
@@ -85,6 +86,14 @@ export interface RenderAndWriteResult {
 
 /** Suffix for the markdown note holding a document's typed text. */
 const TYPED_TEXT_SUFFIX = ' (text)'
+
+/** What the user is told when the source PDF could not be annotated. */
+export const ANNOTATE_FAILURE_MESSAGES: Record<AnnotateFailureReason, string> = {
+    'needs-password': 'the source PDF needs a password to open, so it could not be annotated',
+    'too-large': 'the source PDF is too large to annotate (over 80 MB)',
+    'unreadable': 'the source PDF could not be read, so it could not be annotated',
+    'save-failed': 'the annotated PDF could not be written'
+}
 
 /** Suffix for the markdown note listing a document's text highlights. */
 export const HIGHLIGHTS_SUFFIX = ' (highlights)'
@@ -219,11 +228,12 @@ export async function renderAndWritePages(
             sourceWritten = true
 
             if ('pdf' === sourceDocument.kind) {
-                const annotated = await deps.annotateSourcePdf(
+                const outcome = await deps.annotateSourcePdf(
                     sourceDocument.data,
                     pages,
                     deviceScreen
                 )
+                const annotated = isAnnotateFailure(outcome) ? null : outcome
                 if (annotated && annotated.annotatedPages > 0) {
                     await deps.writeDocumentPdf(
                         vault,
@@ -250,13 +260,18 @@ export async function renderAndWritePages(
                         `${notebookName}: ${annotated.skippedPages} layer(s) had no source page; no annotated copy written`,
                         'warn'
                     )
-                } else if (!annotated) {
+                } else if (isAnnotateFailure(outcome)) {
                     // The user asked for this output; a debug-only log line
-                    // would let the failure masquerade as success.
+                    // would let the failure masquerade as success. Each reason
+                    // gets its own words: a vague "may be encrypted or too
+                    // large" sent a reporter looking in the wrong place (#47).
                     new Notice(
-                        `${notebookName}: could not annotate the source PDF (it may be encrypted or too large); the original was still saved`
+                        `${notebookName}: ${ANNOTATE_FAILURE_MESSAGES[outcome.failure]}; the original was still saved`
                     )
-                    log(`${notebookName}: could not annotate the source PDF`, 'warn')
+                    log(
+                        `${notebookName}: could not annotate the source PDF (${outcome.failure})`,
+                        'warn'
+                    )
                 }
             }
         }

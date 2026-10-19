@@ -64,7 +64,7 @@ function createHarness(
         },
         annotateSourcePdf: (data, pages) => {
             annotateCalls.push({ bytes: data.byteLength, layers: pages.length })
-            if (options.annotateFails) return Promise.resolve(null)
+            if (options.annotateFails) return Promise.resolve({ failure: 'unreadable' as const })
             const annotatable = pages.filter((p) => p.sourcePageIndex !== undefined)
             return Promise.resolve({
                 data: new ArrayBuffer(32),

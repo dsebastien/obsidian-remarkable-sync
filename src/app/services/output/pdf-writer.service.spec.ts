@@ -1,6 +1,6 @@
 import { test, expect, describe } from 'bun:test'
 import { file } from 'bun'
-import { PDFDocument } from 'pdf-lib'
+import { PDFDocument } from '@cantoo/pdf-lib'
 import { buildPdf, pixelsToPoints, REMARKABLE_DPI } from './pdf-writer.service'
 import type { PdfPageImage } from './pdf-writer.service'
 

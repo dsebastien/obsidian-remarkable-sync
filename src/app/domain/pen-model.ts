@@ -1,6 +1,11 @@
 import type { Highlight, Stroke, StrokeArgb, StrokePoint } from './notebook'
 import { PenType, StrokeColor } from './notebook'
-import { STROKE_COLOR_MAP, FIXED_WIDTH_PENS, PEN_DEFAULT_OPACITY } from './rm-constants'
+import {
+    STROKE_COLOR_MAP,
+    FIXED_WIDTH_PENS,
+    HIGHLIGHTER_PEN_TYPES,
+    PEN_DEFAULT_OPACITY
+} from './rm-constants'
 
 /**
  * How one segment of a stroke should be drawn.
@@ -225,10 +230,10 @@ function argbToHex(argb: StrokeArgb): string {
  * entry.
  */
 export function highlightColour(highlight: Highlight): string {
-    if (highlight.argb) {
-        return argbToHex(highlight.argb)
-    }
-    return STROKE_COLOR_MAP[highlight.color] ?? '#FFED75'
+    const recorded = highlight.argb
+        ? argbToHex(highlight.argb)
+        : (STROKE_COLOR_MAP[highlight.color] ?? HIGHLIGHT_DEFAULT_COLOUR)
+    return readableHighlightColour(recorded)
 }
 
 /** Alpha of a text highlight, 0-1. */
@@ -237,10 +242,49 @@ export function highlightOpacity(highlight: Highlight): number {
 }
 
 export function strokeColour(stroke: Stroke): string {
-    if (stroke.argb) {
-        return argbToHex(stroke.argb)
+    const recorded = stroke.argb
+        ? argbToHex(stroke.argb)
+        : (STROKE_COLOR_MAP[stroke.color] ?? '#000000')
+    return HIGHLIGHTER_PEN_TYPES.has(stroke.penType) ? readableHighlightColour(recorded) : recorded
+}
+
+/** The device's default highlight, used when the recorded colour cannot be right. */
+export const HIGHLIGHT_DEFAULT_COLOUR = '#FFED75'
+
+/**
+ * Below this relative luminance a highlight colour is treated as wrong.
+ *
+ * Every highlight colour the device offers is light: the darkest real one is
+ * the grey highlighter at `#c7c7c6` (luminance 0.57). Palette black is 0 and
+ * palette grey `#7D7D7D` is 0.21, so the threshold separates the two sets
+ * with room on both sides.
+ */
+const HIGHLIGHT_MIN_LUMINANCE = 0.3
+
+/**
+ * A highlight is never dark. Drawn with a multiply blend, a dark colour is a
+ * solid bar over the words it was meant to mark.
+ *
+ * This is a best guess, not a proper fix (issue #47). A reMarkable 2 user sees
+ * yellow highlights come out as black bars, while every real device file we
+ * have (firmware 3.6 to 3.15, both palette and ARGB colours) records a light
+ * colour. Without an `.rm` file from the affected device we cannot tell
+ * whether that firmware records a dark colour or the parser fails to find the
+ * colour and leaves it at the default. Either way the device's own export
+ * draws yellow, so a dark highlight falls back to it. The parser warns when a
+ * highlight carries no colour at all, so the real cause stays visible.
+ */
+function readableHighlightColour(hex: string): string {
+    return relativeLuminance(hex) < HIGHLIGHT_MIN_LUMINANCE ? HIGHLIGHT_DEFAULT_COLOUR : hex
+}
+
+/** WCAG relative luminance of a `#rrggbb` colour, 0 (black) to 1 (white). */
+function relativeLuminance(hex: string): number {
+    const channel = (offset: number): number => {
+        const c = parseInt(hex.slice(offset, offset + 2), 16) / 255
+        return c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4)
     }
-    return STROKE_COLOR_MAP[stroke.color] ?? '#000000'
+    return 0.2126 * channel(1) + 0.7152 * channel(3) + 0.0722 * channel(5)
 }
 
 /**

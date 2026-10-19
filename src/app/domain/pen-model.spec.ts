@@ -229,6 +229,57 @@ describe('highlightColour', () => {
     test('an unmapped colour degrades to the highlighter yellow, not black', () => {
         expect(highlightColour(highlight(99 as StrokeColor))).toBe('#FFED75')
     })
+
+    /**
+     * Issue #47, a best guess. A reMarkable 2 user's yellow highlights came
+     * out as solid black bars. No real device file we have records a dark
+     * highlight, so whatever produced the black (firmware or parser) cannot be
+     * right, and the device's own export draws yellow.
+     */
+    test('a dark recorded colour falls back to the highlighter yellow', () => {
+        expect(highlightColour(highlight(StrokeColor.Black))).toBe('#FFED75')
+        expect(highlightColour(highlight(StrokeColor.Grey))).toBe('#FFED75')
+        const argbBlack = highlight(StrokeColor.Argb, { red: 0, green: 0, blue: 0, alpha: 255 })
+        expect(highlightColour(argbBlack)).toBe('#FFED75')
+    })
+
+    test('the real grey highlighter is light and passes through', () => {
+        const grey = highlight(StrokeColor.Argb, {
+            red: 0xc7,
+            green: 0xc7,
+            blue: 0xc6,
+            alpha: 255
+        })
+        expect(highlightColour(grey)).toBe('#c7c7c6')
+    })
+})
+
+describe('highlighter stroke colour', () => {
+    test('a dark highlighter stroke falls back to the highlighter yellow', () => {
+        expect(strokeColour(stroke(PenType.HighlighterV2, StrokeColor.Black))).toBe('#FFED75')
+        const argbBlack = stroke(PenType.HighlighterV2, StrokeColor.Argb, {
+            red: 0,
+            green: 0,
+            blue: 0,
+            alpha: 255
+        })
+        expect(strokeColour(argbBlack)).toBe('#FFED75')
+    })
+
+    test('a light highlighter colour passes through', () => {
+        const blue = stroke(PenType.HighlighterV2, StrokeColor.Argb, {
+            red: 0xbe,
+            green: 0xea,
+            blue: 0xfe,
+            alpha: 255
+        })
+        expect(strokeColour(blue)).toBe('#beeafe')
+    })
+
+    test('ordinary pens keep black', () => {
+        expect(strokeColour(stroke(PenType.FinelinerV2, StrokeColor.Black))).toBe('#000000')
+        expect(strokeColour(stroke(PenType.Shader, StrokeColor.Black))).toBe('#000000')
+    })
 })
 
 describe('highlightOpacity', () => {

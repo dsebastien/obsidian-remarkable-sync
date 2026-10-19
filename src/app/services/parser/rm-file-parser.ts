@@ -11,10 +11,10 @@ import {
     SceneItemType,
     ERASER_PEN_TYPES
 } from '../../domain/rm-constants'
+import { StrokeColor } from '../../domain/notebook'
 import type {
     PenType,
     Stroke,
-    StrokeColor,
     StrokePoint,
     Page,
     PageImage,
@@ -581,7 +581,7 @@ function parseGlyphValue(reader: BinaryReader, subEnd: number): Highlight | null
     }
 
     let text = ''
-    let color: StrokeColor = 0
+    let color: StrokeColor | undefined
     let argb: StrokeArgb | undefined
     const rects: HighlightRect[] = []
 
@@ -643,6 +643,17 @@ function parseGlyphValue(reader: BinaryReader, subEnd: number): Highlight | null
 
     if (!text) {
         return null
+    }
+
+    if (undefined === color) {
+        // Defaulting to 0 drew the highlight black (issue #47). Every device
+        // file we have carries the colour tag, so one without it is a format
+        // we have not seen: say so, and draw the device's default yellow.
+        log(
+            `Text highlight "${text.slice(0, 20)}" carries no colour tag; drawn in the default yellow`,
+            'warn'
+        )
+        color = StrokeColor.Argb
     }
 
     return { text, color, rects, ...(argb ? { argb } : {}) }

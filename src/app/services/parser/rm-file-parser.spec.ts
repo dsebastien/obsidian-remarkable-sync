@@ -1,6 +1,7 @@
 import { test, expect, describe } from 'bun:test'
 import { parseRmFile, pageHasContent } from './rm-file-parser'
 import { RM_HEADER, RM_HEADER_LENGTH, BlockType, SceneItemType } from '../../domain/rm-constants'
+import { highlightColour } from '../../domain/pen-model'
 import { PenType, StrokeColor } from '../../domain/notebook'
 
 /**
@@ -1008,5 +1009,93 @@ describe('rm-file-parser', () => {
             }
             expect(pageHasContent(page)).toBe(true)
         })
+    })
+})
+
+/**
+ * Build the data payload for a SceneGlyphItemBlock (0x03): a text highlight.
+ *
+ * Mirrors rmscene's `glyph_range_from_stream`: the CRDT item header, then a
+ * value subblock holding the scene type, the colour (tag 4), the text (tag 5)
+ * and the rectangles (tag 6). The colour tag can be left out to model a file
+ * from a firmware we have not seen.
+ */
+function buildGlyphItemData(opts: {
+    colorId?: number
+    text?: string
+    omitColour?: boolean
+}): Uint8Array {
+    const { colorId = StrokeColor.Yellow, text = 'marked words', omitColour = false } = opts
+
+    const value: number[] = [SceneItemType.GlyphRange]
+
+    if (!omitColour) {
+        // Tag 4 (Byte4): colour → 0x44
+        value.push(0x44)
+        pushInt32(value, colorId)
+    }
+
+    // Tag 5 (Length4): text → 0x5C, then varuint length | ascii flag | bytes
+    const textBytes = new TextEncoder().encode(text)
+    value.push(0x5c)
+    pushUint32(value, 2 + textBytes.length)
+    value.push(textBytes.length, 1)
+    for (const b of textBytes) value.push(b)
+
+    // Tag 6 (Length4): rectangles → 0x6C, varuint count then x, y, w, h as float64
+    value.push(0x6c)
+    pushUint32(value, 1 + 32)
+    value.push(1)
+    for (const n of [10, 20, 300, 24]) pushFloat64(value, n)
+
+    const block: number[] = []
+    block.push(0x1f, 0x00, 0x01) // item id
+    block.push(0x2f, 0x00, 0x00) // left id
+    block.push(0x3f, 0x00, 0x00) // right id
+    block.push(0x4f, 0x00, 0x00) // ref
+    block.push(0x54) // deleted flag
+    pushInt32(block, 0)
+    block.push(0x6c) // value subblock
+    pushUint32(block, value.length)
+    for (const b of value) block.push(b)
+
+    return new Uint8Array(block)
+}
+
+describe('text highlight colour (issue #47)', () => {
+    test('reads the colour tag', () => {
+        const buffer = new RmFileBuilder()
+            .writeHeader()
+            .writeBlock(
+                BlockType.SceneGlyphItemBlock,
+                buildGlyphItemData({ colorId: StrokeColor.Yellow })
+            )
+            .build()
+
+        const page = parseRmFile(buffer, 'test', 0)
+        expect(page.highlights).toHaveLength(1)
+        const highlight = page.highlights![0]!
+        expect(highlight.text).toBe('marked words')
+        expect(highlight.color).toBe(StrokeColor.Yellow)
+        expect(highlight.rects).toEqual([{ x: 10, y: 20, width: 300, height: 24 }])
+    })
+
+    /**
+     * A highlight without a colour tag used to default to 0, which is palette
+     * black, and a black highlight under a multiply blend is a solid bar over
+     * the words (issue #47). It now takes the highlighter marker, which draws
+     * in the device's default yellow.
+     */
+    test('a highlight without a colour tag is never black', () => {
+        const buffer = new RmFileBuilder()
+            .writeHeader()
+            .writeBlock(BlockType.SceneGlyphItemBlock, buildGlyphItemData({ omitColour: true }))
+            .build()
+
+        const page = parseRmFile(buffer, 'test', 0)
+        expect(page.highlights).toHaveLength(1)
+        const highlight = page.highlights![0]!
+        expect(highlight.color).toBe(StrokeColor.Argb)
+        expect(highlightColour(highlight)).toBe('#FFED75')
     })
 })

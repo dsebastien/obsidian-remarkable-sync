@@ -65,6 +65,14 @@ Opt-in, one checkbox per document:
 
 The troubleshooting docs page and the issue template point at this button first, and at the manual steps in section 3 only as a fallback.
 
+## 7. PDFs that need a reader password
+
+Open question, raised during the live test. The Paper Pro opened and text-highlighted a PDF whose user password is not empty (`47 lock aes-256 user password reader-pass`), while qpdf, Preview and `@cantoo/pdf-lib` all refuse it without the password. The cloud copy is byte-identical to the locked file, so the device decrypts it somehow. The plugin currently writes the original and reports `needs-password`.
+
+- First find out how the device does it: whether the web app and desktop app also render the file, and whether the behaviour depends on the encryption revision (this file is AES-256, R6). A device that opens such a file without the password would point at a weakness in its reader rather than at anything the plugin can reproduce.
+- If the password is genuinely required, the only honest route is to ask for it: a per-document prompt from the panel when a sync ends in `needs-password`, the password stored in SecretStorage keyed by document id and passed to `PDFDocument.load`. Never stored in `data.json`, never logged.
+- Until then the `needs-password` notice and the docs line stand.
+
 ## Order
 
 Sections 1 and 2 need nothing from any reporter and fix the two visible breakages. Section 5 is the structural change the rest hangs off. Section 6 builds on 5. Sections 3 and 4 are docs and a maintainer decision.

@@ -207,23 +207,37 @@ describe('highlightColour', () => {
     })
 
     /**
-     * Text highlights carry their own colour the same way strokes do, but the
-     * condition is mirrored: a stroke has one when its colour id *is* 9, a
-     * glyph range when its colour id is *below* 9. We read neither before, so
-     * every text highlight took a palette colour it may not have had.
+     * Text highlights carry their own colour the same way strokes do: when the
+     * colour id is the ARGB marker, the recorded value is the colour.
      */
-    test('a recorded colour wins over the palette', () => {
-        const green = highlight(StrokeColor.Green, {
-            red: 0xac,
-            green: 0xff,
-            blue: 0x85,
+    test('a recorded colour wins over the palette when the id says it is real', () => {
+        const blue = highlight(StrokeColor.Argb, {
+            red: 0xbe,
+            green: 0xea,
+            blue: 0xfe,
             alpha: 255
         })
-        expect(highlightColour(green)).toBe('#acff85')
+        expect(highlightColour(blue)).toBe('#beeafe')
     })
 
-    test('without one, the palette applies', () => {
-        expect(highlightColour(highlight(StrokeColor.Yellow))).toBe('#FFFF63')
+    test('without one, the highlight palette applies', () => {
+        // The device's own highlighter yellow, not the stroke palette's
+        expect(highlightColour(highlight(StrokeColor.Yellow))).toBe('#FFED75')
+    })
+
+    /**
+     * Issue #47, the actual cause. On current firmware a highlight made with a
+     * palette colour also carries the ARGB tag, as a placeholder of zeros with
+     * full alpha. Read as a colour it is opaque black, and the user's yellow
+     * highlights came out as black bars. Taken from real Paper Pro files:
+     * yellow (3), green (4), pink (5) and grey (8) all carried `000000ff`.
+     */
+    test('a palette highlight ignores the placeholder ARGB the device writes', () => {
+        const placeholder = { red: 0, green: 0, blue: 0, alpha: 255 }
+        expect(highlightColour(highlight(StrokeColor.Yellow, placeholder))).toBe('#FFED75')
+        expect(highlightColour(highlight(StrokeColor.Green, placeholder))).toBe('#ACFF85')
+        expect(highlightColour(highlight(StrokeColor.Pink, placeholder))).toBe('#F29EFF')
+        expect(highlightColour(highlight(StrokeColor.GreyOverlap, placeholder))).toBe('#C7C7C6')
     })
 
     test('an unmapped colour degrades to the highlighter yellow, not black', () => {
@@ -238,7 +252,7 @@ describe('highlightColour', () => {
      */
     test('a dark recorded colour falls back to the highlighter yellow', () => {
         expect(highlightColour(highlight(StrokeColor.Black))).toBe('#FFED75')
-        expect(highlightColour(highlight(StrokeColor.Grey))).toBe('#FFED75')
+        expect(highlightColour(highlight(StrokeColor.Blue))).toBe('#FFED75')
         const argbBlack = highlight(StrokeColor.Argb, { red: 0, green: 0, blue: 0, alpha: 255 })
         expect(highlightColour(argbBlack)).toBe('#FFED75')
     })
@@ -283,19 +297,30 @@ describe('highlighter stroke colour', () => {
 })
 
 describe('highlightOpacity', () => {
-    test('recorded alpha is used', () => {
+    test('recorded alpha is used when the colour id says the ARGB is real', () => {
         expect(
             highlightOpacity({
                 text: 't',
-                color: StrokeColor.Green,
+                color: StrokeColor.Argb,
                 rects: [],
-                argb: { red: 0, green: 0, blue: 0, alpha: 115 }
+                argb: { red: 0xbe, green: 0xea, blue: 0xfe, alpha: 115 }
             })
         ).toBeCloseTo(115 / 255, 4)
     })
 
     test('without one, the librm_lines highlighter blend of 0.25 applies', () => {
         expect(highlightOpacity({ text: 't', color: StrokeColor.Yellow, rects: [] })).toBe(0.25)
+    })
+
+    test('the placeholder ARGB on a palette highlight does not set the alpha either', () => {
+        expect(
+            highlightOpacity({
+                text: 't',
+                color: StrokeColor.Yellow,
+                rects: [],
+                argb: { red: 0, green: 0, blue: 0, alpha: 255 }
+            })
+        ).toBe(0.25)
     })
 })
 

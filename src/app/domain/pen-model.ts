@@ -223,22 +223,53 @@ function argbToHex(argb: StrokeArgb): string {
 }
 
 /**
- * The colour a text highlight should be drawn in.
+ * Whether a text highlight's recorded ARGB is its real colour.
  *
- * Same rule as a stroke: the recorded colour wins over the palette. The device
- * writes one for highlights made with a chosen colour rather than a palette
- * entry.
+ * The same rule as a stroke: only when the colour id is the ARGB marker (9).
+ * A highlight made with a palette colour (yellow 3, green 4, pink 5, grey 8)
+ * also carries the ARGB tag on current firmware, but as a placeholder of all
+ * zeros with full alpha. Read as a colour, that is opaque black, and a black
+ * highlight under a multiply blend is a solid bar over the words it was meant
+ * to mark (issue #47: "yellow highlights come out as black bars"). Confirmed on
+ * real files from a Paper Pro: every palette-id highlight carried `000000ff`,
+ * every id-9 highlight carried its actual colour.
+ */
+function hasOwnHighlightColour(highlight: Highlight): highlight is Highlight & {
+    argb: StrokeArgb
+} {
+    return undefined !== highlight.argb && StrokeColor.Argb === highlight.color
+}
+
+/**
+ * The colour a text highlight should be drawn in: the recorded ARGB when the
+ * colour id says it is real, the palette entry otherwise.
  */
 export function highlightColour(highlight: Highlight): string {
-    const recorded = highlight.argb
+    const recorded = hasOwnHighlightColour(highlight)
         ? argbToHex(highlight.argb)
-        : (STROKE_COLOR_MAP[highlight.color] ?? HIGHLIGHT_DEFAULT_COLOUR)
+        : (HIGHLIGHT_PALETTE[highlight.color] ??
+          STROKE_COLOR_MAP[highlight.color] ??
+          HIGHLIGHT_DEFAULT_COLOUR)
     return readableHighlightColour(recorded)
 }
 
-/** Alpha of a text highlight, 0-1. */
+/**
+ * What a palette id means on a highlight, which is lighter than the same id
+ * on a stroke: grey ink is `#7D7D7D`, pink ink `#FF1493`. These are the values
+ * the device itself records as ARGB for the same colours when the id is 9,
+ * taken from real files (rmscene's corpus, firmware 3.14 and 3.15).
+ */
+const HIGHLIGHT_PALETTE: Partial<Record<number, string>> = {
+    [StrokeColor.Grey]: '#C7C7C6',
+    [StrokeColor.Yellow]: '#FFED75',
+    [StrokeColor.Green]: '#ACFF85',
+    [StrokeColor.Pink]: '#F29EFF',
+    [StrokeColor.GreyOverlap]: '#C7C7C6'
+}
+
+/** Alpha of a text highlight, 0-1. The placeholder ARGB's alpha is not real either. */
 export function highlightOpacity(highlight: Highlight): number {
-    return highlight.argb ? highlight.argb.alpha / 255 : HIGHLIGHT_DEFAULT_OPACITY
+    return hasOwnHighlightColour(highlight) ? highlight.argb.alpha / 255 : HIGHLIGHT_DEFAULT_OPACITY
 }
 
 export function strokeColour(stroke: Stroke): string {
@@ -265,14 +296,10 @@ const HIGHLIGHT_MIN_LUMINANCE = 0.3
  * A highlight is never dark. Drawn with a multiply blend, a dark colour is a
  * solid bar over the words it was meant to mark.
  *
- * This is a best guess, not a proper fix (issue #47). A reMarkable 2 user sees
- * yellow highlights come out as black bars, while every real device file we
- * have (firmware 3.6 to 3.15, both palette and ARGB colours) records a light
- * colour. Without an `.rm` file from the affected device we cannot tell
- * whether that firmware records a dark colour or the parser fails to find the
- * colour and leaves it at the default. Either way the device's own export
- * draws yellow, so a dark highlight falls back to it. The parser warns when a
- * highlight carries no colour at all, so the real cause stays visible.
+ * The cause of issue #47's black bars was the placeholder ARGB described on
+ * `hasOwnHighlightColour`, which is handled there. This guard stays as the
+ * last line of defence for a firmware we have not seen: whatever it records,
+ * the device's own export never draws a highlight dark, so neither do we.
  */
 function readableHighlightColour(hex: string): string {
     return relativeLuminance(hex) < HIGHLIGHT_MIN_LUMINANCE ? HIGHLIGHT_DEFAULT_COLOUR : hex

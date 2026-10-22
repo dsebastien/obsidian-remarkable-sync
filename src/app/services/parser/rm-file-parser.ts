@@ -624,11 +624,10 @@ function parseGlyphValue(reader: BinaryReader, subEnd: number): Highlight | null
             continue
         }
 
-        // Tag 10 carries the highlight's own BGRA colour. Note that the
-        // condition is the mirror of a stroke's: a stroke has tag 8 when its
-        // colour id is 9, but a glyph range has tag 10 when its colour id is
-        // *below* 9. Both mean the same thing, that the palette is not the
-        // answer here.
+        // Tag 10 carries a BGRA colour. On current firmware every glyph range
+        // has it: the real colour when the colour id is 9 (custom), an
+        // all-zero placeholder when the id is a palette entry. It is read
+        // as-is here; `highlightColour` decides which of the two it is.
         if (tag.index === 10 && tag.type === TagType.Byte4) {
             const blue = reader.readUint8()
             const green = reader.readUint8()

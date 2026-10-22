@@ -250,11 +250,16 @@ describe('highlightColour', () => {
      * highlight, so whatever produced the black (firmware or parser) cannot be
      * right, and the device's own export draws yellow.
      */
-    test('a dark recorded colour falls back to the highlighter yellow', () => {
+    test('a black recorded colour falls back to the highlighter yellow', () => {
         expect(highlightColour(highlight(StrokeColor.Black))).toBe('#FFED75')
-        expect(highlightColour(highlight(StrokeColor.Blue))).toBe('#FFED75')
         const argbBlack = highlight(StrokeColor.Argb, { red: 0, green: 0, blue: 0, alpha: 255 })
         expect(highlightColour(argbBlack)).toBe('#FFED75')
+    })
+
+    /** Only near-black is wrong; a dark palette colour is the user's choice. */
+    test('a dark palette colour passes through', () => {
+        expect(highlightColour(highlight(StrokeColor.Blue))).toBe('#0062CC')
+        expect(highlightColour(highlight(StrokeColor.Red))).toBe('#D90707')
     })
 
     test('the real grey highlighter is light and passes through', () => {
@@ -278,6 +283,23 @@ describe('highlighter stroke colour', () => {
             alpha: 255
         })
         expect(strokeColour(argbBlack)).toBe('#FFED75')
+    })
+
+    /**
+     * Regression: a luminance threshold set above palette grey turned every
+     * grey highlighter stroke without ARGB, and any darker custom colour,
+     * into yellow.
+     */
+    test('a grey or dark custom highlighter colour passes through', () => {
+        expect(strokeColour(stroke(PenType.HighlighterV2, StrokeColor.Grey))).toBe('#7D7D7D')
+        expect(strokeColour(stroke(PenType.Highlighter, StrokeColor.GreyOverlap))).toBe('#7D7D7D')
+        const custom = stroke(PenType.HighlighterV2, StrokeColor.Argb, {
+            red: 0x30,
+            green: 0x60,
+            blue: 0xd0,
+            alpha: 255
+        })
+        expect(strokeColour(custom)).toBe('#3060d0')
     })
 
     test('a light highlighter colour passes through', () => {

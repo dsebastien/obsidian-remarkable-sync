@@ -225,8 +225,8 @@ function argbToHex(argb: StrokeArgb): string {
 /**
  * Whether a text highlight's recorded ARGB is its real colour.
  *
- * The same rule as a stroke: only when the colour id is the ARGB marker (9).
- * A highlight made with a palette colour (yellow 3, green 4, pink 5, grey 8)
+ * Only when the colour id is the ARGB marker (9). Strokes are not held to
+ * this: the parser reads their ARGB whatever the id. A highlight made with a palette colour (yellow 3, green 4, pink 5, grey 8)
  * also carries the ARGB tag on current firmware, but as a placeholder of all
  * zeros with full alpha. Read as a colour, that is opaque black, and a black
  * highlight under a multiply blend is a solid bar over the words it was meant
@@ -285,21 +285,22 @@ export const HIGHLIGHT_DEFAULT_COLOUR = '#FFED75'
 /**
  * Below this relative luminance a highlight colour is treated as wrong.
  *
- * Every highlight colour the device offers is light: the darkest real one is
- * the grey highlighter at `#c7c7c6` (luminance 0.57). Palette black is 0 and
- * palette grey `#7D7D7D` is 0.21, so the threshold separates the two sets
- * with room on both sides.
+ * Only near-black: the black bars of issue #47 (palette black, or the
+ * all-zero placeholder ARGB). A dark but real colour stays as recorded: the
+ * palette grey `#7D7D7D` (0.21) a highlighter stroke falls back to without
+ * ARGB, palette blue `#0062CC` (0.13), or a custom colour such as `#3060D0`.
+ * Swapping those for yellow repainted the user's own choice.
  */
-const HIGHLIGHT_MIN_LUMINANCE = 0.3
+const HIGHLIGHT_MIN_LUMINANCE = 0.05
 
 /**
- * A highlight is never dark. Drawn with a multiply blend, a dark colour is a
- * solid bar over the words it was meant to mark.
+ * A highlight is never black. Drawn with a multiply blend, black is a solid
+ * bar over the words it was meant to mark.
  *
  * The cause of issue #47's black bars was the placeholder ARGB described on
  * `hasOwnHighlightColour`, which is handled there. This guard stays as the
  * last line of defence for a firmware we have not seen: whatever it records,
- * the device's own export never draws a highlight dark, so neither do we.
+ * the device's own export never draws a highlight black, so neither do we.
  */
 function readableHighlightColour(hex: string): string {
     return relativeLuminance(hex) < HIGHLIGHT_MIN_LUMINANCE ? HIGHLIGHT_DEFAULT_COLOUR : hex

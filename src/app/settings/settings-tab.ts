@@ -158,7 +158,7 @@ export class RemarkableSyncSettingTab extends PluginSettingTab {
                             setting.addComponent((el) =>
                                 new SecretComponent(this.app, el)
                                     .setValue(this.plugin.settings.deviceTokenSecretName)
-                                    .onChange(async (name: string) => {
+                                    .onChange(async (name: string | null) => {
                                         await this.changeDeviceTokenSecret(name)
                                     })
                             )
@@ -578,7 +578,12 @@ export class RemarkableSyncSettingTab extends PluginSettingTab {
     }
 
     /** Point the plugin at the secret the user picked, then re-check the connection. */
-    private async changeDeviceTokenSecret(name: string): Promise<void> {
+    private async changeDeviceTokenSecret(name: string | null): Promise<void> {
+        // A cleared picker reports null; the token always needs a secret, so keep the current one.
+        if (name === null) {
+            this.update()
+            return
+        }
         if (name === this.plugin.settings.deviceTokenSecretName) {
             return
         }

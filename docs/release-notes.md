@@ -1,5 +1,22 @@
 # Release Notes
 
+## 2.5.0 (2026-10-22)
+
+### Features
+
+- **plugin:** always write a PDF-backed document's original and annotated copy
+- **plugin:** annotate PDFs locked with an owner password
+
+### Bug Fixes
+
+- **plugin:** keep a locked source's trailer in the annotated copy
+- **plugin:** map an older format 1 PDF without redirectionPageMap page by page
+- **plugin:** map format 1 PDF layers through redirectionPageMap
+- **plugin:** never draw a text highlight or highlighter stroke in a dark colour
+- **plugin:** only swap near-black highlight colours for yellow
+- **plugin:** read a palette text highlight by its palette colour
+- **plugin:** report ink that matched no source page
+
 ## 2.4.1 (2026-10-22)
 
 ### Bug Fixes

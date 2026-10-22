@@ -65,9 +65,11 @@ The annotated copy keeps the original's text layer, so it stays selectable and s
 
 Pages you inserted on the device have no counterpart in the original and are left out of the annotated copy.
 
-PDFs from library databases and publishers are often locked to restrict copying and printing. They open without a password, and the plugin annotates them like any other file. A PDF that asks for a password when you open it cannot be annotated (the tablet cannot open it either), and in that case the original is still written to your vault with a notice saying why.
+PDFs from library databases and publishers are often locked to restrict copying and printing. They open without a password, and the plugin annotates them like any other file. A PDF that asks for a password when you open it cannot be annotated (the tablet cannot open it either), and in that case the original is still written to your vault with a notice saying why. The annotated copy of a locked PDF is written without the lock, so it no longer restricts copying or printing; the original is written through unchanged, lock included.
 
 If none of your ink can be matched to a page of the original (for example, you only wrote on pages you inserted), no annotated copy is written and a notice says so. The original is still written to your vault.
+
+Documents synced before a fix to annotation are only re-annotated when they next change on the device. To refresh one now, sync it by hand (its sync button in the panel, or **Sync a notebook**), which always re-runs.
 
 Very large source documents (over 80 MB) are not annotated: the original, the parsed copy and the output would all be in memory at once, which is a real risk on phones. The original is still written to your vault.
 
@@ -79,7 +81,7 @@ Generated PDFs deliberately carry no creation or modification date. Re-syncing a
 
 If you highlight text on the device (selecting words rather than drawing over them with the highlighter pen), those become **real PDF highlight annotations** in the annotated copy. You can select them, see the text in a reader's comment pane, and extract them like any other annotation.
 
-Highlights are drawn in the colour the device recorded. A highlight is never dark, so if a file records a dark colour for one (seen on a reMarkable 2, where yellow highlights came out as black bars), the plugin draws it in the default yellow instead.
+Highlights are drawn in the device's own highlighter colours: a custom colour as recorded, a palette colour (yellow, green, pink, grey) in the lighter shade the device uses for highlights. A highlight is never black, so if a file records black for one (seen on a reMarkable 2, where yellow highlights came out as black bars), the plugin draws it in the default yellow instead.
 
 Enable **Save highlights note** to also get a markdown note listing them:
 

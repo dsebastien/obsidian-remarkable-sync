@@ -43,6 +43,9 @@ function ok(outcome: AnnotateResult | AnnotateFailure): AnnotateResult {
     return outcome
 }
 
+/** The producer every locked fixture records in its information dictionary. */
+const FIXTURE_PRODUCER = 'pdf-lib (https://github.com/Hopding/pdf-lib)'
+
 /** A PDF locked once with qpdf; see `fixtures/locked-pdfs.ts`. */
 function fixture(name: string): ArrayBuffer {
     const encoded = LOCKED_PDF_FIXTURES[name]
@@ -217,12 +220,28 @@ describe('annotateSourcePdf', () => {
             expect(result.annotatedPages).toBe(1)
 
             // The output is unlocked and still a complete, readable document.
-            // Checked through the trailer, which is what a reader consults:
-            // the source's old cross-reference stream survives as a dead
-            // object and still names its `/Encrypt` dictionary.
-            const doc = await PDFDocument.load(result.data, { ignoreEncryption: true })
+            const doc = await PDFDocument.load(result.data)
             expect(doc.isEncrypted).toBe(false)
             expect(doc.getPageCount()).toBe(3)
+            expect(doc.getProducer()).toBe(FIXTURE_PRODUCER)
+        })
+
+        /**
+         * The source's trailer lives in a cross-reference stream, which the
+         * decrypting parse garbles: `/Info` and `/ID` were lost, and only a
+         * lenient reader that rebuilt the trailer from the dead stream still
+         * found the metadata. Read from the saved file's own trailer, the way
+         * a strict reader does.
+         */
+        test(`keeps the source's trailer when annotating a locked source (${name})`, async () => {
+            const result = ok(await annotateSourcePdf(fixture(name), [layer(0, 1)]))
+            const text = new TextDecoder('latin1').decode(result.data)
+
+            const trailer = text.slice(text.lastIndexOf('trailer'))
+            expect(trailer).toMatch(/\/Info \d+ 0 R/)
+            expect(trailer).toMatch(/\/ID \[/)
+            expect(trailer).not.toContain('/Encrypt')
+            expect(text).not.toContain('/XRef')
         })
     }
 

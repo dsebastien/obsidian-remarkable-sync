@@ -2,17 +2,20 @@ import {
     BlendMode,
     LineCapStyle,
     LineJoinStyle,
+    PDFArray,
     PDFDict,
     PDFDocument,
     PDFHexString,
     PDFName,
     PDFNumber,
+    PDFRawStream,
+    PDFRef,
     popGraphicsState,
     pushGraphicsState,
     rgb,
     setLineJoin
 } from '@cantoo/pdf-lib'
-import type { PDFPage, PDFRef } from '@cantoo/pdf-lib'
+import type { PDFObject, PDFPage } from '@cantoo/pdf-lib'
 import { log } from '../../../utils/log'
 import { PenType } from '../../domain/notebook'
 import type { Highlight, Page, Stroke } from '../../domain/notebook'
@@ -375,7 +378,11 @@ function highlightAppearance(
  * file opens in any reader without a prompt, and the device annotates it
  * normally, but the upstream pdf-lib refused it outright. A file that needs a
  * real password to open fails here with `needs-password`; the device cannot
- * open one of those either, so it never carries ink.
+ * open one of those either, so it never carries ink. An unencrypted source is
+ * parsed once; an encrypted one is parsed first without the password to read
+ * its trailer, which the decrypting parse can garble (see `readSourceTrailer`).
+ * The annotated copy is written unencrypted, so it no longer carries the
+ * source's copy and print restrictions.
  */
 export async function annotateSourcePdf(
     sourceData: ArrayBuffer,
@@ -392,7 +399,22 @@ export async function annotateSourcePdf(
 
     let doc: PDFDocument
     try {
-        doc = await PDFDocument.load(sourceData, { updateMetadata: false, password: '' })
+        doc = await PDFDocument.load(sourceData, { updateMetadata: false, ignoreEncryption: true })
+        if (doc.isEncrypted) {
+            const trailer = readSourceTrailer(doc)
+            if (!trailer.id) {
+                // Decryption is keyed on the file identifier; without one the
+                // library fails on a null lookup that would read as corruption.
+                log(
+                    'The source PDF is encrypted but has no file identifier; annotations not burned in',
+                    'warn'
+                )
+                return { failure: 'unreadable' }
+            }
+            doc = await PDFDocument.load(sourceData, { updateMetadata: false, password: '' })
+            restoreSourceTrailer(doc, trailer)
+            dropEncryptionArtefacts(doc, trailer)
+        }
     } catch (error) {
         if (needsPassword(error)) {
             log('The source PDF needs a password to open; annotations not burned in', 'warn')
@@ -401,8 +423,6 @@ export async function annotateSourcePdf(
         log('Could not read the source PDF', 'error', error)
         return { failure: 'unreadable' }
     }
-
-    dropEncryptionDictionary(doc)
 
     const pageCount = doc.getPageCount()
     let annotatedPages = 0
@@ -449,17 +469,77 @@ export async function annotateSourcePdf(
     }
 }
 
+/** What an encrypted source's trailer said, read before decryption. */
+interface SourceTrailer {
+    readonly info: PDFObject | undefined
+    readonly id: PDFArray | undefined
+    /** The cross-reference streams, which are never encrypted. */
+    readonly xrefStreams: readonly PDFRef[]
+}
+
 /**
- * Remove the source's encryption dictionary from a decrypted document.
+ * Read an encrypted source's trailer from a parse without the password.
  *
- * Decryption drops `/Encrypt` from the trailer, which is what a reader
- * consults, but the dictionary itself stays in the object graph and is
- * written out as a dead object. pdf-lib's own parser then reads the saved
- * file as encrypted again, and any pdf-lib-based tool downstream would refuse
- * it the way this plugin used to. Matched by shape: the standard security
- * handler's dictionary is the only one with `/Filter /Standard` and `/O`.
+ * The decrypting parse runs the cipher over the cross-reference streams too,
+ * which the specification leaves unencrypted. On a file whose trailer lives
+ * in such a stream (most current PDFs), that garbles it: `/Info` and `/ID`
+ * are lost and the catalog is only found by a fallback scan. This parse reads
+ * them intact.
  */
-function dropEncryptionDictionary(doc: PDFDocument): void {
+function readSourceTrailer(doc: PDFDocument): SourceTrailer {
+    const { context } = doc
+    const id = context.trailerInfo.ID ? context.lookup(context.trailerInfo.ID) : undefined
+    const xrefStreams: PDFRef[] = []
+    for (const [ref, object] of context.enumerateIndirectObjects()) {
+        if (
+            object instanceof PDFRawStream &&
+            object.dict.get(PDFName.of('Type')) === PDFName.of('XRef')
+        ) {
+            xrefStreams.push(ref)
+        }
+    }
+    return {
+        info: context.trailerInfo.Info,
+        id: id instanceof PDFArray && id.size() > 0 ? id : undefined,
+        xrefStreams
+    }
+}
+
+/**
+ * Put back what the decrypting parse lost from the trailer, so annotating
+ * keeps the source's title, author and dates. The information dictionary
+ * itself is an ordinary object and decrypts fine; only the reference to it
+ * is missing.
+ */
+function restoreSourceTrailer(doc: PDFDocument, trailer: SourceTrailer): void {
+    const { context } = doc
+    if (
+        !context.trailerInfo.Info &&
+        trailer.info instanceof PDFRef &&
+        context.lookup(trailer.info) instanceof PDFDict
+    ) {
+        context.trailerInfo.Info = trailer.info
+    }
+    if (!context.trailerInfo.ID && trailer.id) {
+        context.trailerInfo.ID = context.obj(trailer.id.asArray())
+    }
+}
+
+/**
+ * Remove what decryption leaves behind in the object graph.
+ *
+ * - The encryption dictionary: decryption drops `/Encrypt` from the trailer,
+ *   but the dictionary stays and is written out as a dead object. pdf-lib's
+ *   own parser then reads the saved file as encrypted again, and any
+ *   pdf-lib-based tool downstream would refuse it the way this plugin used
+ *   to. Matched by shape: the standard security handler's dictionary is the
+ *   only one with `/Filter /Standard` and `/O`.
+ * - The source's cross-reference streams, which the decrypting parse could
+ *   not read. Written out dead, they still name `/Encrypt`, and a lenient
+ *   parser that rebuilds the trailer from them restores it.
+ */
+function dropEncryptionArtefacts(doc: PDFDocument, trailer: SourceTrailer): void {
+    for (const ref of trailer.xrefStreams) doc.context.delete(ref)
     for (const [ref, object] of doc.context.enumerateIndirectObjects()) {
         if (
             object instanceof PDFDict &&
@@ -469,6 +549,13 @@ function dropEncryptionDictionary(doc: PDFDocument): void {
             doc.context.delete(ref)
         }
     }
+    // The trailer's `/Size` follows this; left at the deleted objects' numbers,
+    // strict readers warn that it does not match the cross-reference table.
+    let largest = 0
+    for (const [ref] of doc.context.enumerateIndirectObjects()) {
+        largest = Math.max(largest, ref.objectNumber)
+    }
+    doc.context.largestObjectNumber = largest
 }
 
 /**

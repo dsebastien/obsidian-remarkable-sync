@@ -298,6 +298,22 @@ describe('extractSourcePageMap', () => {
         expect(map.has('b')).toBe(false)
     })
 
+    /**
+     * The identity case above passes with a naive `pages[i] -> i` mapping
+     * too; this one does not, so it proves the map is actually read.
+     */
+    test('a redirection that is not the identity is followed', () => {
+        const map = extractSourcePageMap({ pages: ['a', 'b'], redirectionPageMap: [3, 1] })
+        expect(map.get('a')).toBe(3)
+        expect(map.get('b')).toBe(1)
+    })
+
+    test('an older format 1 PDF without redirectionPageMap maps page i to source page i', () => {
+        const map = extractSourcePageMap({ fileType: 'pdf', pages: ['a', 'b'] })
+        expect(map.get('a')).toBe(0)
+        expect(map.get('b')).toBe(1)
+    })
+
     test('cPages wins over redirectionPageMap when both are present', () => {
         const map = extractSourcePageMap({
             pages: ['a'],
@@ -310,6 +326,7 @@ describe('extractSourcePageMap', () => {
     test('a notebook has no mapping at all', () => {
         expect(extractSourcePageMap(content([{ id: 'a' }, { id: 'b' }])).size).toBe(0)
         expect(extractSourcePageMap({ pages: ['a', 'b'] }).size).toBe(0)
+        expect(extractSourcePageMap({ fileType: 'notebook', pages: ['a', 'b'] }).size).toBe(0)
         expect(extractSourcePageMap(null).size).toBe(0)
     })
 })

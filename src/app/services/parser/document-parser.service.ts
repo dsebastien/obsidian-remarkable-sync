@@ -18,10 +18,15 @@ import type {
  * `.content` format 1 has no `cPages`: it pairs the flat `pages` array with
  * `redirectionPageMap` by position instead. Reading only `cPages` gave every
  * layer of such a document no source page, so no annotated copy was written
- * at all (issue #47).
+ * at all (issue #47). Older format 1 files of a PDF or EPUB carry no
+ * `redirectionPageMap` at all: no page was inserted, so page `i` annotates
+ * source page `i`. A notebook has no source and never gets a mapping.
  */
 export function extractSourcePageMap(
-    content: Pick<RemarkableDocumentContent, 'cPages' | 'pages' | 'redirectionPageMap'> | null
+    content:
+        | (Pick<RemarkableDocumentContent, 'cPages' | 'pages' | 'redirectionPageMap'> &
+              Partial<Pick<RemarkableDocumentContent, 'fileType'>>)
+        | null
 ): Map<string, number> {
     const map = new Map<string, number>()
     const cPages = content?.cPages?.pages ?? []
@@ -34,8 +39,10 @@ export function extractSourcePageMap(
         return map
     }
 
-    const redirections = content?.redirectionPageMap ?? []
     const pageIds = content?.pages ?? []
+    const sourceBacked = 'pdf' === content?.fileType || 'epub' === content?.fileType
+    const redirections =
+        content?.redirectionPageMap ?? (sourceBacked ? pageIds.map((_, i) => i) : [])
     for (let i = 0; i < pageIds.length; i++) {
         const pageId = pageIds[i]
         const sourceIndex = redirections[i]

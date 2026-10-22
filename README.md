@@ -70,16 +70,16 @@ If the plugin isn't listed in the community catalog yet (or you want a specific 
 
 ## Settings
 
-| Setting              | Default     | Description                                                                  |
-| -------------------- | ----------- | ---------------------------------------------------------------------------- |
-| Target folder        | `""` (root) | Vault folder for output files                                                |
-| Save images          | `true`      | Save rendered page images                                                    |
-| Save as PDF          | `false`     | One PDF per notebook; for imported PDFs, the original plus an annotated copy |
-| Save highlights note | `false`     | Markdown note of text highlighted on the device                              |
-| Save typed text note | `false`     | Markdown note of text typed on the device's keyboard                         |
-| Image format         | `jpeg`      | JPEG, WebP or PNG                                                            |
-| Use rmfakecloud      | `false`     | Connect to a self-hosted rmfakecloud server instead of official cloud        |
-| Server URL           | `""`        | Base URL of your rmfakecloud server (only when rmfakecloud is enabled)       |
+| Setting              | Default     | Description                                                                         |
+| -------------------- | ----------- | ----------------------------------------------------------------------------------- |
+| Target folder        | `""` (root) | Vault folder for output files                                                       |
+| Save images          | `true`      | Save rendered page images                                                           |
+| Save as PDF          | `false`     | One PDF per notebook (imported PDFs always get the original plus an annotated copy) |
+| Save highlights note | `false`     | Markdown note of text highlighted on the device                                     |
+| Save typed text note | `false`     | Markdown note of text typed on the device's keyboard                                |
+| Image format         | `jpeg`      | JPEG, WebP or PNG                                                                   |
+| Use rmfakecloud      | `false`     | Connect to a self-hosted rmfakecloud server instead of official cloud               |
+| Server URL           | `""`        | Base URL of your rmfakecloud server (only when rmfakecloud is enabled)              |
 
 ## Output Format
 

@@ -342,7 +342,7 @@ export class RemarkableSyncSettingTab extends PluginSettingTab {
                 items: [
                     {
                         name: 'Save as PDF',
-                        desc: 'Write one PDF per notebook, beside the page images. Independent of "Save images": enable either, both or neither. WebP cannot be stored in a PDF, so pages are embedded as JPEG when that format is selected.',
+                        desc: 'Write one PDF per notebook, beside the page images. Independent of "Save images": enable either, both or neither. WebP cannot be stored in a PDF, so pages are embedded as JPEG when that format is selected. Documents imported from a PDF always get the original and an annotated copy, whatever this says.',
                         control: { type: 'toggle', key: 'savePdf' }
                     }
                 ]

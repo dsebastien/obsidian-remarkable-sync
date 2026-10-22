@@ -114,7 +114,7 @@ export function createNotebookPipelineService(
 
             // A source-backed document with no annotated pages still has its
             // original to write; skipping it here silently lost the source.
-            const writesSourceOnly = undefined !== parsed.sourceDocument && settings.savePdf
+            const writesSourceOnly = undefined !== parsed.sourceDocument
             if (contentPages.length === 0 && !writesSourceOnly) {
                 new Notice(`${notebook.visibleName}: No pages with content found`)
                 onProgress({ status: 'done', currentPage: 0, totalPages: 0 })

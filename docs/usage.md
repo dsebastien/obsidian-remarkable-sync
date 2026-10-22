@@ -106,7 +106,7 @@ If **Save typed text note** is enabled, any document with keyboard-typed text al
 
 - `{Name} (text).md` — that text as a searchable markdown note. Handwriting is not included; it stays as ink in the page image
 
-For a document imported from a PDF, you get the original plus an annotated copy instead:
+For a document imported from a PDF, you always get the original plus an annotated copy instead, whether **Save as PDF** is on or not:
 
 - `{Name}.pdf` — the original document, unchanged
 - `{Name} (annotated).pdf` — the same document with your handwriting drawn on top, text still selectable

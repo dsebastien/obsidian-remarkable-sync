@@ -13,7 +13,7 @@ All settings are accessible via **Settings → Community plugins → Remarkable 
 | -------------------- | -------- | ------- | -------------------------------------------------------------------------------- |
 | Target folder        | text     | `""`    | Vault-relative path where output files are saved. Leave empty for vault root.    |
 | Save images          | toggle   | `true`  | Save rendered page images                                                        |
-| Save as PDF          | toggle   | `false` | Write one PDF per notebook, beside the page images                               |
+| Save as PDF          | toggle   | `false` | Write one PDF per notebook, beside the page images (imported PDFs: always)       |
 | Save highlights note | toggle   | `false` | Write a markdown note of text highlighted on the device                          |
 | Save typed text note | toggle   | `false` | Write a markdown note of text typed on the device's keyboard                     |
 | Image format         | dropdown | `jpeg`  | Format for rendered images: JPEG, WebP, or PNG                                   |
@@ -52,7 +52,7 @@ A PDF cannot store WebP. When the image format is WebP, pages are embedded in th
 
 ### Annotated PDFs and EPUBs
 
-If the document came from a PDF you imported onto your reMarkable, **Save as PDF** does something different and better: instead of assembling page images, it writes the original document through unchanged and adds an annotated copy beside it.
+If the document came from a PDF you imported onto your reMarkable, the plugin always writes the original document through unchanged and adds an annotated copy beside it, whether **Save as PDF** is on or not. Page images are never assembled into a PDF for such a document. **Save images** still adds page images if you want them, but they contain your ink only, never the text of the original.
 
 ```
 reMarkable/

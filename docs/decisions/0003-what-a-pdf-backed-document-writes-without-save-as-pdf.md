@@ -1,7 +1,7 @@
 ---
 type: decision
 id: 0003
-status: proposed
+status: accepted
 date: 2026-10-19
 domain: architecture
 context: home
@@ -30,7 +30,7 @@ The reporter had reinstalled the plugin to try to fix an unrelated problem, sync
 
 ## Decision
 
-Proposed, not taken. This changes a documented business rule, so it is the maintainer's call. The recommendation is the third option: a PDF-backed document always writes its original and its annotated copy. The second option is the fallback if changing the meaning of `savePdf` is unwanted.
+Accepted (maintainer, 2026-10-22): the third option. A PDF-backed document always writes its original and its annotated copy; `savePdf` governs notebook PDFs only.
 
 Whichever is chosen, `docs/configuration.md` states that page images contain the ink only and never the source PDF.
 

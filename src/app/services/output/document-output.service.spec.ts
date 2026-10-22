@@ -306,16 +306,36 @@ describe('source-backed documents', () => {
         expect(h.annotateCalls).toHaveLength(1)
     })
 
-    test('writes nothing extra when savePdf is off', async () => {
+    /**
+     * ADR 0003 (#55). With `savePdf` off the only output used to be page
+     * images, which carry the ink and never the source text: a fresh install
+     * synced "ghost annotations". The source is the document, so it and its
+     * annotated copy are written whatever `savePdf` says.
+     */
+    test('writes the source and the annotated copy even when savePdf is off', async () => {
         const h = createHarness()
         const result = await runSourceBacked(h, { savePdf: false, saveImages: true }, [
             sourcePage(0, 0)
         ])
 
-        expect(h.pdfWrites).toHaveLength(0)
-        expect(h.fileWrites).toHaveLength(0)
-        expect(result.sourceWritten).toBe(false)
-        expect(result.annotatedWritten).toBe(false)
+        expect(h.fileWrites).toEqual([{ name: 'Book', extension: 'pdf' }])
+        expect(h.pdfWrites.map((w) => w.name)).toEqual(['Book (annotated)'])
+        expect(h.pdfPages).toHaveLength(0)
+        expect(h.imageWrites).toHaveLength(1)
+        expect(result.sourceWritten).toBe(true)
+        expect(result.annotatedWritten).toBe(true)
+    })
+
+    test('with savePdf and images off, the source and annotated copy are the output', async () => {
+        const h = createHarness()
+        const result = await runSourceBacked(h, { savePdf: false, saveImages: false }, [
+            sourcePage(0, 0)
+        ])
+
+        expect(h.fileWrites).toEqual([{ name: 'Book', extension: 'pdf' }])
+        expect(h.pdfWrites.map((w) => w.name)).toEqual(['Book (annotated)'])
+        expect(h.imageWrites).toHaveLength(0)
+        expect(result.sourceWritten).toBe(true)
     })
 
     test('still writes the source when no layer maps to a source page', async () => {
@@ -471,7 +491,7 @@ describe('highlights note toggle', () => {
         }
     })
 
-    test('works without a PDF: the note does not depend on savePdf', async () => {
+    test('the note does not depend on savePdf', async () => {
         const h = createHarness()
         const result = await runSourceBacked(
             h,
@@ -479,8 +499,9 @@ describe('highlights note toggle', () => {
             [highlightedPage(0)]
         )
 
-        expect(h.pdfWrites).toHaveLength(0)
         expect(result.highlightsNoteWritten).toBe(true)
+        // The annotated copy it links to is written whatever savePdf says (ADR 0003)
+        expect(result.annotatedWritten).toBe(true)
     })
 })
 

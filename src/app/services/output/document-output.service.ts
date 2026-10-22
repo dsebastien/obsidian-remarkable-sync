@@ -213,66 +213,61 @@ export async function renderAndWritePages(
         // A document built from an imported file. Assembling page images into a
         // PDF would throw the original away, which is the whole problem being
         // fixed here, so the source is written through instead and the ink is
-        // drawn back onto it.
-        if (wantPdf) {
-            // The source keeps its own extension: an EPUB written under a
-            // `.pdf` name is a file no reader can open.
-            await deps.writeDocumentFile(
-                vault,
-                settings.targetFolder,
-                folderPath,
-                notebookName,
-                sourceDocument.data,
-                sourceDocument.kind
-            )
-            sourceWritten = true
+        // drawn back onto it. Always, whatever `savePdf` says (ADR 0003): the
+        // source is the document, and the page images carry the ink only.
+        // The source keeps its own extension: an EPUB written under a
+        // `.pdf` name is a file no reader can open.
+        await deps.writeDocumentFile(
+            vault,
+            settings.targetFolder,
+            folderPath,
+            notebookName,
+            sourceDocument.data,
+            sourceDocument.kind
+        )
+        sourceWritten = true
 
-            if ('pdf' === sourceDocument.kind) {
-                const outcome = await deps.annotateSourcePdf(
-                    sourceDocument.data,
-                    pages,
-                    deviceScreen
+        if ('pdf' === sourceDocument.kind) {
+            const outcome = await deps.annotateSourcePdf(sourceDocument.data, pages, deviceScreen)
+            const annotated = isAnnotateFailure(outcome) ? null : outcome
+            if (annotated && annotated.annotatedPages > 0) {
+                await deps.writeDocumentPdf(
+                    vault,
+                    settings.targetFolder,
+                    folderPath,
+                    `${notebookName}${ANNOTATED_SUFFIX}`,
+                    annotated.data
                 )
-                const annotated = isAnnotateFailure(outcome) ? null : outcome
-                if (annotated && annotated.annotatedPages > 0) {
-                    await deps.writeDocumentPdf(
-                        vault,
-                        settings.targetFolder,
-                        folderPath,
-                        `${notebookName}${ANNOTATED_SUFFIX}`,
-                        annotated.data
-                    )
-                    annotatedWritten = true
-                    if (annotated.skippedPages > 0) {
-                        log(
-                            `${notebookName}: ${annotated.skippedPages} layer(s) had no source page and were left out of the annotated copy`,
-                            'warn'
-                        )
-                    }
-                } else if (annotated && pages.length > 0) {
-                    // Every layer was skipped. Before #47 this is what a
-                    // format 1 document did, and it went unreported.
-                    annotationsUnplaced = true
-                    new Notice(
-                        `${notebookName}: no annotated page could be matched to the source PDF; only the original was saved`
-                    )
+                annotatedWritten = true
+                if (annotated.skippedPages > 0) {
                     log(
-                        `${notebookName}: ${annotated.skippedPages} layer(s) had no source page; no annotated copy written`,
-                        'warn'
-                    )
-                } else if (isAnnotateFailure(outcome)) {
-                    // The user asked for this output; a debug-only log line
-                    // would let the failure masquerade as success. Each reason
-                    // gets its own words: a vague "may be encrypted or too
-                    // large" sent a reporter looking in the wrong place (#47).
-                    new Notice(
-                        `${notebookName}: ${ANNOTATE_FAILURE_MESSAGES[outcome.failure]}; the original was still saved`
-                    )
-                    log(
-                        `${notebookName}: could not annotate the source PDF (${outcome.failure})`,
+                        `${notebookName}: ${annotated.skippedPages} layer(s) had no source page and were left out of the annotated copy`,
                         'warn'
                     )
                 }
+            } else if (annotated && pages.length > 0) {
+                // Every layer was skipped. Before #47 this is what a
+                // format 1 document did, and it went unreported.
+                annotationsUnplaced = true
+                new Notice(
+                    `${notebookName}: no annotated page could be matched to the source PDF; only the original was saved`
+                )
+                log(
+                    `${notebookName}: ${annotated.skippedPages} layer(s) had no source page; no annotated copy written`,
+                    'warn'
+                )
+            } else if (isAnnotateFailure(outcome)) {
+                // This output is always expected; a debug-only log line
+                // would let the failure masquerade as success. Each reason
+                // gets its own words: a vague "may be encrypted or too
+                // large" sent a reporter looking in the wrong place (#47).
+                new Notice(
+                    `${notebookName}: ${ANNOTATE_FAILURE_MESSAGES[outcome.failure]}; the original was still saved`
+                )
+                log(
+                    `${notebookName}: could not annotate the source PDF (${outcome.failure})`,
+                    'warn'
+                )
             }
         }
     } else if (assemblePdf && pdfPages.length > 0) {

@@ -7,6 +7,7 @@ import {
     ASSETS_SRC,
     BANNER,
     BROWSER_ENTRY_PACKAGES,
+    findUnexpectedRequires,
     DIST,
     EXTERNAL_MODULES,
     PLUGIN_ID,
@@ -145,5 +146,24 @@ describe('browser entry redirects', () => {
 
     test('the Node entry is the one that would have pulled in worker_threads', async () => {
         expect(await sourceOf('fflate')).toContain('worker_threads')
+    })
+})
+
+describe('findUnexpectedRequires', () => {
+    test('externals are allowed', () => {
+        expect(findUnexpectedRequires('var o=require("obsidian"),e=require(\'electron\')')).toEqual(
+            []
+        )
+    })
+
+    test('a bundled module left as a require is reported once', () => {
+        const code = 'require("obsidian");require("worker_threads");require(`worker_threads`)'
+        expect(findUnexpectedRequires(code)).toEqual(['worker_threads'])
+    })
+
+    test('the production bundle requires nothing but externals', async () => {
+        const bundle = await readFile(join(DIST, 'main.js'), 'utf8').catch(() => null)
+        if (null === bundle) return
+        expect(findUnexpectedRequires(bundle)).toEqual([])
     })
 })

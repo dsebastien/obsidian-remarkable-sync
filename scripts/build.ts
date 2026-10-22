@@ -1,5 +1,5 @@
 import { existsSync, mkdirSync, readdirSync, watch } from 'node:fs'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
 import { parseArgs } from 'node:util'
 import { $ } from 'bun'
 import { Glob } from 'bun'
@@ -116,10 +116,29 @@ const browserEntryPlugin: import('bun').BunPlugin = {
     name: 'browser-entry',
     setup(build): void {
         const pattern = new RegExp(`^(${Object.keys(BROWSER_ENTRY_PACKAGES).join('|')})$`)
+        // Resolved from the importing file, not the project root, so a
+        // dependency that nests its own copy of the package gets that copy.
         build.onResolve({ filter: pattern }, (args) => ({
-            path: Bun.resolveSync(BROWSER_ENTRY_PACKAGES[args.path]!, process.cwd())
+            path: Bun.resolveSync(BROWSER_ENTRY_PACKAGES[args.path]!, dirname(args.importer))
         }))
     }
+}
+
+/**
+ * Module specifiers the bundle `require`s that are not external.
+ *
+ * Anything bundled must be inlined; a leftover `require` of a Node builtin
+ * (the `worker_threads` probe a package's Node entry carries, for example)
+ * throws on mobile and stops the plugin loading. The redirect above handles
+ * the case we know about; this catches the next one.
+ */
+export function findUnexpectedRequires(code: string): string[] {
+    const found = new Set<string>()
+    for (const match of code.matchAll(/\brequire\(\s*["'`]([^"'`]+)["'`]\s*\)/g)) {
+        const specifier = match[1]!
+        if (!EXTERNAL_MODULES.includes(specifier)) found.add(specifier)
+    }
+    return [...found]
 }
 
 async function buildJs(): Promise<void> {
@@ -138,6 +157,12 @@ async function buildJs(): Promise<void> {
         throw: isProd
     })
     if (success) {
+        const unexpected = findUnexpectedRequires(await Bun.file(join(DIST, 'main.js')).text())
+        if (unexpected.length > 0) {
+            const message = `The bundle requires modules that are not external: ${unexpected.join(', ')}`
+            if (isProd) throw new Error(message)
+            console.error(message)
+        }
         console.log('JS build succeeded.')
     } else {
         console.error('JS build failed.')

@@ -71,7 +71,7 @@
         "@types/node": "24.10.1",
         "commitizen": "4.3.2",
         "conventional-changelog-cli": "5.0.0",
-        "conventional-changelog-conventionalcommits": "9.1.0",
+        "conventional-changelog-conventionalcommits": "10.4.1",
         "cz-customizable": "7.5.4",
         "eslint": "9.39.5",
         "eslint-config-prettier": "10.1.8",

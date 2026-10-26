@@ -89,7 +89,7 @@
         "@leeoniya/ufuzzy": "1.0.19",
         "date-fns": "4.4.0",
         "fflate": "0.8.3",
-        "immer": "11.1.21",
+        "immer": "11.2.9",
         "zod": "4.6.7"
     },
     "overrides": {
